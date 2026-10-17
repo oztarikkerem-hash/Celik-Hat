@@ -311,7 +311,14 @@ doğrudan başlatır).
   `splitM2` üçgen adalarının sınır kutusuna bakıp tüfeği sehpadan ayırır
   (mermi kutusu ve kuşak tüfekle döner). Model −X'e bakar, ayaklar y=-0.377.
   E ile geçilir; oyuncu sehpanın arkasına sabitlenir, kamera tüfeğin
-  gözüne bağlanır, ±39° yan, −11°…+14° dikey tarama. 140 hasar, 550/dk.
+  gözüne bağlanır, ±46° yan, −11°…+14° dikey tarama. 140 hasar, 550/dk.
+  Makineli pencereleri 2.8 m geniş, denizlik 0.7 m (sehpa hizası); tüfek
+  iç yüzden yalnızca 0.3 m içeride, namlu dışarı taşar. 1.5 m'lik normal
+  pencerede görüş ±17°'ydi.
+- **Saldıran yapay zekâsı** (`Enemy.update(..., raid)`): Baskın'da düşman
+  hep hedefe yaklaştıran siperi seçer, her mevzide 2.5–4 sn kalır, kısa
+  saklanır, 14 m'ye gelince siperi bırakıp hücum eder. Normal kural (7 sn
+  bekle) Baskın'da 50 m ötede çömelip kalmalarına yol açıyordu.
 - **Kapanış**: 4. dalga temizlenince 15 FSB askeri ~105 m güneydoğudan eve
   yürür; 14 sn sonra `#raidFinale`: "KAHRAMAN ASKER" (3.6 sn), ardından
   canvas'ta dalgalanan Türk bayrağı (resmî ölçülerle ay-yıldız yolu) ve

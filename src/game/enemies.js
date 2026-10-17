@@ -257,7 +257,8 @@ export class Enemy {
     return this.hp <= 0;
   }
 
-  update(dt, now, player, arena, onAttack, world = null) {
+  /** raid: Baskın'da saldıran taraf — siperden sipere hızla eve yüklenir. */
+  update(dt, now, player, arena, onAttack, world = null, raid = false) {
     const toPlayer = new THREE.Vector3(
       player.pos.x - this.pos.x, 0, player.pos.z - this.pos.z,
     );
@@ -272,11 +273,24 @@ export class Enemy {
       if (dist > 9 && dist < 60) {
         // Siperden sipere ilerleme: bir mevzide yeterince kaldıysa ve hâlâ
         // uzaksa, hedefe daha yakın bir siper seçer (sıçrayarak ilerleme)
-        const advance = this.inCover && now - (this.coverSince ?? now) > 7 && dist > 16;
-        const c = world.findCover(this.pos, player.pos, this, advance ? 16 : 20, advance);
+        // Baskında saldıranlar uzakta siper tutup beklemez: hep hedefe
+        // yaklaştıran siperi seçer, her mevzide yalnızca birkaç saniye kalır.
+        // Eskiden 50 m ötede çömelip kalıyorlardı (menzilleri 20–26 m, ateş
+        // bile edemiyorlardı); makineliden bakınca kaçıyor gibi görünüyordu.
+        const stay = raid ? 2.5 + Math.random() * 1.5 : 7;
+        const advance = raid
+          ? dist > 14 && (!this.inCover || now - (this.coverSince ?? now) > stay)
+          : this.inCover && now - (this.coverSince ?? now) > stay && dist > 16;
+        const keep = raid && this.cover && !advance;
+        const c = keep ? this.cover
+          : world.findCover(this.pos, player.pos, this, advance ? 16 : 20, advance);
         if (c !== this.cover) this.coverSince = now;
         this.cover = c;
       } else if (this.cover) {
+        this.cover.taken = null;
+        this.cover = null;
+      }
+      if (raid && dist <= 14 && this.cover) {          // dibine gelince hücum
         this.cover.taken = null;
         this.cover = null;
       }
@@ -288,7 +302,8 @@ export class Enemy {
     if (this.cover && this.inCover) {
       if (now > this.peekUntil) {
         this.peekPhase = !this.peekPhase;
-        this.peekUntil = now + (this.peekPhase ? 1.3 + Math.random() * 1.5 : 1.0 + Math.random() * 1.8);
+        const hide = raid ? 0.5 : 1;                     // baskında kısa saklanır
+        this.peekUntil = now + (this.peekPhase ? 1.3 + Math.random() * 1.5 : (1.0 + Math.random() * 1.8) * hide);
       }
     } else {
       this.peekPhase = true;
@@ -662,7 +677,7 @@ export class EnemyManager {
         if (mode === 'shoot') this._fireProjectile(enemy, hedef);
         else if (hedef === player) this.onPlayerHit?.(enemy.damage, 'body', enemy);
         else this.onAllyHit?.(hedef, enemy.damage, enemy);
-      }, this.world);
+      }, this.world, Boolean(this.raid));
       if (e.body) this.physics.moveKinematic(e.body, e.pos.x, e.pos.y + e.def.scale, e.pos.z);
     }
 

@@ -40,6 +40,9 @@ const T = 0.35;                // duvar kalınlığı
 const H = 3.3;                 // tavan
 const SILL = 1.0, TOP = 2.15;  // pencere alt/üst
 const WIN = 1.5;
+// Makineli pencereleri geniş ve alçak: denizlik sehpa hizasında, tüfek
+// pencereden dışarı taşar (dar pencerede görüş ±17°'ye düşüyordu)
+const MG_WIN = 2.8, MG_SILL = 0.7;
 const DOOR = 1.3, DOOR_TOP = 2.3;
 const YARD_X = 12.5, YARD_Z = 9.5, YARD_H = 1.15;   // bahçe duvarı
 
@@ -51,7 +54,7 @@ const MUZZLE = new THREE.Vector3(-1.0, 0.245, 0);
 const EYE = new THREE.Vector3(1.42, 0.45, 0);       // tutamakların gerisi, kapağın üstü
 const EJECT = new THREE.Vector3(0.35, 0.12, 0);     // kovan altta, gövdeden düşer
 const PLATFORM_H = 0.7;        // kum torbası sehpa
-const ARC = 0.68;              // ±39° yan tarama
+const ARC = 0.8;               // ±46° yan tarama
 const PITCH_MIN = -0.2, PITCH_MAX = 0.24;
 
 const tmp = new THREE.Vector3();
@@ -317,9 +320,10 @@ export class Raid {
           seg(a, b, DOOR_TOP, H);
           frame(o.at, o.w, 0, DOOR_TOP);
         } else {
-          seg(a, b, 0, SILL);
+          const sill = o.sill ?? SILL;
+          seg(a, b, 0, sill);
           seg(a, b, TOP, H);
-          frame(o.at, o.w, SILL, TOP);
+          frame(o.at, o.w, sill, TOP);
         }
         cur = b;
       }
@@ -328,8 +332,10 @@ export class Raid {
 
     const hx = W / 2, hz = D / 2;
     // Kuzey: üç pencere (ortadaki M2) — güney: iki pencere + kapı
-    wall('x', -hz, -hx - T / 2, hx + T / 2, [{ at: -5, w: WIN }, { at: 0, w: WIN }, { at: 5, w: WIN }]);
-    wall('x', hz, -hx - T / 2, hx + T / 2, [{ at: -5, w: WIN }, { at: 0, w: DOOR, door: true }, { at: 5, w: WIN }]);
+    wall('x', -hz, -hx - T / 2, hx + T / 2, [
+      { at: -5, w: WIN }, { at: 0, w: MG_WIN, sill: MG_SILL }, { at: 5, w: WIN }]);
+    wall('x', hz, -hx - T / 2, hx + T / 2, [
+      { at: -5, w: WIN }, { at: 0, w: DOOR, door: true }, { at: 5.2, w: MG_WIN, sill: MG_SILL }]);
     wall('z', hx, -hz + T / 2, hz - T / 2, [{ at: -2.5, w: WIN }, { at: 2.5, w: WIN }]);
     wall('z', -hx, -hz + T / 2, hz - T / 2, [{ at: -2.5, w: WIN }, { at: 2.5, w: WIN }]);
 
@@ -398,7 +404,7 @@ export class Raid {
 
     // ── M2'ler: kuzey orta pencere ve güneydoğu penceresi ───────────
     this._buildMG(0, -hz, 0);
-    this._buildMG(5, hz, Math.PI);
+    this._buildMG(5.2, hz, Math.PI);
 
     this.scene.add(group);
   }
@@ -445,8 +451,8 @@ export class Raid {
     const M = this._mats;
     const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
     const face = wz - Math.sign(wz) * T / 2;            // iç yüz
-    // Sehpa: iç yüzden 1.7 m içeri, 1.5 m genişlik
-    const depth = 1.7;
+    // Sehpa: iç yüzden 1.4 m içeri, 1.5 m genişlik
+    const depth = 1.4;
     const pc = new THREE.Vector3(wx, 0, face).addScaledVector(fwd, -depth / 2);
     const group = this.house;
 
@@ -472,8 +478,9 @@ export class Raid {
     ));
     this.bodies.push(this.physics.addStaticBox(center, { x: 1.5, y: PLATFORM_H, z: depth }));
 
-    // Tüfek: sehpa üstünde, namlusu pencereden dışarı
-    const origin = new THREE.Vector3(wx, 0, face).addScaledVector(fwd, -0.78);
+    // Tüfek: sehpanın ön ucunda, ön ayakları denizlikte; namlunun yarısı
+    // pencereden dışarı taşar, nişancının gözü pencereye yakın kalır
+    const origin = new THREE.Vector3(wx, 0, face).addScaledVector(fwd, -0.3);
     const mount = new THREE.Group();
     mount.position.copy(this._w(origin.x, origin.z, PLATFORM_H));
     mount.rotation.y = yaw;
