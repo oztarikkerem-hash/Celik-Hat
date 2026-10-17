@@ -14,7 +14,7 @@ export const MISSIONS = [
     // İlerlemeyi yalnızca Baskın'ın kendi dalgaları sayar.
     id: 'baskin', name: 'Baskın', target: 4, special: true,
     desc: 'Dört silah arkadaşınla evi tut: 20, 25, 30 ve 25 kişilik dört baskın. '
-      + 'Yanında seçtiğin iki silah ve pencerelerde iki M2 Browning.',
+      + 'Yanında seçtiğin iki silah, %80 koruyan yelekler ve pencerelerde iki M2 Browning.',
     on: (ev) => (ev.type === 'raid-wave' ? 1 : 0),
   },
   {

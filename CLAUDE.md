@@ -324,6 +324,10 @@ doğrudan başlatır).
   Makineli pencereleri 2.8 m geniş, denizlik 0.7 m (sehpa hizası); tüfek
   iç yüzden yalnızca 0.3 m içeride, namlu dışarı taşar. 1.5 m'lik normal
   pencerede görüş ±17°'ydi.
+- **Görev yeleği** (`RAID.vest` 0.8): Baskın'da oyuncu ve 4 müttefik gelen
+  hasarın %80'ini soğurur. Oyuncuda `shop.hasarAzalt(..., gorevYelegi)`
+  mağaza yeleğinden iyiyse onun yerine geçer (kask kafada ayrıca işler);
+  müttefikte `onAllyHit` hasarı 0.2 ile çarpar.
 - **Saldıran yapay zekâsı** (`Enemy.update(..., raid)`): Baskın'da düşman
   hep hedefe yaklaştıran siperi seçer, her mevzide 2.5–4 sn kalır, kısa
   saklanır, 14 m'ye gelince siperi bırakıp hücum eder. Normal kural (7 sn

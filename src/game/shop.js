@@ -200,10 +200,12 @@ export class Shop {
    * @param miktar  ham hasar
    * @param bolge   'head' | 'body' | 'leg'
    */
-  hasarAzalt(miktar, bolge = 'body') {
+  /** gorevYelegi: görevin verdiği yeleğin soğurma oranı (0–1); mağaza
+      yeleğinden iyiyse onun yerine geçer (Baskın: 0.8). */
+  hasarAzalt(miktar, bolge = 'body', gorevYelegi = 0) {
     const e = this.etkiler();
     const tur = miktar >= SNIPER_ESIK ? 'keskin' : 'seri';
-    let kalan = miktar * (1 - e.govde[tur]);
+    let kalan = miktar * (1 - Math.max(e.govde[tur], gorevYelegi));
     if (bolge === 'head') kalan *= (1 - e.kafa);
     return Math.max(1, kalan);
   }

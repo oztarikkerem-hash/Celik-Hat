@@ -24,6 +24,7 @@ export const RAID = {
   spawnMin: 45,
   spawnMax: 72,
   maxAlive: 16,
+  vest: 0.8,                   // görev yeleği: hasarın %80'ini soğurur (oyuncu + takım)
 };
 
 /** M2 Browning (.50 BMG): oyuncunun silah künyesiyle aynı alanlar. */

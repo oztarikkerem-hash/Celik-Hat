@@ -272,7 +272,7 @@ export class Game {
 
     this.enemies.allies = this.allies.allies;
     this.enemies.onAllyHit = (ally, damage) => {
-      const dusdu = ally.hurt(damage);
+      const dusdu = ally.hurt(this.raid.active ? damage * (1 - RAID.vest) : damage);
       if (dusdu) {
         ally.reviveAt = performance.now() / 1000 + 15;
         this.hud.feed('Müttefik yaralandı — 15 sn', true);
@@ -445,6 +445,7 @@ export class Game {
     this.input.requestLock();
     this.clock.getDelta();
     this.enemies.startWave(1);
+    if (raidIds) this.hud.feed('GÖREV YELEĞİ — sen ve takımın hasarın %80\'ini soğuruyor', true);
   }
 
   /* ── Baskın ────────────────────────────────────────────────────────── */
@@ -827,7 +828,8 @@ export class Game {
 
     // Teçhizat: yelek gövdeyi, kask kafayı azaltır. Ham hasar büyükse
     // "keskin nişancı", küçükse "seri atış" sayılır (shop.js).
-    let gelen = this.shop.hasarAzalt(damage, bolge);
+    // Baskın'da herkese hasarın %80'ini soğuran görev yeleği verilir
+    let gelen = this.shop.hasarAzalt(damage, bolge, this.raid.active ? RAID.vest : 0);
 
     // Keskin Nişancı Kaskı: turda bir kez ölümcül kafa isabetini karşılar
     if (bolge === 'head' && this.shop.etkiler().ilkIsabetiKarsila
