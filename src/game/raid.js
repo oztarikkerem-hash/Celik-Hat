@@ -1,8 +1,8 @@
 /* Baskın görevi.
 
    Oyuncu dört silah arkadaşıyla tek katlı bir evi tutar; ev dört dalga
-   halinde basılır (20 · 25 · 30 · 25). Yanında yalnızca seçtiği iki silah ve
-   ikisi arasında ORTAK 600 mermi vardır; evin iki penceresinde sehpaya
+   halinde basılır (20 · 25 · 30 · 25). Yanında yalnızca seçtiği iki silah
+   vardır (cephaneleri diğer görevlerdekiyle aynı); evin iki penceresinde sehpaya
    kurulu M2 Browning ağır makineli tüfekler (10.000'er mermi) bekler.
 
    Son dalga püskürtülünce ufukta yaklaşan yeni bir birlik görünür ve görev
@@ -18,7 +18,6 @@ import { plasterTexture, plankTexture, tileTexture } from './textures.js';
 
 export const RAID = {
   waves: [20, 25, 30, 25],
-  rounds: 600,                 // iki silah arasında ortak (şarjörler dâhil)
   mgRounds: 10000,
   center: new THREE.Vector3(-42, 0, -42),
   zoneR: 17,                   // bu yarıçapta sektör eşyası kurulmaz

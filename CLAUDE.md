@@ -301,9 +301,10 @@ doğrudan başlatır).
   düşman (kuyruk bekler). Son düşman düşünce `onWaveClear` çağrılır.
 - **Müttefikler**: 4 asker, her biri bir pencere mevziinde (`ally.post`);
   oradan ayrılmaz, yaralanınca orada toparlanır, menzil 80 m.
-- **Cephane**: `weaponry.setLoadout(ids, 600)` — yalnızca seçilen iki silah
-  kuşanılır, şarjörler dâhil 600 mermi ORTAK torbadan gelir
-  (`pool.left`), dalga arası ikmal yok. Bazuka roketleri torbaya sayılmaz.
+- **Cephane**: `weaponry.setLoadout(ids)` — yalnızca seçilen iki silah
+  kuşanılır; her biri diğer görevlerdeki cephanesiyle gelir (şarjör +
+  yedek, ör. MG 43: 100 + 400) ve dalga arası ikmal normal görevlerdeki
+  gibi yapılır. (Kullanıcı ortak 600 mermi istemedi — geri getirme.)
 - **M2 Browning** (`assets/weapons/m2.glb`, Ajay Kumar, CC BY 4.0): kaynak
   `~/Downloads/m2_browning_machine_gun.glb` (43 MB) `tools/shrink_glb.py`
   ile 2.9 MB'a indirildi (dokular 1024 JPEG, üçgen ×0.5). Model tek ağ;

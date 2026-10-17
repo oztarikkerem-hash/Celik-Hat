@@ -402,7 +402,7 @@ export class Game {
 
     this.player.reset();
     this.weaponry.resetAmmo();
-    this.weaponry.setLoadout(raidIds, RAID.rounds);
+    this.weaponry.setLoadout(raidIds);
     this.weaponry.equip(raidIds ? raidIds[0] : 'ak47');
     this.hud.buildWeaponStrip(
       this.weaponry.slots.filter((x) => this.weaponry.usable(x.def.id)),
@@ -1135,11 +1135,11 @@ export class Game {
       // Görev hedefi dalga sayısıysa burada biter — yeni dalga başlamaz.
       if (this._checkMissionEnd()) return;
 
-      this.weaponry.resupply(0.3);                 // Baskın'da ortak torba: etkisiz
-      this.grenades.resupply(this.raid.active ? 1 : 2);
+      this.weaponry.resupply(0.3);
+      this.grenades.resupply(2);
       this.player.heal(25);
       this.hud.setGrenades(this.grenades.count);
-      this.hud.feed(this.raid.active ? 'SOLUKLAN — sağlık ve bir bomba' : 'İKMAL — cephane, bomba ve sağlık', true);
+      this.hud.feed('İKMAL — cephane, bomba ve sağlık', true);
       this.enemies.startWave(this.enemies.wave + 1);
     }
 

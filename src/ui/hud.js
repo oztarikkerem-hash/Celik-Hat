@@ -504,7 +504,7 @@ export class Hud {
       card.setAttribute('aria-pressed', String(on));
       const rows = d.rocket
         ? [['Roket', `${d.mag} + ${d.reserve}`], ['Patlama hasarı', d.rocket.maxDamage]]
-        : [['Şarjör', d.mag], ['Hasar', d.damage], ['Atış hızı', `${d.rpm} /dk`]];
+        : [['Cephane', `${d.mag} + ${d.reserve}`], ['Hasar', d.damage], ['Atış hızı', `${d.rpm} /dk`]];
       card.innerHTML = `
         <header><h3>${d.name}</h3><span class="pick">${on ? 'SEÇİLDİ' : `YUVA ${d.slot}`}</span></header>
         <dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
@@ -512,6 +512,7 @@ export class Hud {
       grid.append(card);
     }
     $('raid-start-btn').disabled = selected.size !== 2;
+    $('raid-pick-count').textContent = `${selected.size} / 2`;
   }
 
   /**

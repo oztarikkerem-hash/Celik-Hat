@@ -13,7 +13,7 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
   ediyor, siperden sipere ilerliyor.
 - Görevler, müttefik askerler, mağaza (yelek ve kask).
 - **Baskın** (özel görev): dört silah arkadaşınla bir evi dört dalgaya karşı
-  tut (20 · 25 · 30 · 25). Yanında seçtiğin iki silah ve ortak 600 mermi;
+  tut (20 · 25 · 30 · 25). Yanında seçtiğin iki silah (normal cephaneleriyle);
   pencerelerde 10.000'er mermili iki M2 Browning.
 - **Bölümler:** tank oyunu (Death Star) — T-90 ya da M1 Abrams, müttefik ve
   düşman tanklar, yakıt, benzinlik ve market.

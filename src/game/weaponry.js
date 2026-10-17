@@ -118,9 +118,8 @@ export class Weaponry {
     this.rig.add(fillLight);
 
     this.slots = [];       // { def, holder, model, flash, muzzle, ammo, reserve }
-    // Baskın: yalnızca seçilen silahlar kuşanılır, mermi ortak torbadan gelir
+    // Baskın: yalnızca seçilen silahlar kuşanılır
     this.allowed = null;   // Set(id) | null
-    this.pool = null;      // { left } | null
     this.current = null;
     this.previousId = null;
 
@@ -405,10 +404,6 @@ export class Weaponry {
     const take = Math.min(cap - s.ammo, s.reserve);
     s.ammo += take;
     s.reserve -= take;
-    if (this._pooled(s)) {
-      this.pool.left = Math.max(0, this.pool.left - take);
-      this._syncPool();
-    }
     this.reloading = false;
     this.onEvent?.('reload-end', s);
   }
@@ -767,40 +762,17 @@ export class Weaponry {
     this.action = null;
   }
 
-  /** Roketler mermi sayılmaz: bazuka kendi 7 roketiyle gelir. */
-  _pooled(s) {
-    return Boolean(this.pool) && !s.def.rocket && this.usable(s.def.id);
-  }
-
-  _syncPool() {
-    for (const s of this.slots) if (this._pooled(s)) s.reserve = this.pool.left;
-  }
-
   /**
-   * Baskın donanımı: yalnızca `ids` kullanılabilir; şarjörler dâhil toplam
-   * `rounds` mermi iki silah arasında ORTAK torbadan paylaşılır.
-   * `null` ile normal oyuna dönülür.
+   * Baskın donanımı: yalnızca `ids` kuşanılabilir. Cephane her silahın
+   * normal görevlerdeki miktarıdır (şarjör + yedek). `null` = bütün silahlar.
    */
-  setLoadout(ids, rounds = 600) {
+  setLoadout(ids) {
     this.resetAmmo();
-    if (!ids) {
-      this.allowed = null;
-      this.pool = null;
-      return;
-    }
-    this.allowed = new Set(ids);
-    this.pool = { left: rounds };
-    for (const s of this.slots) {
-      if (!this._pooled(s)) continue;
-      s.ammo = Math.min(s.def.mag, this.pool.left);
-      this.pool.left -= s.ammo;
-    }
-    this._syncPool();
+    this.allowed = ids ? new Set(ids) : null;
   }
 
   /** Dalga sonu ikmali. */
   resupply(fraction = 0.35) {
-    if (this.pool) return;                 // Baskın'da ikmal yok
     for (const s of this.slots) {
       s.reserve = Math.min(s.def.reserve, s.reserve + Math.ceil(s.def.reserve * fraction));
     }
