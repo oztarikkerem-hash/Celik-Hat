@@ -510,6 +510,7 @@ export class EnemyManager {
     this.onKill = null;        // (enemy, part) => void
     this.onWaveStart = null;   // (wave, total) => void
     this.onWaveClear = null;   // (wave, now) => void — son düşman düştüğü an
+    this.onBlocked = null;     // (mesh, damage, point) => void — cama isabet
     this.onPlayerHit = null;   // (damage, bolge, enemy) => void
     this.onAllyHit = null;     // (ally, damage, enemy) => void
     this.allies = [];          // müttefik listesi (hedef seçimi için)
@@ -628,6 +629,11 @@ export class EnemyManager {
     this._ray.far = dist;
     const blocked = this._ray.intersectObjects(this.arena.solids, false)[0];
     if (blocked) {
+      // Kurşun geçirmez cam gibi hasar alan engeller
+      if (blocked.object.userData?.glass) {
+        this.onBlocked?.(blocked.object, enemy.def.shootDamage ?? enemy.damage, blocked.point);
+        return;
+      }
       this.effects.sparks(blocked.point, new THREE.Vector3(0, 1, 0), 0xffc06a, 6);
       return;
     }

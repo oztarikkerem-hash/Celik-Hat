@@ -247,6 +247,7 @@ export class Game {
       if (code === 'KeyM') this._toggleSound();
       if (code === 'KeyX') this._setBinocular(!this.binoc);
       if (code === 'KeyE') this._toggleMount();
+      if (code === 'KeyF') this._toggleGlass();
       // M2'deyken elde silah yok: değiştirme, doldurma ve bomba kapalı
       if (this.raid.mounted) return;
       if (code === 'KeyR') this.weaponry.startReload();
@@ -289,6 +290,7 @@ export class Game {
       }
     };
     this.enemies.onWaveClear = (wave, now) => this._onWaveClear(wave, now);
+    this.enemies.onBlocked = (mesh, dmg, point) => this.raid.hitGlass(mesh, dmg, point);
 
     this.grenades.onExplode = (ev) => this._onExplosion(ev);
 
@@ -471,6 +473,15 @@ export class Game {
     this.player.eye = 1.66;
     this.hud.setActiveWeapon(M2_DEF);
     this.audio.swap();
+  }
+
+  /** F: yanındaki pencerenin (M2'deyken onun penceresinin) camını aç/kapat. */
+  _toggleGlass() {
+    if (!this.raid.active) return;
+    const g = this.raid.mounted?.glass ?? this.raid.nearbyGlass(this.player.pos);
+    if (!g || g.broken) return;
+    g.override = performance.now() / 1000 + 10;
+    this.raid.setGlass(g, !g.open);
   }
 
   /** Son düşman düştüğü an: Baskın'da duyuru, son dalgada kapanış. */
@@ -694,6 +705,7 @@ export class Game {
     if (object) this.world.hitProp(object, new THREE.Vector3(0, 1, 0), center, 30);
     const d = this.player.eyePosition.distanceTo(center);
     this.player.shake(Math.max(0.3, 1.6 - d / 10));
+    if (this.raid.active) this.raid.blast(center, radius, maxDamage);
     const killed = this.enemies.damageArea(center, radius, maxDamage, now, { rocket: true, weaponId: 'bazuka' });
     if (killed.length) this.shotsHit++;
     if (d < radius) {
@@ -760,6 +772,9 @@ export class Game {
         enemy._killedBy = { weaponId: weapon.id, headshot: head };
         this.enemies.kill(enemy, performance.now() / 1000, dir);
       }
+    } else if (data?.glass) {
+      // Kurşun geçirmez cam: mermiyi durdurur, hasar alır
+      this.raid.hitGlass(hit.object, weapon.damage, hit.point);
     } else {
       const n = hit.face
         ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld)
@@ -785,6 +800,7 @@ export class Game {
     this.player.shake(1);
 
     this.enemies.damageArea(center, radius, maxDamage, now, { grenade: true });
+    if (this.raid.active) this.raid.blast(center, radius, maxDamage);
 
     // Oyuncu da kendi bombasından etkilenir.
     const d = this.player.eyePosition.distanceTo(center);
@@ -1179,9 +1195,14 @@ export class Game {
 
     // Etkileşim ipucu: M2'nin arkasına gelince / üstündeyken
     let hint = null;
-    if (mg) hint = ['E', 'M2\'yi bırak · sol tık ateş · X dürbün'];
-    else if (this.raid.active && !this.raid.finale && this.raid.nearbyMG(this.player.pos)) {
+    const camYazi = (g) => (g.open ? 'camı kapat' : 'camı aç') + ` (%${Math.ceil(g.hp / RAID.glassHp * 100)})`;
+    if (mg) {
+      hint = ['E', `M2'yi bırak · F ${mg.glass && !mg.glass.broken ? camYazi(mg.glass) : 'cam kırık'} · X dürbün`];
+    } else if (this.raid.active && !this.raid.finale && this.raid.nearbyMG(this.player.pos)) {
       hint = ['E', 'M2 Browning — 10.000 mermi'];
+    } else if (this.raid.active) {
+      const g = this.raid.nearbyGlass(this.player.pos);
+      if (g) hint = ['F', `Kurşun geçirmez ${camYazi(g)}`];
     }
     this.hud.setHint(hint);
     this.hud.setHealth(this.player.health, this.player.maxHealth);

@@ -121,6 +121,7 @@ export class AllyManager {
 
   /** Müttefiklerin ateş edebileceği hedefleri döndürür. */
   _pickTarget(ally, enemies) {
+    if (ally.post) return this._pickFromPost(ally, enemies);
     let best = null;
     let bestD = this.engageRange;
     for (const e of enemies) {
@@ -129,6 +130,39 @@ export class AllyManager {
       if (d < bestD) { bestD = d; best = e; }
     }
     return best;
+  }
+
+  /**
+   * Pencere başındaki asker: yalnızca penceresinin baktığı yöndeki (±75°)
+   * ve arada duvar olmayan düşmanı seçer. Eskiden en yakın düşmanı seçip
+   * evin öbür yanına, duvarın içinden ateş ediyordu. Cam engel sayılmaz
+   * (asker ateş ederken camını açar).
+   */
+  _pickFromPost(ally, enemies) {
+    const f = ally.post.facing;
+    const fx = -Math.sin(f), fz = -Math.cos(f);
+    const eye = new THREE.Vector3(ally.pos.x, ally.pos.y + 1.45, ally.pos.z);
+    const list = [];
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const dx = e.pos.x - ally.pos.x, dz = e.pos.z - ally.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > this.engageRange || d < 0.5) continue;
+      if ((dx * fx + dz * fz) / d < 0.26) continue;        // pencerenin dışında
+      list.push({ e, d });
+    }
+    list.sort((a, b) => a.d - b.d);
+    for (const { e } of list.slice(0, 4)) {
+      const to = e.center;
+      const dir = to.clone().sub(eye);
+      const dist = dir.length();
+      this.raycaster.set(eye, dir.normalize());
+      this.raycaster.far = dist;
+      const hits = this.raycaster.intersectObjects(this.world.solids, false);
+      this.raycaster.far = 80;
+      if (!hits.some((h) => !h.object.userData?.glass)) return e;
+    }
+    return null;
   }
 
   _fire(ally, enemy, now) {
@@ -267,6 +301,10 @@ export class AllyManager {
       // koşmuyorsa ateş eder (eskiden mevziye varamayınca hiç ateş etmiyordu).
       const canFire = ally.vel.length() < 5.5;
       if (ally.target && now > ally.reloadUntil && canFire) {
+        // Şarjör taramanın ortasında biterse tarama bırakılır; yoksa asker
+        // "tarama sürüyor" durumunda takılıp bir daha hiç doldurmuyordu
+        // (ilk 30 mermiden sonra müttefikler susuyordu).
+        if (ally.burstLeft > 0 && ally.ammo <= 0) ally.burstLeft = 0;
         if (ally.burstLeft > 0) {
           if (now >= ally.nextShot && ally.ammo > 0) {
             ally.burstLeft--;

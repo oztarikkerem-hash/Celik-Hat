@@ -253,6 +253,29 @@ export class AudioEngine {
     this._noise({ dur: 0.08, gain: 0.14, freq: 1800, q: 1.1 });
   }
 
+  /** Kurşun geçirmez camda isabet: kuru, tiz bir çatırtı. */
+  glassHit() {
+    if (!this.ctx) return;
+    this._noise({ dur: 0.06, gain: 0.16, freq: 4200, q: 2.2 });
+    this._tone({ f0: 3100, f1: 2300, dur: 0.07, gain: 0.04, type: 'sine' });
+  }
+
+  /** Cam kırıldı: yüksek frekanslı patlama + dökülen kırıntılar. */
+  glassBreak() {
+    if (!this.ctx) return;
+    this._noise({ dur: 0.4, gain: 0.42, freq: 4800, q: 0.7, type: 'highpass' });
+    for (let i = 0; i < 7; i++) {
+      const f = 2200 + Math.random() * 3600;
+      this._tone({ f0: f, f1: f * 0.8, dur: 0.1, gain: 0.05, type: 'sine', at: 0.05 + i * 0.045 });
+    }
+  }
+
+  /** Cam kanadı kayarken. */
+  glassSlide() {
+    if (!this.ctx) return;
+    this._noise({ dur: 0.35, gain: 0.06, freq: 900, q: 0.6, type: 'lowpass' });
+  }
+
   swap() {
     if (!this.ctx) return;
     this._noise({ dur: 0.08, gain: 0.18, freq: 2600, q: 1.4 });

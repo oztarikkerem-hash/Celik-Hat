@@ -42,6 +42,7 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | G | El bombası |
 | X | Dürbün |
 | E | M2 makineliye geç / bırak (Baskın) |
+| F | Pencere camını aç / kapat (Baskın) |
 | M | Sesi aç / kapat |
 
 Tank bölümünde: W/S sür, A/D dön, E (basılı) tepe makinelisi ya da

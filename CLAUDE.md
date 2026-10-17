@@ -328,6 +328,20 @@ doğrudan başlatır).
   hasarın %80'ini soğurur. Oyuncuda `shop.hasarAzalt(..., gorevYelegi)`
   mağaza yeleğinden iyiyse onun yerine geçer (kask kafada ayrıca işler);
   müttefikte `onAllyHit` hasarı 0.2 ile çarpar.
+- **Kurşun geçirmez cam** (`_addGlass`): her pencerede (kapı hariç) kayar
+  kanat; F ile açılır/kapanır, duvarın içine kayar (yanındaki uzun duvar
+  parçasına doğru). Kapalı cam ayrı bir fixture'da (`glassFixture`) mermi
+  durdurur + fizik kutusu el bombasını sektirir. Düşman ateşi
+  `enemies.onBlocked`, oyuncu ateşi `_resolveShot`, patlamalar `raid.blast`
+  ile hasar verir; 450 can, çatlak katmanı hasarla belirginleşir, bitince
+  kırılır (kalıcı açık). Pencere başındaki asker hedefi varken camını açar,
+  3 sn sessizlikte kapatır; oyuncu elle dokunduysa 10 sn karışmaz.
+  M2'ye geçince o pencerenin camı açılır.
+- **Müttefik ateşi**: tarama ortasında şarjör biterse tarama bırakılır.
+  Eskiden `burstLeft > 0 && ammo == 0` durumunda asker sonsuza dek takılıyor,
+  ilk 30 mermiden sonra hiç ateş etmiyordu (bütün görevlerde). Mevzideki
+  asker yalnızca penceresinin baktığı ±75°'deki, arada duvar olmayan
+  düşmanı seçer (`_pickFromPost`).
 - **Saldıran yapay zekâsı** (`Enemy.update(..., raid)`): Baskın'da düşman
   hep hedefe yaklaştıran siperi seçer, her mevzide 2.5–4 sn kalır, kısa
   saklanır, 14 m'ye gelince siperi bırakıp hücum eder. Normal kural (7 sn

@@ -24,6 +24,7 @@ export const RAID = {
   spawnMin: 45,
   spawnMax: 72,
   maxAlive: 16,
+  glassHp: 450,                // kurşun geçirmez cam: ~40 düşman mermisi, 4 M2 mermisi
   vest: 0.8,                   // görev yeleği: hasarın %80'ini soğurur (oyuncu + takım)
 };
 
@@ -172,6 +173,10 @@ export class Raid {
     this.posts = [];
     this.march = [];         // kapanıştaki yürüyen birlik
     this.finaleStart = 0;
+    this.glass = [];         // pencere camları
+    // Kapalı camlar mermi durdurur: ayrı bir dünya yapısı olarak tutulur ki
+    // açılıp kapandıkça yalnızca bu liste değişsin
+    this.glassFixture = null;
   }
 
   /* ── Yükleme ──────────────────────────────────────────────────────── */
@@ -196,6 +201,8 @@ export class Raid {
     this.world.setClearZone({ x: RAID.center.x, z: RAID.center.z, r: RAID.zoneR });
     this._buildHouse();
     this.world.addFixture(this.fixture);
+    this.world.addFixture(this.glassFixture);
+    this._syncGlass();
   }
 
   teardown() {
@@ -206,8 +213,12 @@ export class Raid {
     if (this.house) this.scene.remove(this.house);
     for (const b of this.bodies) this.physics.remove(b);
     this.bodies = [];
+    for (const g of this.glass) if (g.body) this.physics.remove(g.body);
+    this.glass = [];
     if (this.fixture) this.world.removeFixture(this.fixture);
+    if (this.glassFixture) this.world.removeFixture(this.glassFixture);
     this.fixture = null;
+    this.glassFixture = null;
     this.house = null;
     this.mgs = [];
     this.world.setClearZone(null);
@@ -228,8 +239,10 @@ export class Raid {
     const fixture = { colliders: [], solids: [], cover: [] };
     this.house = group;
     this.fixture = fixture;
+    this.glassFixture = { colliders: [], solids: [], cover: [] };
     this.bodies = [];
     this.mgs = [];
+    this.glass = [];
 
     const plaster = plasterTexture();
     const M = {
@@ -314,7 +327,16 @@ export class Raid {
       };
 
       let cur = from;
-      for (const o of [...openings].sort((p, q) => p.at - q.at)) {
+      const sorted = [...openings].sort((p, q) => p.at - q.at);
+      sorted.forEach((o, k) => {
+        if (o.door) return;
+        // Cam kanadı, yanındaki duvar parçası hangi tarafta yeterince
+        // uzunsa o tarafa, duvarın içine kayarak açılır
+        const next = k + 1 < sorted.length ? sorted[k + 1].at - sorted[k + 1].w / 2 : to;
+        const dir = next - (o.at + o.w / 2) >= o.w ? 1 : -1;
+        this._addGlass(along, fixed, o.at, o.w, o.sill ?? SILL, TOP, dir);
+      });
+      for (const o of sorted) {
         const a = o.at - o.w / 2, b = o.at + o.w / 2;
         seg(cur, a, 0, H);
         if (o.door) {
@@ -406,6 +428,18 @@ export class Raid {
     // ── M2'ler: kuzey orta pencere ve güneydoğu penceresi ───────────
     this._buildMG(0, -hz, 0);
     this._buildMG(5.2, hz, Math.PI);
+
+    // Her mevzi ve makineli kendi penceresinin camını bilir
+    const nearestGlass = (p) => {
+      let best = null, bd = Infinity;
+      for (const g of this.glass) {
+        const d = Math.hypot(g.center.x - p.x, g.center.z - p.z);
+        if (d < bd) { bd = d; best = g; }
+      }
+      return best;
+    };
+    for (const p of this.posts) p.glass = nearestGlass(p.pos);
+    for (const m of this.mgs) m.glass = nearestGlass(m.seat);
 
     this.scene.add(group);
   }
@@ -544,6 +578,155 @@ export class Raid {
     });
   }
 
+  /* ── Kurşun geçirmez cam ──────────────────────────────────────────── */
+
+  /** Pencere açıklığına cam kanadı (along: 'x' | 'z', dir: açılış yönü). */
+  _addGlass(along, fixed, at, w, y0, y1, dir) {
+    const h = y1 - y0;
+    const alongX = along === 'x';
+    const pane = new THREE.Mesh(
+      new THREE.BoxGeometry(alongX ? w : 0.05, h, alongX ? 0.05 : w),
+      new THREE.MeshStandardMaterial({
+        color: 0xa9d4e0, roughness: 0.04, metalness: 0.25,
+        transparent: true, opacity: 0.26, depthWrite: false,
+      }),
+    );
+    const center = alongX ? this._w(at, fixed, (y0 + y1) / 2) : this._w(fixed, at, (y0 + y1) / 2);
+    pane.position.copy(center);
+    pane.renderOrder = 2;
+
+    // Çatlak katmanı: hasar arttıkça belirginleşir
+    const crack = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({
+        map: crackTexture(), transparent: true, opacity: 0, depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    if (!alongX) crack.rotation.y = Math.PI / 2;
+    crack.renderOrder = 3;
+    pane.add(crack);
+    this.house.add(pane);
+
+    const g = {
+      pane, crack, center, w, h, alongX, dir,
+      hp: RAID.glassHp, open: false, t: 0, broken: false, body: null, blocking: false,
+      lastUse: 0,
+    };
+    pane.userData = { glass: g };
+    this.glass.push(g);
+    return g;
+  }
+
+  /** Kapalı (ve sağlam) camlar mermi ve el bombası durdurur. */
+  _syncGlass() {
+    if (!this.glassFixture) return;
+    let changed = false;
+    for (const g of this.glass) {
+      const block = !g.broken && g.t < 0.5;
+      if (block === g.blocking) continue;
+      g.blocking = block;
+      changed = true;
+      if (block) {
+        g.body = this.physics.addStaticBox(g.center, {
+          x: g.alongX ? g.w : 0.06, y: g.h, z: g.alongX ? 0.06 : g.w,
+        });
+      } else if (g.body) {
+        this.physics.remove(g.body);
+        g.body = null;
+      }
+    }
+    if (!changed) return;
+    this.glassFixture.solids = this.glass.filter((g) => g.blocking).map((g) => g.pane);
+    this.world._dirty = true;
+  }
+
+  setGlass(g, open) {
+    if (!g || g.broken || g.open === open) return;
+    g.open = open;
+    this.game.audio.glassSlide();
+  }
+
+  /** Oyuncunun yanındaki cam (F ile açılır/kapanır). */
+  nearbyGlass(pos) {
+    let best = null, bd = 2.3;
+    for (const g of this.glass) {
+      if (g.broken) continue;
+      const d = Math.hypot(g.center.x - pos.x, g.center.z - pos.z);
+      if (d < bd) { bd = d; best = g; }
+    }
+    return best;
+  }
+
+  /** Mermi isabeti: hasar, çatlak; can biterse cam kırılır. */
+  hitGlass(mesh, damage, point) {
+    const g = mesh?.userData?.glass;
+    if (!g || g.broken) return false;
+    g.hp -= damage;
+    const fx = this.game.effects;
+    const n = new THREE.Vector3(g.alongX ? 0 : 1, 0, g.alongX ? 1 : 0);
+    fx.sparks(point, n, 0xe6f6ff, 4);
+    if (g.hp <= 0) {
+      this._breakGlass(g);
+    } else {
+      g.crack.material.opacity = Math.min(0.95, (1 - g.hp / RAID.glassHp) * 1.15);
+      this.game.audio.glassHit();
+    }
+    return true;
+  }
+
+  /** Patlama camları da zorlar (el bombası, roket). */
+  blast(center, radius, maxDamage) {
+    for (const g of this.glass) {
+      if (g.broken) continue;
+      const d = g.center.distanceTo(center);
+      if (d >= radius) continue;
+      const k = 1 - d / radius;
+      this.hitGlass(g.pane, maxDamage * k * 1.5, g.center.clone());
+    }
+  }
+
+  _breakGlass(g) {
+    g.broken = true;
+    g.hp = 0;
+    g.pane.visible = false;
+    const fx = this.game.effects;
+    // Kırıntılar: pencere boyunca dağılan parlak parçacıklar
+    for (let i = 0; i < 6; i++) {
+      const p = g.center.clone();
+      const o = (Math.random() - 0.5) * g.w;
+      if (g.alongX) p.x += o; else p.z += o;
+      p.y += (Math.random() - 0.5) * g.h;
+      fx.hitBurst(p, 0xdff4ff, 8);
+    }
+    this.game.audio.glassBreak();
+    this._syncGlass();
+    this.game.hud.feed('KURŞUN GEÇİRMEZ CAM KIRILDI', true);
+  }
+
+  /** Cam kanatlarının kayması; askerler ateş ederken camlarını açar. */
+  _updateGlass(dt, now) {
+    // Pencere başındaki asker: hedefi varken açık, 3 sn sessizlikte kapatır
+    for (const a of this.game.allies.allies) {
+      const g = a.post?.glass;
+      if (!g || g.broken) continue;
+      if (a.target && a.alive) g.lastUse = now;
+      const want = now - g.lastUse < 3;
+      // Oyuncu camı elle açıp kapattıysa asker 10 sn ona dokunmaz
+      if (want !== g.open && now > (g.override ?? 0)) this.setGlass(g, want);
+    }
+    for (const g of this.glass) {
+      if (g.broken) continue;
+      const target = g.open ? 1 : 0;
+      if (g.t === target) continue;
+      g.t = THREE.MathUtils.clamp(g.t + Math.sign(target - g.t) * dt / 0.45, 0, 1);
+      const off = g.w * 0.98 * g.t * g.dir;
+      g.pane.position.copy(g.center);
+      if (g.alongX) g.pane.position.x += off; else g.pane.position.z += off;
+    }
+    this._syncGlass();
+  }
+
   /* ── Makineli tüfek ───────────────────────────────────────────────── */
 
   /** Oyuncunun yanında duran (kullanılabilir) M2. */
@@ -558,6 +741,7 @@ export class Raid {
 
   mount(g, player) {
     this.mounted = g;
+    this.setGlass(g.glass, true);              // nişancı camı açar
     player.pos.copy(g.seat);
     player.vel.set(0, 0, 0);
     player.yaw = g.baseYaw + g.yaw;
@@ -631,6 +815,7 @@ export class Raid {
 
   /** Alev/ısı sönümü (bağlı olmasa da). */
   update(dt, now) {
+    this._updateGlass(dt, now);
     for (const g of this.mgs) {
       if (g.flash.visible && now > g.flashUntil) {
         g.flash.visible = false;
@@ -702,6 +887,56 @@ function boxFloor(w, d) {
   const uv = g.attributes.uv;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 3, uv.getY(i) * d / 3);
   return g;
+}
+
+let _crackTex = null;
+/** Kurşun geçirmez camın örümcek ağı çatlakları (saydam zemin). */
+function crackTexture() {
+  if (_crackTex) return _crackTex;
+  const S = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.strokeStyle = 'rgba(235,248,255,0.85)';
+  g.lineCap = 'round';
+  for (let k = 0; k < 7; k++) {
+    const cx = 60 + Math.random() * (S - 120), cy = 60 + Math.random() * (S - 120);
+    const rays = 9 + (Math.random() * 6 | 0);
+    // Işınsal çatlaklar
+    g.lineWidth = 1.6;
+    for (let i = 0; i < rays; i++) {
+      const a = (i / rays) * Math.PI * 2 + Math.random() * 0.3;
+      let x = cx, y = cy;
+      g.beginPath();
+      g.moveTo(x, y);
+      const len = 40 + Math.random() * 110;
+      for (let d = 0; d < len; d += 12) {
+        x += Math.cos(a) * 12 + (Math.random() - 0.5) * 5;
+        y += Math.sin(a) * 12 + (Math.random() - 0.5) * 5;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    // Halkalar
+    g.lineWidth = 1;
+    for (let r = 14; r < 70; r += 16 + Math.random() * 10) {
+      g.beginPath();
+      for (let i = 0; i <= rays; i++) {
+        const a = (i / rays) * Math.PI * 2;
+        const rr = r * (0.8 + Math.random() * 0.4);
+        g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+      }
+      g.stroke();
+    }
+    // Merminin ezdiği beyaz göbek
+    g.fillStyle = 'rgba(240,250,255,0.9)';
+    g.beginPath();
+    g.arc(cx, cy, 4, 0, Math.PI * 2);
+    g.fill();
+  }
+  _crackTex = new THREE.CanvasTexture(c);
+  _crackTex.colorSpace = THREE.SRGBColorSpace;
+  return _crackTex;
 }
 
 let _flashTex = null;
