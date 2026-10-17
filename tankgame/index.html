@@ -503,8 +503,15 @@ const protos={};                       // kind → THREE.Object3D (şablon)
    Burada hepsi "+X ileri, gunAxis" sözleşmesine çevriliyor.            */
 const RIG={
  tank  :{gunAxis:'z',gunSign:1,muzzleLocal:new THREE.Vector3(5.98,0,0),dirLocal:new THREE.Vector3(1,0,0),yawFix:0},
- abrams:{gunAxis:'x',gunSign:1,muzzleLocal:null,dirLocal:new THREE.Vector3(0,0,-1),yawFix:-Math.PI/2},
+ // Abrams modelinde namlu +Z'ye bakıyor (Gun z=1.9, Muzzle z=4.59). Eskiden -Z
+ // sanılıyordu: tank 180° ters kuruluyor, geri geri gidiyor, namlu sürücüye bakıyordu.
+ abrams:{gunAxis:'x',gunSign:-1,muzzleLocal:null,dirLocal:new THREE.Vector3(0,0,1),yawFix:Math.PI/2},
 };
+/** Kule uzayında namlunun yatay açısı (tank: 0, Abrams: -π/2). Kule
+    nişanı bu açı kadar düzeltilir; formül +X ileri varsayıyordu. */
+function namluAcisi(kind){const f=RIG[kind].dirLocal;return Math.atan2(-f.z,f.x);}
+/** Geri tepme: namlu ekseni boyunca geri. */
+function geriTep(o,kind,miktar){o.gun.position.copy(o.gunBase).addScaledVector(RIG[kind].dirLocal,-miktar);}
 
 function parcalar(root,kind){
  if(kind==='tank')return{hull:root.getObjectByName('Tank_Hull'),turret:root.getObjectByName('Tank_Turret'),gun:root.getObjectByName('Tank_Gun')};
@@ -523,7 +530,7 @@ function boyaTank(root,kind,pal){
 
 function kurOyuncuTanki(kind){
  const root=protos[kind].clone(true);
- boyaTank(root,kind,null);
+ boyaTank(root,kind,kind==='abrams'?{tint:0x7f8a58}:null);
  const sarma=new THREE.Group();sarma.rotation.y=RIG[kind].yawFix;sarma.add(root);
  tank.root=new THREE.Group();scene.add(tank.root);tank.root.add(sarma);
  tank.kind=kind;tank.inner=root;
@@ -1123,7 +1130,7 @@ function updateUnits(dt,now){
   u.root.rotateZ(Math.atan2(hf-hb,6));
   u.root.rotateX(Math.atan2(hl-hr,3.2));
   u.reload=Math.max(0,u.reload-dt);
-  if(u.recoil){u.recoil*=Math.exp(-dt*6);u.gun.position.copy(u.gunBase).add(new THREE.Vector3(-u.recoil,0,0));}
+  if(u.recoil){u.recoil*=Math.exp(-dt*6);geriTep(u,u.kind,u.recoil);}
  }}
 
 // ---------------- saha haritası
@@ -1205,12 +1212,13 @@ function update(dt){
  const tp=new THREE.Vector3();tank.turret.getWorldPosition(tp);
  const local=tank.hull.worldToLocal(ap.clone());const tpl=tank.hull.worldToLocal(tp.clone());
  const dx=local.x-tpl.x,dz=local.z-tpl.z,dy=local.y-(tpl.y+0.5);
- const wantYaw=Math.atan2(-dz,dx);const traverse=0.75*dt;
+ const wantYaw=Math.atan2(-dz,dx)-namluAcisi(tank.kind);const traverse=0.75*dt;
  const dyaw=angDiff(wantYaw,tank.turretYaw);tank.turretYaw+=Math.max(-traverse,Math.min(traverse,dyaw));
  tank.turret.rotation.y=tank.turretYaw;
  const wantPitch=Math.max(-0.14,Math.min(0.35,Math.atan2(dy,Math.hypot(dx,dz))));const ep=0.35*dt;
- tank.gunPitch+=Math.max(-ep,Math.min(ep,wantPitch-tank.gunPitch));tank.gun.rotation.z=tank.gunPitch;
- tank.recoil*=Math.exp(-dt*6);tank.gun.position.copy(tank.gunBase).add(new THREE.Vector3(-tank.recoil,0,0));
+ tank.gunPitch+=Math.max(-ep,Math.min(ep,wantPitch-tank.gunPitch));
+ tank.gun.rotation[RIG[tank.kind].gunAxis]=tank.gunPitch*RIG[tank.kind].gunSign;
+ tank.recoil*=Math.exp(-dt*6);geriTep(tank,tank.kind,tank.recoil);
  // fire
  tank.reload=Math.max(0,tank.reload-dt);
  if(firing&&started&&mode==='tank'&&!oyunBitti)fire();
@@ -1295,7 +1303,7 @@ function updateCamera(dt){
 
  const tp=new THREE.Vector3(tank.x,tank.y+3.2,tank.z);
  if(zoom){ // gunner sight
-  const sight=new THREE.Vector3(0.95,1.08,0.62);tank.turret.localToWorld(sight);
+  const sight=tank.kind==='abrams'?new THREE.Vector3(-0.62,1.08,0.95):new THREE.Vector3(0.95,1.08,0.62);tank.turret.localToWorld(sight);
   camera.position.copy(sight);camera.fov+= (12-camera.fov)*Math.min(1,dt*10);
   const look=new THREE.Vector3(Math.cos(camPitch)*Math.cos(camYaw),Math.sin(camPitch),-Math.cos(camPitch)*Math.sin(camYaw));camera.lookAt(sight.clone().add(look));
  }else{
@@ -1325,7 +1333,7 @@ function updateHud(){
  // compass: hull relative to camera, turret relative to hull
  const rel=angDiff(tank.yaw,camYaw);$('cHull').setAttribute('transform',`rotate(${-rel*180/Math.PI})`);$('cTur').setAttribute('transform',`rotate(${-(rel+tank.turretYaw)*180/Math.PI})`);
  // where the gun actually points
- const g=new THREE.Vector3(80,0,0);tank.gun.localToWorld(g);g.project(camera);const gm=$('gunmark');
+ const g=RIG[tank.kind].dirLocal.clone().multiplyScalar(80);tank.gun.localToWorld(g);g.project(camera);const gm=$('gunmark');
  gm.style.left=((g.x+1)/2*innerWidth)+'px';gm.style.top=((1-g.y)/2*innerHeight)+'px';gm.style.display=g.z<1?'block':'none';
  const durbun=zoom&&(mode==='tank'||(mode==='foot'&&elde==='svd'));
  $('scope').classList.toggle('on',durbun);

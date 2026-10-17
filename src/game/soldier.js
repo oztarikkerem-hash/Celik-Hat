@@ -42,7 +42,14 @@ const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _bodyQ = new THREE.Quaternion();
-const PLANTED = new WeakMap();   // klip → iki ayağın da yerde olduğu an (sn)
+const PLANTED = new WeakMap();   // klip → { t: ayakların yerde olduğu an, yaw: gövde sapması }
+
+/** Açıyı (-π, π] aralığına getirir. */
+function wrapAngle(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a <= -Math.PI) a += Math.PI * 2;
+  return a;
+}
 
 /** Kemiği, çocuğunun yönü hedef DÜNYA yönüne bakacak şekilde döndürür. */
 function aimBoneWorld(bone, child, targetWorldDir, weight = 1) {
@@ -328,10 +335,17 @@ export class Soldier {
     const crouch = this.actions.crouch;
     if (ad === 'crouch' && crouch) {
       crouch.paused = true;
-      crouch.time = this._crouchDurus;
+      crouch.time = this._crouchDurus.t;
     }
 
     this.mixer.update(dt);
+
+    // Çömelme klibinin çapraz gövdesini geri çevir: çömelme ağırlığıyla
+    // orantılı (geçişte yumuşak), böylece bel dönmeden çömelir
+    if (crouch && this._crouchDurus.yaw) {
+      const w = crouch.enabled ? crouch.getEffectiveWeight() : 0;
+      this.body.rotation.y = Math.PI + this._crouchDurus.yaw * w;
+    }
     if (!dying) {
       this._fitRifleToHand();
     } else if (!this._dropped && this.death > 0.5 && this.rifle) {
@@ -372,11 +386,11 @@ export class Soldier {
      duruş pozu olarak kullanmak için). Klip başına bir kez ölçülür;
      aynı klibi paylaşan bütün askerler sonucu ortak kullanır. */
   _plantedTime(action) {
-    if (!action) return 0;
+    if (!action) return { t: 0, yaw: 0 };
     const clip = action.getClip();
     if (PLANTED.has(clip)) return PLANTED.get(clip);
     const L = this.bones.LeftFoot, R = this.bones.RightFoot;
-    if (!L || !R) return 0;
+    if (!L || !R) return { t: 0, yaw: 0 };
     const p = new THREE.Vector3();
     let enIyi = 0, enDusuk = Infinity;
     action.play();
@@ -391,8 +405,31 @@ export class Soldier {
       if (yuksek < enDusuk) { enDusuk = yuksek; enIyi = t; }
     }
     action.stop();
-    PLANTED.set(clip, enIyi);
-    return enIyi;
+
+    // Gövde sapması: bu klip yürüme klibi olduğu için ("sağa doğru")
+    // bütün gövde ~45° çapraz duruyor; asker çömelince beli dönüyor, tüfek
+    // hedefe bakmıyordu. Kalça çizgisinin açısı bekleme klibine göre ölçülür.
+    const yaw = this.actions.idle
+      ? wrapAngle(this._hipAngle(action, enIyi) - this._hipAngle(this.actions.idle, 0))
+      : 0;
+    PLANTED.set(clip, { t: enIyi, yaw });
+    return PLANTED.get(clip);
+  }
+
+  /** Klip yalnız oynarken, t anında kalça çizgisinin gövde düzlemindeki açısı. */
+  _hipAngle(action, t) {
+    const L = this.bones.LeftUpLeg, R = this.bones.RightUpLeg;
+    if (!L || !R) return 0;
+    for (const a of Object.values(this.actions)) if (a !== action) a.stop();
+    action.reset();
+    action.play();
+    action.time = t;
+    this.mixer.update(0);
+    this.body.updateMatrixWorld(true);
+    const l = this.body.worldToLocal(new THREE.Vector3().setFromMatrixPosition(L.matrixWorld));
+    const r = this.body.worldToLocal(new THREE.Vector3().setFromMatrixPosition(R.matrixWorld));
+    action.stop();
+    return Math.atan2(r.z - l.z, r.x - l.x);
   }
 
   /** Klip geçişi: aynı klip tekrar istenirse dokunmaz. */
