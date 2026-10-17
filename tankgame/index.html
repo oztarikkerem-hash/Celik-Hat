@@ -158,7 +158,8 @@ h1 span{color:var(--signal)}
       <span class="k">Sağ tık</span><span>Nişangâh görünümü (Z)</span>
       <span class="k">E</span><span>Basılı tut: tepe makineli tüfeği · benzinlikte yakıt al · market</span>
       <span class="k">F</span><span>Benzinlikte tanktan in · tankın yanında yeniden bin</span>
-      <span class="k">1–4 · G</span><span>Yayayken silah seç · el bombası at</span>
+      <span class="k">1–9 · G · R</span><span>Yayayken silah seç · el bombası · şarjör değiştir</span>
+      <span class="k">E + tık</span><span>Mağazadan Otomatik Tank Makinelisi alındıysa: tanktan çıkmadan makineli</span>
       <span class="k">M</span><span>Sesi aç / kapat</span>
       <span class="k">Esc</span><span>Fareyi serbest bırak</span>
     </div>
@@ -179,12 +180,18 @@ h1 span{color:var(--signal)}
 </div>
 
 <script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+{"imports":{"three":"../vendor/three.module.js","three/addons/":"../vendor/addons/"}}
 </script>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+// Çelik Hat'ın silah sistemi: aynı modeller, eller, şarjör değiştirme
+import { Weaponry } from '../src/game/weaponry.js';
+import { FPArms } from '../src/game/fparms.js';
+import { SoldierFactory } from '../src/game/soldier.js';
+import { AudioEngine } from '../src/core/audio.js';
+import { WEAPONS } from '../src/game/weapons.js';
 
 const $=id=>document.getElementById(id);
 const isTouch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
@@ -221,9 +228,10 @@ function hash(x,y){let h=Math.sin(x*127.1+y*311.7)*43758.5453;return h-Math.floo
 function vnoise(x,y){const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
  const a=hash(xi,yi),b=hash(xi+1,yi),c=hash(xi,yi+1),d=hash(xi+1,yi+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;}
 function fbm(x,y){let s=0,a=1,f=1,n=0;for(let i=0;i<5;i++){s+=a*vnoise(x*f,y*f);n+=a;a*=.5;f*=2.03;}return s/n;}
+const SAHA_R=800;                      // oynanabilir alan yarıçapı (eskiden 420)
 function H0(x,z){const r=Math.hypot(x,z);const flat=Math.min(1,Math.max(0,(r-25)/60));
  let h=(fbm(x*0.006+3.1,z*0.006-1.7)-0.5)*26 + (fbm(x*0.03,z*0.03)-0.5)*3.2;
- h+= Math.max(0,(r-300))*0.18; return h*flat;}
+ h+= Math.max(0,(r-(SAHA_R-120)))*0.18; return h*flat;}   // kenarda tepeler sahayı kapatır
 
 /* ---------------- benzinlik (Blender: İstasyon.blend)
    Blender koordinatlarıyla (bx, by) çalışılır; glTF'te z = -by. Kanopi
@@ -414,6 +422,62 @@ function wall(x,z,len,rot){const g=new THREE.Group();const n=Math.ceil(len/2);
  for(let i=0;i<n;i++){const lx=i*2-len/2+1;obstacles.push({x:x+Math.cos(rot)*lx,z:z-Math.sin(rot)*lx,r:1.1});}}
 wall(-45,70,14,0.3);wall(60,110,18,-0.6);wall(10,-90,12,1.2);wall(-120,-40,16,0.9);
 
+// ---------------- tank siperleri (toprak set + kum torbası)
+/* Gövdeyi saklayan (hull-down) mevziler: set tankın gövdesini örter,
+   yalnızca kule görünür. Mermi sete çarpınca patlar; müttefik ve düşman
+   tanklar da bu setlerin arkasına girer. */
+const siperler=[];
+const setMalz=new THREE.MeshStandardMaterial({color:0x6e5d41,roughness:1});
+const torbaMat=new THREE.MeshStandardMaterial({color:0x8a7a55,roughness:.95});
+const torbaGeo=new THREE.SphereGeometry(0.5,8,6);
+const SET_H=1.9,SET_W=4.6;
+function setKur(x,z,yaw,len){
+ const g=new THREE.BoxGeometry(len,SET_H,SET_W,Math.max(2,Math.round(len/2)),1,2);
+ const pa=g.attributes.position;
+ for(let i=0;i<pa.count;i++){const vx=pa.getX(i),vy=pa.getY(i),vz=pa.getZ(i);
+  if(vy>0){pa.setZ(i,vz*0.3);pa.setX(i,vx*0.82);pa.setY(i,vy+(hash(x+vx,z+vz)-0.5)*0.25);}}   // trapez kesit
+ g.computeVertexNormals();
+ const c=Math.cos(yaw),sn=Math.sin(yaw);
+ const taban=Math.min(H(x,z),H(x+c*len/2,z-sn*len/2),H(x-c*len/2,z+sn*len/2))-0.35;
+ const m=new THREE.Mesh(g,setMalz);m.position.set(x,taban+SET_H/2,z);m.rotation.y=yaw;
+ m.castShadow=m.receiveShadow=true;scene.add(m);
+ // Üstte kum torbası sırası (tek çizim çağrısı)
+ const n=Math.max(2,Math.floor(len/1.15)),im=new THREE.InstancedMesh(torbaGeo,torbaMat,n);
+ const mm=new THREE.Matrix4(),q=new THREE.Quaternion().setFromEuler(new THREE.Euler(0,yaw,0));
+ for(let k=0;k<n;k++){const t=-len*0.4+len*0.8*(k+0.5)/n;
+  mm.compose(new THREE.Vector3(x+c*t,taban+SET_H+0.08,z-sn*t),q,new THREE.Vector3(1.1,0.34,0.75));im.setMatrixAt(k,mm);}
+ im.castShadow=true;scene.add(im);
+ const st={x,z,yaw,len,c,sn,taban,tepe:taban+SET_H+0.25};siperler.push(st);
+ for(let t=-len/2+1.2;t<=len/2-1.2+0.01;t+=2.2)obstacles.push({x:x+c*t,z:z-sn*t,r:1.5,set:st});
+ return st;}
+/** Nokta verilen setin içinde mi? Kesit trapez: yukarı çıktıkça daralır. */
+function setIcinde(st,p){
+ if(p.y>st.tepe||p.y<st.taban)return false;
+ const dx=p.x-st.x,dz=p.z-st.z,lx=dx*st.c-dz*st.sn,lz=dx*st.sn+dz*st.c;
+ if(Math.abs(lx)>st.len/2)return false;
+ const k=(p.y-st.taban)/(st.tepe-st.taban);
+ return Math.abs(lz)<SET_W/2*(1-0.7*k);}
+function siperIcinde(p){for(const st of siperler)if(setIcinde(st,p))return st;return null;}
+/** Işın üstünde ilk set (anlık isabetli silahlar için). Yalnızca ışına
+    yakın setler adım adım sınanır: makinelide saniyede 12 mermi var. */
+function siperIsini(o,d,maxT){
+ let en=maxT;const dh2=d.x*d.x+d.z*d.z||1e-6;const q=new THREE.Vector3();
+ for(const st of siperler){
+  const tc=((st.x-o.x)*d.x+(st.z-o.z)*d.z)/dh2;            // sete en yakın geçiş
+  if(tc<-st.len||tc>en+st.len)continue;
+  if(Math.hypot(o.x+d.x*tc-st.x,o.z+d.z*tc-st.z)>st.len/2+SET_W)continue;
+  for(let t=Math.max(0.5,tc-st.len);t<Math.min(en,tc+st.len);t+=0.5){
+   q.copy(o).addScaledVector(d,t);if(setIcinde(st,q)){en=t;break;}}}
+ return en;}
+// Cephe hatları: müttefik hattı (z≈52) ve düşman hattı (z≈100), arası açık arazi
+for(const x of [-70,-35,0,35,70])setKur(x,52,0,9);
+for(const x of [-72,-32,8,48,88])setKur(x,100,0,9);
+// Geniş sahaya dağılmış mevziler (sabit tohum: her açılışta aynı yerde)
+{let sd=12345;const R=()=>{sd=(sd*16807)%2147483647;return sd/2147483647;};
+ for(let i=0;i<36;i++){const a=R()*Math.PI*2,r=140+R()*(SAHA_R-220);const x=Math.cos(a)*r,z=Math.sin(a)*r;
+  if(stDisari(x,z)<20)continue;
+  setKur(x,z,Math.atan2(x,z)+(R()-.5)*0.6,8+R()*6);}}   // uzun ekseni merkeze dik
+
 const targets=[];
 const panelMat=new THREE.MeshStandardMaterial({color:0xd9d2bd,roughness:.85}),ringMat=new THREE.MeshStandardMaterial({color:0xb53a22,roughness:.7}),postMat=new THREE.MeshStandardMaterial({color:0x3c3b35,roughness:.9});
 const wreckMat=new THREE.MeshStandardMaterial({color:0x50503f,roughness:.8,metalness:.2}),burnt=new THREE.MeshStandardMaterial({color:0x1d1b18,roughness:1});
@@ -570,22 +634,29 @@ addEventListener('keydown',e=>{
   // Benzinlikte: yakıt al / market; başka yerde basılı tut: tepe makinelisi
   if(mode==='tank'&&!tankYikik&&yakitAlaninda(tank.x,tank.z)){if(yakit<100&&!yakitAliyor){yakitAliyor=true;msg('YAKIT ALINIYOR');}}
   else if(mode==='foot'&&Math.hypot(foot.x-MARKET.x,foot.z-MARKET.z)<3.6)marketAc();
+  // Otomatik makineli alındıysa: tanktan çıkmadan E basılı + tetik
+  else if(mode==='tank'&&rwsSahip){if(!rws&&!tankYikik){rws=true;msg('OTOMATİK MAKİNELİ — E BASILI + TETİK');}}
   else if(mode==='tank'){mode='mg';crewHp=crewMax;modeYaz();}}
  if(e.code==='KeyF'){
   if((mode==='tank'||mode==='mg')&&!tankYikik&&yakitAlaninda(tank.x,tank.z))tanktanIn();
   else if(mode==='foot'&&!tankYikik&&Math.hypot(foot.x-tank.x,foot.z-tank.z)<6.5)tankaBin();
   else if(mode!=='foot')msg('TANKTAN YALNIZCA BENZİNLİKTE İNEBİLİRSİN');}
  if(mode==='foot'){
-  for(const id in AYAK)if(e.code===AYAK[id].tus){if(envanter[id]){elde=id;dolum=0;}else msg(AYAK[id].ad+' YOK — MARKETTEN AL');}
+  // Rakamlar Çelik Hat'taki yuvalarla aynı (1 Deagle … 9 Bazuka)
+  if(e.code.startsWith('Digit')&&yaya.hazir){const n=+e.code.slice(5);const sl=yaya.W.slots.find(x=>x.def.slot===n);
+   if(sl){if(yaya.sahip.has(sl.def.id))yaya.W.equip(sl.def.id);else msg(sl.def.name.toUpperCase()+' YOK — MARKETTEN AL');}}
   if(e.code==='KeyG')bombaAt();
-  if(e.code==='KeyR'&&elde!=='bazuka'&&mermi[elde]<AYAK[elde].sarjor&&dolum<=0)dolum=AYAK[elde].dolum;}});
+  if(e.code==='KeyR'&&yaya.hazir)yaya.W.startReload();}});
 addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='Space')firing=false;
+ if(e.code==='KeyE')rws=false;
  if(e.code==='KeyE'&&mode==='mg'){mode='tank';modeYaz();}});
 const cvs=renderer.domElement;
 cvs.addEventListener('contextmenu',e=>e.preventDefault());
 cvs.addEventListener('mousedown',e=>{if(!started)return;if(document.pointerLockElement!==cvs&&!isTouch){cvs.requestPointerLock?.();}if(e.button===0)firing=true;if(e.button===2)zoom=true;});
 addEventListener('mouseup',e=>{if(e.button===0)firing=false;if(e.button===2)zoom=false;});
-addEventListener('mousemove',e=>{if(document.pointerLockElement===cvs){const k=zoom?0.0006:0.0022;camYaw-=e.movementX*k;camPitch=Math.max(-0.6,Math.min(0.35,camPitch-e.movementY*k));}});
+addEventListener('mousemove',e=>{if(document.pointerLockElement===cvs){const k=zoom?0.0006:0.0022;
+ yaya.bakX+=e.movementX*0.002;yaya.bakY+=e.movementY*0.002;   /* elde silahın salınımı */
+ camYaw-=e.movementX*k;camPitch=Math.max(-0.6,Math.min(0.35,camPitch-e.movementY*k));}});
 function baslat(kind){
  if(!protos[kind])return;
  MY=kind;OTHER=(kind==='tank')?'abrams':'tank';
@@ -593,6 +664,9 @@ function baslat(kind){
  kurOyuncuTanki(kind);
  spawnBattle();
  started=true;$('overlay').hidden=true;sfx.init();modeYaz();
+ rwsSahip=magazadaSahip('tankmg');
+ ses.init();ses.resume();
+ yayaYukle();                                    // eller + silahlar arka planda
  if(isTouch){$('touch').classList.add('on');}else{cvs.requestPointerLock?.();}}
 $('again').addEventListener('click',()=>location.reload());
 $('pickTank').addEventListener('click',()=>baslat('tank'));
@@ -652,7 +726,7 @@ function spawnBattle(){
  units.length=0;kills=0;
  for(let i=obstacles.length-1;i>=0;i--)if(obstacles[i].unit)obstacles.splice(i,1);
  [[-16,22],[16,24],[0,34]].forEach(([x,z])=>makeUnit('ally',x,z,0));
- [[-62,120],[-8,140],[46,125],[96,155],[-104,165],[18,190]]
+ [[-62,120],[-8,140],[46,125],[96,155],[-104,165],[18,190],[-190,260],[170,290]]
   .forEach(([x,z])=>makeUnit('enemy',x,z,Math.PI));
  $('tgt').textContent='0/'+units.filter(u=>u.side==='enemy').length;}
 
@@ -664,7 +738,7 @@ function unitHit(u,dmg,from){
   u.root.rotation.z=(Math.random()-.5)*.3;
   u.inner.traverse(o=>{if(o.isMesh)o.material=burnt;});
   for(const o of obstacles)if(o.unit===u)o.r=2.6;
-  if(u.side==='enemy'){kills++;score+=400;$('score').textContent=score;altin+=30;altinYaz();
+  if(u.side==='enemy'){kills++;score+=400;$('score').textContent=score;krediEkle(400);altin+=30;altinYaz();
    $('tgt').textContent=kills+'/'+units.filter(x=>x.side==='enemy').length;
    msg('DÜŞMAN TANKI İMHA  +30 ALTIN');
    if(units.filter(x=>x.side==='enemy'&&x.alive).length===0)
@@ -713,9 +787,9 @@ function bailOut(){
 const foot={x:0,z:0,y:0};                // yaya konumu
 
 // ---------------- yakıt
-/* Depo, oynanabilir sahanın (420 m yarıçap, çevresi 2.64 km) iki turunu
-   atacak kadar: 5.5 km sürüş. Rölantide de çok az yakar. */
-const YAKIT_MENZIL=5500;                 // m (tam depo)
+/* Depo, oynanabilir sahanın (800 m yarıçap, çevresi 5 km) iki turunu
+   atacak kadar: 10 km sürüş. Rölantide de çok az yakar. */
+const YAKIT_MENZIL=10000;                // m (tam depo)
 let yakit=100, yakitAliyor=false, yakitUyari=0, tankYikik=false;
 function yakitYaz(){
  $('fuelFill').style.width=yakit+'%';$('fuelFill').classList.toggle('low',yakit<15);
@@ -730,83 +804,111 @@ function tanktanIn(){
  sfx.engine(0,0);msg('TANKTAN İNDİN — F: TEKRAR BİN');modeYaz();}
 function tankaBin(){mode='tank';msg('TANKA BİNDİN');modeYaz();}
 
-// ---------------- altın, yaya silahları, el bombası
-let altin=60;
+// ---------------- altın ve mağaza kredisi
+let altin=60,bomba=0;
 function altinYaz(){$('gold').textContent=altin;}
-const AYAK={
- bazuka:{ad:'BAZUKA',tus:'Digit1'},
- ak:{ad:'AK-47',tus:'Digit2',rpm:600,hasar:8,sapma:0.014,sarjor:30,dolum:2.2,oto:true},
- pkm:{ad:'PKM',tus:'Digit3',rpm:720,hasar:9,sapma:0.022,sarjor:100,dolum:4.2,oto:true},
- svd:{ad:'DRAGUNOV',tus:'Digit4',rpm:110,hasar:55,sapma:0.0025,sarjor:10,dolum:2.8,oto:false},
-};
-const envanter={bazuka:true,ak:false,pkm:false,svd:false};
-const mermi={ak:30,pkm:100,svd:10};
-let elde='bazuka',silahSoguma=0,dolum=0,tetikBasili=false,bomba=0;
+/* Tank bölümünde kazanılan puanın %60'ı Çelik Hat mağazasına kredi olarak
+   yazılır (Shop.puanEkle ile aynı oran; aynı köken, localStorage ortak). */
+const MAGAZA_KEY='celikhat.shop.v1';
+function krediEkle(puan){try{const d=JSON.parse(localStorage.getItem(MAGAZA_KEY)||'{}');
+ d.kredi=Math.max(0,Number(d.kredi)||0)+Math.round(puan*0.6);
+ if(!Array.isArray(d.sahip))d.sahip=['hafif','bere'];d.yelek??='hafif';d.kask??='bere';
+ localStorage.setItem(MAGAZA_KEY,JSON.stringify(d));}catch(e){}}
+function magazadaSahip(id){try{return(JSON.parse(localStorage.getItem(MAGAZA_KEY)||'{}').sahip||[]).includes(id);}catch(e){return false;}}
 
-/* Elde görünen silah modelleri (kameraya bağlı, kutulardan). */
-const gunMetal=new THREE.MeshStandardMaterial({color:0x3b3f3c,roughness:.45,metalness:.6,emissive:0x0e1011});
-const gunWood=new THREE.MeshStandardMaterial({color:0x7a4a26,roughness:.7,emissive:0x140b05});
-const gunOlive=new THREE.MeshStandardMaterial({color:0x4b5536,roughness:.65,emissive:0x0d1008});
-const silahlar={};
-function kutu(g,m,sx,sy,sz,x,y,z,rx=0){const o=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),m);o.position.set(x,y,z);o.rotation.x=rx;o.frustumCulled=false;g.add(o);return o;}
-function boru(g,m,r,l,x,y,z){const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,l,10),m);o.rotation.x=Math.PI/2;o.position.set(x,y,z);o.frustumCulled=false;g.add(o);return o;}
-function silahKur(id){const g=new THREE.Group();let agizZ=-0.9;
- if(id==='bazuka'){boru(g,gunOlive,0.055,1.05,0,0,-0.25);boru(g,gunMetal,0.07,0.16,0,0,0.3);
-  kutu(g,gunWood,0.04,0.13,0.05,0,-0.1,-0.15,0.3);kutu(g,gunMetal,0.035,0.06,0.12,-0.07,0.06,-0.2);agizZ=-0.8;}
- else if(id==='ak'){kutu(g,gunMetal,0.06,0.08,0.38,0,0,-0.1);boru(g,gunMetal,0.012,0.42,0,0.015,-0.48);
-  kutu(g,gunWood,0.065,0.06,0.2,0,-0.005,-0.38);kutu(g,gunWood,0.05,0.09,0.24,0,-0.03,0.2,0.12);
-  kutu(g,gunMetal,0.04,0.2,0.07,0,-0.13,-0.15,-0.3);kutu(g,gunWood,0.04,0.11,0.05,0,-0.09,0.02,0.35);agizZ=-0.7;}
- else if(id==='pkm'){kutu(g,gunMetal,0.07,0.09,0.42,0,0,-0.08);boru(g,gunMetal,0.016,0.6,0,0.02,-0.58);
-  kutu(g,gunOlive,0.11,0.12,0.12,0.02,-0.12,-0.1);kutu(g,gunWood,0.05,0.1,0.28,0,-0.03,0.25,0.1);
-  kutu(g,gunMetal,0.012,0.18,0.012,0.04,-0.08,-0.66,0.5);kutu(g,gunMetal,0.012,0.18,0.012,-0.04,-0.08,-0.66,0.5);agizZ=-0.9;}
- else{kutu(g,gunMetal,0.055,0.07,0.36,0,0,-0.1);boru(g,gunMetal,0.011,0.6,0,0.015,-0.58);
-  kutu(g,gunWood,0.06,0.06,0.24,0,0,-0.38);kutu(g,gunWood,0.045,0.12,0.3,0,-0.03,0.22,0.08);
-  boru(g,gunMetal,0.022,0.26,0,0.075,-0.12);kutu(g,gunMetal,0.035,0.13,0.06,0,-0.11,-0.12,-0.2);agizZ=-0.9;}
- const agiz=new THREE.Object3D();agiz.position.set(0,0.015,agizZ);g.add(agiz);g.userData.agiz=agiz;
- g.scale.setScalar(0.72);g.position.set(0.2,-0.22,-0.42);g.visible=false;camera.add(g);silahlar[id]=g;}
-['bazuka','ak','pkm','svd'].forEach(silahKur);
-let silahGeri=0;
-function silahGorunum(dt){
- silahGeri=Math.max(0,silahGeri-dt*0.8);
- const nisan=zoom&&mode==='foot';
- for(const id in silahlar){const g=silahlar[id];
-  g.visible=(mode==='foot'&&id===elde&&!(nisan&&id==='svd'));
-  if(!g.visible)continue;
-  const dolarken=dolum>0?Math.sin(Math.min(1,dolum/ (AYAK[id].dolum||1))*Math.PI):0;
-  g.position.set(nisan?0.0:0.22,(nisan?-0.15:-0.25)-dolarken*0.12,-0.46+silahGeri);
-  g.rotation.set(silahGeri*2+dolarken*0.5,0,dolarken*0.6);}}
+// ---------------- yaya: Çelik Hat silahları
+/* Yayayken görevlerdeki silahların aynısı: SWAT eldivenli eller, her
+   silahın kendi şarjör değiştirme koreografisi, yere düşen boş şarjörler.
+   Modeller oyun başlarken arka planda yüklenir; hazır olana dek basit
+   bazuka kullanılır. */
+const ses=new AudioEngine();
+const yaya={hazir:false,W:null,sahip:new Set(['bazuka']),tetik:false,bakX:0,bakY:0,dusen:[]};
+async function yayaYukle(){
+ try{
+  const W=new Weaponry(camera,ses);W.basePath='../';
+  await W.loadAll();
+  const sf=new SoldierFactory();
+  await sf.load('../assets/characters/swat.glb',null,renderer.capabilities.getMaxAnisotropy());
+  W.attachArms(new FPArms(sf.template,sf.height));
+  W.rig.visible=false;
+  W.onShot=yayaAtis;W.onEvent=yayaOlay;
+  W.equip('bazuka');
+  yaya.W=W;yaya.hazir=true;
+ }catch(e){console.warn('Yaya silahları yüklenemedi',e);}}
 
-/* Yaya silah atışı (anlık isabet): tanklara gövde boyunca 3 m yarıçap. */
-function yayaAtes(dt){
- silahSoguma-=dt;
- if(dolum>0){dolum-=dt;if(dolum<=0){mermi[elde]=AYAK[elde].sarjor;sfx.mg();}return;}
- if(!firing){tetikBasili=false;return;}
- if(elde==='bazuka'){rpgFire();return;}
- const W=AYAK[elde];
- if(!W.oto&&tetikBasili)return;
- if(silahSoguma>0)return;
- if(mermi[elde]<=0){dolum=W.dolum;return;}
- tetikBasili=true;silahSoguma=60/W.rpm;mermi[elde]--;
- const o=camera.position.clone(),d=bakisYonu();
- const sp=W.sapma*(zoom?0.35:1);
- d.x+=(Math.random()-.5)*sp*2;d.y+=(Math.random()-.5)*sp*2;d.z+=(Math.random()-.5)*sp*2;d.normalize();
+/** Tüfek mermisi tanka az işler; keskin nişancılar zırhı daha çok deler. */
+function tankHasari(def){return Math.max(1,Math.round(def.damage*(def.kind==='Keskin Nişancı'?0.4:0.25)));}
+function izliMermi(a,b,renk){const g=new THREE.BufferGeometry().setFromPoints([a.clone(),b]);
+ const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:renk,transparent:true,opacity:.9}));scene.add(l);
+ setTimeout(()=>{scene.remove(l);g.dispose();l.material.dispose();},60);}
+
+function yayaAtis({origin,dir,weapon,slot}){
+ if(weapon.rocket){roketAt(slot,origin);return;}
+ const o=camera.position.clone();
  let vuran=null,enKisa=400;
  for(const u of units){if(!u.alive||u.side!=='enemy')continue;
-  const c=new THREE.Vector3(u.x,u.y+1.6,u.z).sub(o);const t=c.dot(d);if(t<0||t>enKisa)continue;
+  const c=new THREE.Vector3(u.x,u.y+1.6,u.z).sub(o);const t=c.dot(dir);if(t<0||t>enKisa)continue;
   if(c.lengthSq()-t*t<9){enKisa=t;vuran=u;}}
- let menzil=vuran?enKisa:300;
- if(!vuran){for(let t=3;t<300;t+=t<60?1.5:5){const q=o.clone().addScaledVector(d,t);if(q.y<H(q.x,q.z)){menzil=t;break;}}}
- const son=o.clone().addScaledVector(d,menzil);
- const agiz=silahlar[elde].userData.agiz.getWorldPosition(new THREE.Vector3());
- puff(agiz,d.clone().multiplyScalar(4),0xffc266,elde==='svd'?0.7:0.45,0.06,3,true,1);
- flash(agiz,0xffb060,elde==='svd'?18:8,0.05,16);
- if(elde==='svd'||Math.random()<0.4){const g=new THREE.BufferGeometry().setFromPoints([agiz.clone(),son]);
-  const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xffe08a,transparent:true,opacity:.9}));scene.add(l);setTimeout(()=>{scene.remove(l);g.dispose();},70);}
- if(vuran){unitHit(vuran,W.hasar,null);puff(son,new THREE.Vector3(0,1.2,0),0xffc98a,0.7,0.25,2,true,.9);}
- else if(menzil<290)puff(son,new THREE.Vector3((Math.random()-.5),1.4,(Math.random()-.5)),0xa89877,0.6,0.45,3,false,.5);
- silahGeri=elde==='svd'?0.08:0.035;shake=Math.max(shake,elde==='svd'?0.25:0.06);
- sfx.mg();
- if(mermi[elde]===0)dolum=W.dolum;}
+ let menzil=vuran?enKisa:320;
+ if(!vuran){for(let t=2;t<320;t+=t<60?1:4){const q=o.clone().addScaledVector(dir,t);if(q.y<H(q.x,q.z)){menzil=t;break;}}}
+ const st=siperIsini(o,dir,menzil);if(st<menzil){menzil=st;vuran=null;}   // set mermiyi tutar
+ const son=o.clone().addScaledVector(dir,menzil);
+ izliMermi(origin,son,weapon.tracer??0xffd27a);
+ if(vuran){unitHit(vuran,tankHasari(weapon),null);puff(son,new THREE.Vector3(0,1.2,0),0xffc98a,0.7,0.25,2,true,.9);flash(son,0xffd9a0,6,0.05,12);}
+ else if(menzil<310)puff(son,new THREE.Vector3((Math.random()-.5),1.4,(Math.random()-.5)),0xa89877,0.6,0.45,3,false,.5);
+ // Geri tepme: nişan yukarı kalkar
+ camPitch=Math.min(0.35,camPitch+weapon.recoil*0.0035);
+ shake=Math.max(shake,Math.min(0.3,weapon.recoil*0.03));}
+
+/** Bazuka: eldeki roketin kendisi uçar; isabet başına 30 hasar. */
+function roketAt(slot,origin){
+ const piv=slot.parts.mag?.pivot;
+ const o=piv?piv.getWorldPosition(new THREE.Vector3()):origin.clone();
+ const d=aimPoint().sub(o).normalize();
+ const m=new THREE.Group();
+ if(piv){piv.updateWorldMatrix(true,true);const inv=piv.matrixWorld.clone().invert();
+  piv.traverse(x=>{if(!x.isMesh)return;const k=new THREE.Mesh(x.geometry,x.material);k.matrixAutoUpdate=false;
+   k.matrix.copy(inv).multiply(x.matrixWorld);m.add(k);});}
+ else m.add(new THREE.Mesh(new THREE.SphereGeometry(0.18,8,6),shellMat));
+ m.position.copy(o);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),d);scene.add(m);
+ shells.push({m,v:d.clone().multiplyScalar(105),life:6,trail:[],owner:null,dmg:30,rpg:true});
+ const geri=d.clone().negate();                          // geri püskürme
+ for(let i=0;i<10;i++)puff(camera.position.clone().addScaledVector(geri,1),
+  geri.clone().multiplyScalar(5+Math.random()*4).add(new THREE.Vector3((Math.random()-.5)*2,Math.random(),(Math.random()-.5)*2)),
+  0xb9b2a4,1.2,1.1,3,false,.5);
+ flash(o,0xffa050,25,0.1,26);shake=Math.max(shake,0.35);sfx.boom(0.5,false);}
+
+/** Boş şarjör: silahtaki parçanın kopyası yere düşer, seker, durur. */
+function yayaOlay(ad,yuk){
+ if(ad!=='drop'||!yuk?.pivot)return;
+ const piv=yuk.pivot;piv.updateWorldMatrix(true,true);
+ const c=new THREE.Box3().setFromObject(piv).getCenter(new THREE.Vector3());
+ const inv=new THREE.Matrix4().makeTranslation(-c.x,-c.y,-c.z);
+ const g=new THREE.Group();
+ piv.traverse(x=>{if(!x.isMesh)return;const k=new THREE.Mesh(x.geometry,x.material);k.matrixAutoUpdate=false;
+  k.matrix.copy(inv).multiply(x.matrixWorld);k.castShadow=true;g.add(k);});
+ g.position.copy(c);scene.add(g);
+ yaya.dusen.push({g,v:new THREE.Vector3((Math.random()-.5)*0.6,-0.4,(Math.random()-.5)*0.6),
+  w:new THREE.Vector3(Math.random()*6-3,0,Math.random()*6-3),t:25,yerde:false,ses:false,agir:!!yuk.heavy});
+ if(yaya.dusen.length>12){const e=yaya.dusen.shift();scene.remove(e.g);}}
+function dusenGuncelle(dt){
+ for(let i=yaya.dusen.length-1;i>=0;i--){const d=yaya.dusen[i],q=d.g.position;d.t-=dt;
+  if(!d.yerde){d.v.y-=9.8*dt;q.addScaledVector(d.v,dt);d.g.rotation.x+=d.w.x*dt;d.g.rotation.z+=d.w.z*dt;
+   const gy=H(q.x,q.z)+0.04;
+   if(q.y<gy){q.y=gy;if(!d.ses){d.ses=true;ses.magDrop?.(d.agir);}
+    if(Math.abs(d.v.y)>2){d.v.y*=-0.25;d.v.x*=0.5;d.v.z*=0.5;}else{d.yerde=true;d.g.rotation.set(Math.PI/2,d.g.rotation.y,0);}}}
+  if(d.t<=0){scene.remove(d.g);yaya.dusen.splice(i,1);}}}
+
+/** Yayayken her kare: tetik, şarjör, sınırsız yedek, görünüm. */
+function yayaGuncelle(dt){
+ const W=yaya.W,now=performance.now()/1000,def=W.current.def;
+ W.rig.visible=true;
+ if(firing){if(def.auto)W.tryFire(now);else if(!yaya.tetik)W.tryFire(now);yaya.tetik=true;}else yaya.tetik=false;
+ if(W.current.ammo===0&&!W.reloading)W.startReload();
+ for(const s of W.slots)if(s.reserve<s.def.mag*2)s.reserve=s.def.mag*4;   // yedek sınırsız (bazuka dahil)
+ W.update({dt,now,look:{dx:yaya.bakX,dy:yaya.bakY},ads:zoom,firing,
+  moving:!!(keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD),sprinting:!!keys.ShiftLeft});
+ yaya.bakX=yaya.bakY=0;}
 
 const bombalar=[];
 const bombaMat=new THREE.MeshStandardMaterial({color:0x3f4a2e,roughness:.6,metalness:.3});
@@ -831,14 +933,13 @@ function bombaGuncelle(dt){
 // ---------------- benzinlik marketi
 const URUNLER=[
  {id:'bomba',ad:'EL BOMBASI ×3',acik:'G ile fırlat. Tanka 140\'a kadar hasar.'},
- {id:'ak',ad:'AK-47',acik:'Otomatik tüfek, 30\'luk şarjör.'},
- {id:'pkm',ad:'PKM MAKİNELİ',acik:'100\'lük bant, yüksek atış hızı.'},
- {id:'svd',ad:'DRAGUNOV',acik:'Dürbünlü keskin nişancı, ağır vuruş.'},
+ ...WEAPONS.filter(w=>w.id!=='bazuka').map(w=>({id:w.id,ad:w.name.toUpperCase(),
+  acik:`${w.kind} · şarjör ${w.mag} · tanka ${tankHasari(w)} hasar/mermi`})),
 ];
 let marketAcik=false;
 function marketCiz(){
  $('mktList').innerHTML=URUNLER.map(u=>{
-  const sahip=u.id!=='bomba'&&envanter[u.id];
+  const sahip=u.id!=='bomba'&&yaya.sahip.has(u.id);
   const yetmez=altin<30;
   const etiket=sahip?'ALINDI':yetmez?'30 ALTIN':'AL · 30';
   return `<div class="mitem"><span class="pname">${u.ad}${u.id==='bomba'&&bomba?` <small style="font-size:12px;color:var(--dim)">(elde ${bomba})</small>`:''}</span>
@@ -849,7 +950,7 @@ $('mktList').addEventListener('click',e=>{const b=e.target.closest('button[data-
  if(altin<30)return;altin-=30;altinYaz();
  const id=b.dataset.id;
  if(id==='bomba'){bomba+=3;msg('+3 EL BOMBASI');}
- else{envanter[id]=true;mermi[id]=AYAK[id].sarjor;elde=id;msg(AYAK[id].ad+' ALINDI');}
+ else{yaya.sahip.add(id);if(yaya.hazir)yaya.W.equip(id);msg(URUNLER.find(u=>u.id===id).ad+' ALINDI');}
  marketCiz();});
 $('mktClose').addEventListener('click',marketKapat);
 function playerHit(dmg){
@@ -969,6 +1070,7 @@ function mgFire(dt){
  if(!vuran){for(let t=6;t<260;t+=t<80?2:6){
    const p=o.clone().addScaledVector(d,t);
    if(p.y<H(p.x,p.z)){menzil=t;break;}}}
+ {const st=siperIsini(o,d,menzil);if(st<menzil){menzil=st;vuran=null;}}
  const son=o.clone().addScaledVector(d,menzil);
 
  // Namlu alevi: her atışta kısa parlama + duman
@@ -996,6 +1098,46 @@ function mgFire(dt){
 
  shake=Math.max(shake,0.055);
  sfx.mg();}
+
+/* Otomatik tank makinelisi (uzaktan kumandalı, RWS). Çelik Hat
+   mağazasının Silahlar bölümünden alınır (15.000 kredi). Alınmışsa tankta
+   E basılıyken tetik topu değil bunu ateşler; mürettebat içeride kalır,
+   açıkta değildir. Kulenin üstünde görünür ve nişan noktasına döner. */
+let rwsSahip=false,rws=false,rwsGrup=null,rwsNamlu=null;
+function rwsKur(){
+ const g=new THREE.Group(),m=new THREE.MeshStandardMaterial({color:0x2c2f2b,roughness:.5,metalness:.6});
+ const kutu=(sx,sy,sz,x,y,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),m);o.position.set(x,y,z);o.castShadow=true;g.add(o);};
+ kutu(0.36,0.3,0.55,0,0,0.05);kutu(0.42,0.12,0.42,0,-0.2,0);kutu(0.12,0.2,0.24,-0.25,0.03,0.05);   // gövde, kaide, nişan kamerası
+ const nl=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.04,1.1,10),m);nl.rotation.x=Math.PI/2;nl.position.set(0.04,0.03,0.82);g.add(nl);
+ rwsNamlu=new THREE.Object3D();rwsNamlu.position.set(0.04,0.03,1.4);g.add(rwsNamlu);
+ scene.add(g);rwsGrup=g;}
+function rwsGuncelle(){
+ if(!rwsSahip||!tank.root||tankYikik){if(rwsGrup)rwsGrup.visible=false;return;}
+ if(!rwsGrup)rwsKur();
+ rwsGrup.visible=true;
+ // Kule tavanı: tankın kendi ekseninde (+X ileri), biraz geride ve solda
+ const p=new THREE.Vector3(-0.7,3.0,0.75);tank.root.localToWorld(p);rwsGrup.position.copy(p);
+ rwsGrup.lookAt(tank.aim||p.clone().add(new THREE.Vector3(1,0,0)));}   // +Z namlu nişan noktasına
+function rwsAtes(dt){
+ mgCool-=dt;if(mgCool>0)return;mgCool=0.085;
+ rwsGrup.updateMatrixWorld(true);
+ const o=rwsNamlu.getWorldPosition(new THREE.Vector3());
+ const d=(tank.aim?tank.aim.clone():o.clone().add(new THREE.Vector3(1,0,0))).sub(o).normalize();
+ d.x+=(Math.random()-.5)*0.02;d.y+=(Math.random()-.5)*0.012;d.z+=(Math.random()-.5)*0.02;d.normalize();
+ let vuran=null,enKisa=400;
+ for(const u of units){if(!u.alive||u.side!=='enemy')continue;
+  const c=new THREE.Vector3(u.x,u.y+1.6,u.z).sub(o);const t=c.dot(d);if(t<0||t>enKisa)continue;
+  if(c.lengthSq()-t*t<9){enKisa=t;vuran=u;}}
+ let menzil=vuran?enKisa:300;
+ if(!vuran){for(let t=3;t<300;t+=t<80?2:6){const q=o.clone().addScaledVector(d,t);if(q.y<H(q.x,q.z)){menzil=t;break;}}}
+ {const st=siperIsini(o,d,menzil);if(st<menzil){menzil=st;vuran=null;}}
+ const son=o.clone().addScaledVector(d,menzil);
+ mgSayac=(mgSayac+1)%3;
+ puff(o,d.clone().multiplyScalar(5),0xffc266,0.7,0.07,3,true,1);
+ if(mgSayac===0){flash(o,0xffb060,14,0.05,22);izliMermi(o,son,0xffe08a);}
+ if(vuran){unitHit(vuran,14,null);puff(son,new THREE.Vector3(0,1.4,0),0xffc98a,0.8,0.3,2,true,.9);}
+ else if(menzil<290)puff(son,new THREE.Vector3((Math.random()-.5)*2,1.6,(Math.random()-.5)*2),0xa89877,0.9,0.5,3,false,.5);
+ shake=Math.max(shake,0.04);sfx.mg();}
 
 /* Bazuka: SINIRSIZ roket, isabet başına 30 hasar. Tank imha olunca
    mürettebatın tek silahı bu. */
@@ -1032,7 +1174,7 @@ function footUpdate(dt){
  {const dx=foot.x-tank.x,dz=foot.z-tank.z,dd=Math.hypot(dx,dz);if(dd<3.4&&dd>0.001){foot.x+=dx/dd*(3.4-dd);foot.z+=dz/dd*(3.4-dd);}}
  foot.y=H(foot.x,foot.z)+1.7;
  rpgCool=Math.max(0,rpgCool-dt);
- yayaAtes(dt);}
+ if(yaya.hazir)yayaGuncelle(dt);else if(firing)rpgFire();}
 
 // ---------------- birlik yapay zekâsı
 function unitFire(u){
@@ -1051,6 +1193,19 @@ function unitFire(u){
  flash(muzzle,0xffb060,45,0.1,40);
  u.recoil=0.4;
  const d=muzzle.distanceTo(camera.position);sfx.boom(Math.max(0.08,1-d/320),true);}
+
+/** Hedefe göre arkasına girilecek set: menzile uygun ve yakın olanı. */
+function siperSec(u,hedef,istenen){
+ let en=null,enP=1e9;
+ for(const st of siperler){
+  const du=Math.hypot(st.x-u.x,st.z-u.z);if(du>90)continue;
+  const tx=hedef.x-st.x,tz=hedef.z-st.z,tl=Math.hypot(tx,tz)||1;
+  if(Math.abs(st.c*tx/tl-st.sn*tz/tl)>0.6)continue;      // set hedefe yan dönük: korumaz
+  const px=st.x-tx/tl*4.4,pz=st.z-tz/tl*4.4;               // setin hedefe göre arkası
+  if(units.some(o=>o!==u&&o.alive&&o.siper&&Math.hypot(o.siper.x-px,o.siper.z-pz)<5))continue;
+  const puan=Math.hypot(px-u.x,pz-u.z)+Math.abs(tl-istenen)*0.6;
+  if(puan<enP){enP=puan;en={x:px,z:pz};}}
+ return en;}
 
 function updateUnits(dt,now){
  for(const u of units){
@@ -1093,13 +1248,15 @@ function updateUnits(dt,now){
    u.gunPitch+=Math.max(-0.3*dt,Math.min(0.3*dt,wp-u.gunPitch));
    u.gun.rotation[RIG[u.kind].gunAxis]=u.gunPitch*RIG[u.kind].gunSign;
 
-   // Gövde: menzili koru
+   // Gövde: uygun bir set varsa arkasına gir (gövde saklı), yoksa menzili koru
    const istenen=u.side==='enemy'?70:58;
-   let thr=0;
-   if(bd>istenen+14)thr=1;else if(bd<istenen-18)thr=-0.7;
+   if(now>(u.siperAt||0)){u.siperAt=now+3+Math.random()*2;u.siper=siperSec(u,best,istenen);}
+   let thr=0,gx=wx,gz=wz;
+   if(u.siper&&Math.hypot(u.siper.x-u.x,u.siper.z-u.z)>3.2){gx=u.siper.x-u.x;gz=u.siper.z-u.z;thr=1;}
+   else if(!u.siper){if(bd>istenen+14)thr=1;else if(bd<istenen-18)thr=-0.7;}
    const maxS=ARAC[u.kind].maxF*0.62;
    u.speed+=((thr*maxS)-u.speed)*Math.min(1,dt*1.1);
-   let dyaw=Math.atan2(-wz,wx)-u.yaw;while(dyaw>Math.PI)dyaw-=6.28318;while(dyaw<-Math.PI)dyaw+=6.28318;
+   let dyaw=Math.atan2(-gz,gx)-u.yaw;while(dyaw>Math.PI)dyaw-=6.28318;while(dyaw<-Math.PI)dyaw+=6.28318;
    u.yaw+=Math.max(-0.45*dt,Math.min(0.45*dt,dyaw));
 
    if(now>u.lockAt&&Math.abs(dy)<0.035&&bd<150)unitFire(u);
@@ -1116,7 +1273,7 @@ function updateUnits(dt,now){
   // Oyuncu tankıyla çarpışma
   {const dx=nx-tank.x,dz=nz-tank.z,dd=Math.hypot(dx,dz);
    if(dd<5.6&&dd>0.001){nx+=dx/dd*(5.6-dd);nz+=dz/dd*(5.6-dd);u.speed*=0.6;}}
-  const rr=Math.hypot(nx,nz);if(rr>420){nx*=420/rr;nz*=420/rr;}
+  const rr=Math.hypot(nx,nz);if(rr>SAHA_R){nx*=SAHA_R/rr;nz*=SAHA_R/rr;}
   u.x=nx;u.z=nz;
   for(const o of obstacles)if(o.unit===u){o.x=nx;o.z=nz;}
 
@@ -1136,7 +1293,7 @@ function updateUnits(dt,now){
 // ---------------- saha haritası
 const mapCv=$('map'),mapCx=mapCv.getContext('2d');
 function drawMap(){
- const W=150,R=420;
+ const W=150,R=SAHA_R;
  mapCx.clearRect(0,0,W,W);
  mapCx.fillStyle='rgba(10,14,8,.6)';mapCx.fillRect(0,0,W,W);
  // Saha çemberi
@@ -1146,6 +1303,10 @@ function drawMap(){
  // Hedef panelleri
  mapCx.fillStyle='rgba(190,214,150,.35)';
  for(const t of targets){if(!t.alive)continue;const [px,py]=pm(t.x,t.z);mapCx.fillRect(px-1,py-1,2,2);}
+ // Siper setleri
+ mapCx.strokeStyle='rgba(176,150,104,.75)';mapCx.lineWidth=1.6;
+ for(const st of siperler){const [ax,ay]=pm(st.x-st.c*st.len/2,st.z+st.sn*st.len/2),[bx2,by2]=pm(st.x+st.c*st.len/2,st.z-st.sn*st.len/2);
+  mapCx.beginPath();mapCx.moveTo(ax,ay);mapCx.lineTo(bx2,by2);mapCx.stroke();}
  // Benzinlik
  {const [bx,by]=pm(ST.x,ST.z);mapCx.fillStyle='#e8a33c';mapCx.fillRect(bx-4,by-4,8,8);
   mapCx.fillStyle='#0d110b';mapCx.font='bold 8px IBM Plex Mono, monospace';mapCx.textAlign='center';mapCx.textBaseline='middle';mapCx.fillText('B',bx,by+0.5);}
@@ -1184,7 +1345,7 @@ function update(dt){
  let hit=false;
  for(const c of [2.1,-2.1]){const px=nx+fx_*c,pz=nz+fz_*c;for(const o of obstacles){if(o.target&&!o.target.alive&&o.target.kind==='panel')continue;const dx=px-o.x,dz=pz-o.z,dd=Math.hypot(dx,dz),rr=2.0+o.r;if(dd<rr&&dd>0.001){const push=(rr-dd);nx+=dx/dd*push;nz+=dz/dd*push;hit=true;if(o.tree&&Math.abs(tank.speed)>6&&!o.tree.userData.down){o.tree.userData.down=1;o.tree.rotation.z=1.4*Math.sign(dx||1);o.r=0;}}}}
  if(hit)tank.speed*=0.6;
- const R=420;const rr=Math.hypot(nx,nz);if(rr>R){nx*=R/rr;nz*=R/rr;tank.speed*=0.5;}
+ const R=SAHA_R;const rr=Math.hypot(nx,nz);if(rr>R){nx*=R/rr;nz*=R/rr;tank.speed*=0.5;}
  const dist=Math.hypot(nx-tank.x,nz-tank.z)*Math.sign(tank.speed);tank.x=nx;tank.z=nz;
  // Yakıt: gidilen yol başına (+ çok hafif rölanti); benzinlikte E ile dolar
  if(started&&!oyunBitti){
@@ -1221,7 +1382,7 @@ function update(dt){
  tank.recoil*=Math.exp(-dt*6);geriTep(tank,tank.kind,tank.recoil);
  // fire
  tank.reload=Math.max(0,tank.reload-dt);
- if(firing&&started&&mode==='tank'&&!oyunBitti)fire();
+ if(firing&&started&&mode==='tank'&&!oyunBitti&&!rws)fire();
  // dust from tracks
  if(Math.abs(tank.speed)>2&&Math.random()<Math.abs(tank.speed)*dt*3){for(const s of[-1.4,1.4]){const p=new THREE.Vector3(-3.4,0.3,s).applyMatrix4(tank.root.matrixWorld);puff(p,new THREE.Vector3((Math.random()-.5)*1.5,1+Math.random(),(Math.random()-.5)*1.5),0xa8987a,1.8,1.6,3,false,.35);}}
  // exhaust
@@ -1230,7 +1391,8 @@ function update(dt){
 }
 function updateShells(dt){
  for(let i=shells.length-1;i>=0;i--){const s=shells[i];let done=false;const steps=6;
-  for(let k=0;k<steps&&!done;k++){const h=dt/steps;s.v.y-=9.8*h;s.m.position.addScaledVector(s.v,h);s.life-=h;const p=s.m.position;
+  for(let k=0;k<steps&&!done;k++){const h=dt/steps;s.v.y-=9.8*h*(s.rpg?0.2:1);s.m.position.addScaledVector(s.v,h);s.life-=h;const p=s.m.position;
+   if(siperIcinde(p)){explosion(p.clone(),false);done=true;break;}   // set mermiyi tutar
    if(p.y<H(p.x,p.z)){p.y=H(p.x,p.z);explosion(p.clone(),false);crater(p);
     // Açıktaki mürettebata şarapnel
     if(mode!=='tank'){const px=(mode==='foot')?foot.x:tank.x,pz=(mode==='foot')?foot.z:tank.z;
@@ -1252,7 +1414,7 @@ function updateShells(dt){
    if(mode==='foot'&&s.owner&&s.owner.side==='enemy'&&Math.hypot(p.x-foot.x,p.z-foot.z)<2.2&&p.y<foot.y+1.2&&p.y>foot.y-1.9){
     explosion(p.clone(),true);crewHit(60);done=true;break;}
    for(const t of targets){if(s.owner)break;if(!t.alive&&t.kind==='panel')continue;const by=H(t.x,t.z);if(Math.hypot(p.x-t.x,p.z-t.z)<t.r&&p.y>by&&p.y<by+t.hgt+0.6){
-     explosion(p.clone(),true);done=true;if(t.alive){t.alive=false;kills++;altin+=10;altinYaz();score+=t.kind==='wreck'?150:100;$('score').textContent=score;$('tgt').textContent=kills+'/'+targets.length;msg(t.kind==='wreck'?'ARAÇ İMHA EDİLDİ  +150':'HEDEF VURULDU  +100');
+     explosion(p.clone(),true);done=true;if(t.alive){t.alive=false;kills++;altin+=10;altinYaz();krediEkle(t.kind==='wreck'?150:100);score+=t.kind==='wreck'?150:100;$('score').textContent=score;$('tgt').textContent=kills+'/'+targets.length;msg(t.kind==='wreck'?'ARAÇ İMHA EDİLDİ  +150':'HEDEF VURULDU  +100');
        if(t.kind==='panel'){t.g.rotation.x=-1.4;t.g.position.y-=0.3;}else{t.g.traverse(o=>{if(o.isMesh){o.userData.orig=o.material;o.material=burnt;}});t.burn=12;}
        t.timer=25;}break;}}
    for(const o of obstacles){if(o.tree&&!o.tree.userData.down&&Math.hypot(p.x-o.x,p.z-o.z)<1.2&&p.y-H(o.x,o.z)<7){o.tree.userData.down=1;o.tree.rotation.z=1.4;o.r=0;explosion(p.clone(),false);done=true;break;}}
@@ -1274,7 +1436,8 @@ function updateCamera(dt){
 
  // Yaya: birinci şahıs
  if(mode==='foot'){
-  const yfov=zoom?(elde==='svd'?16:48):72;
+  const yd=yaya.hazir?yaya.W.current.def:null;
+  const yfov=(zoom&&yd&&!yd.noAds)?72/(yd.zoom||1.25):72;
   camera.fov+=(yfov-camera.fov)*Math.min(1,dt*8);
   camera.position.set(foot.x,foot.y,foot.z);
   const look=new THREE.Vector3(Math.cos(camPitch)*Math.cos(camYaw),Math.sin(camPitch),-Math.cos(camPitch)*Math.sin(camYaw));
@@ -1321,10 +1484,11 @@ function updateHud(){
  $('spd').innerHTML=Math.round(Math.abs(tank.speed)*3.6)+'<small>km/sa</small>';
  $('gear').textContent=tank.speed>0.5?'İ':tank.speed<-0.5?'G':'N';
  let f,rt=$('reloadTxt');
- if(mode==='foot'&&elde!=='bazuka'){const W=AYAK[elde];
-  if(dolum>0){f=1-dolum/W.dolum;rt.textContent=W.ad+' — DOLDURULUYOR';rt.className='wait';}
-  else{f=mermi[elde]/W.sarjor;rt.textContent=`${W.ad}  ${mermi[elde]}/${W.sarjor}${bomba?'  ·  BOMBA '+bomba:''}`;rt.className='';}}
- else if(mode==='foot'){f=1-rpgCool/1.15;rt.textContent=(rpgCool>0?'BAZUKA DOLUYOR':'BAZUKA HAZIR — SINIRSIZ ROKET')+(bomba?'  ·  BOMBA '+bomba:'');rt.className=rpgCool>0?'wait':'';}
+ if(mode==='foot'&&yaya.hazir){const W=yaya.W,sl=W.current,df=sl.def;
+  if(W.reloading){f=Math.min(1,(performance.now()/1000-W.reloadStart)/(W.reloadEnd-W.reloadStart));rt.textContent=df.name.toUpperCase()+' — ŞARJÖR DEĞİŞİYOR';rt.className='wait';}
+  else{f=sl.ammo/df.mag;rt.textContent=`${df.name.toUpperCase()}  ${sl.ammo}/${df.mag}${df.rocket?'  ·  SINIRSIZ ROKET':''}${bomba?'  ·  BOMBA '+bomba:''}`;rt.className='';}}
+ else if(mode==='foot'){f=1-rpgCool/1.15;rt.textContent='SİLAHLAR YÜKLENİYOR — GEÇİCİ BAZUKA'+(bomba?'  ·  BOMBA '+bomba:'');rt.className='wait';}
+ else if(mode==='tank'&&rws){f=1;rt.textContent='OTOMATİK MAKİNELİ — TANKIN İÇİNDEN';rt.className='';}
  else if(mode==='mg'){f=1;rt.textContent='MAKİNELİ TÜFEK — AÇIKTASIN';rt.className='wait';}
  else{f=1-tank.reload/tank.RELOAD;
   if(tank.reload>0){rt.textContent='DOLDURULUYOR '+tank.reload.toFixed(1)+' sn';rt.className='wait';}
@@ -1335,7 +1499,7 @@ function updateHud(){
  // where the gun actually points
  const g=RIG[tank.kind].dirLocal.clone().multiplyScalar(80);tank.gun.localToWorld(g);g.project(camera);const gm=$('gunmark');
  gm.style.left=((g.x+1)/2*innerWidth)+'px';gm.style.top=((1-g.y)/2*innerHeight)+'px';gm.style.display=g.z<1?'block':'none';
- const durbun=zoom&&(mode==='tank'||(mode==='foot'&&elde==='svd'));
+ const durbun=(zoom&&mode==='tank'&&!rws)||(mode==='foot'&&yaya.hazir&&yaya.W.scoped);
  $('scope').classList.toggle('on',durbun);
  $('cross').style.display=durbun?'none':'block';
  yakitYaz();
@@ -1353,7 +1517,11 @@ function loop(){const dt=Math.min(clock.getDelta(),0.05);
  if(marketAcik){updateHud();renderer.render(scene,camera);requestAnimationFrame(loop);return;}
  simTime+=dt;
  if(mode==='foot'){footUpdate(dt);sfx.engine(0,0);}else update(dt);
- silahGorunum(dt);bombaGuncelle(dt);
+ bombaGuncelle(dt);dusenGuncelle(dt);
+ if(yaya.hazir&&mode!=='foot')yaya.W.rig.visible=false;
+ camera.near=(mode==='foot')?0.03:0.1;            // elde silah gözün dibinde: kırpılmasın
+ rwsGuncelle();
+ if(mode==='tank'&&rws&&firing&&started&&!oyunBitti&&!tankYikik)rwsAtes(dt);
  mgGorunum(dt);
  if(mode==='mg'&&firing&&started&&!oyunBitti)mgFire(dt);
  karoAkisi(dt);

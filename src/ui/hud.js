@@ -93,9 +93,12 @@ export class Hud {
       durum.kredi.toLocaleString('tr-TR');
     document.getElementById('shop-tab-vest').classList.toggle('active', bolum === 'vest');
     document.getElementById('shop-tab-helm').classList.toggle('active', bolum === 'helm');
+    document.getElementById('shop-tab-weapons')?.classList.toggle('active', bolum === 'weapons');
     document.getElementById('shop-note').textContent = bolum === 'vest'
       ? 'Koruma arttıkça koşu yavaşlar. Uzman yelekler kendi tehdidine karşı çok güçlü, diğerine karşı zayıftır.'
-      : 'Kask yalnızca KAFA isabetlerini azaltır; gövde hasarına etkisi yoktur.';
+      : bolum === 'helm'
+        ? 'Kask yalnızca KAFA isabetlerini azaltır; gövde hasarına etkisi yoktur.'
+        : 'Silahlar bir kez alınır ve kalıcıdır. Tank bölümünde kazandığın puanın bir kısmı da buraya kredi olarak yazılır.';
 
     const grid = document.getElementById('shop-grid');
     grid.innerHTML = '';
@@ -105,7 +108,11 @@ export class Hud {
       const kart = document.createElement('article');
       kart.className = `shop-card${takili ? ' equipped' : ''}${sahip ? ' owned' : ''}`;
 
-      const satirlar = bolum === 'vest' ? [
+      const satirlar = bolum === 'weapons' ? [
+        ['Kullanım', u.kullanim, true],
+        ['Atış hızı', u.atis, false],
+        ['Mürettebat', u.murettebat, false],
+      ] : bolum === 'vest' ? [
         ['Seri atışa karşı', yuzde(u.seri), u.uzman === 'seri'],
         ['Keskin nişancıya karşı', yuzde(u.keskin), u.uzman === 'keskin'],
         ['Hız', u.hiz === 1 ? 'etkilenmez' : `−${Math.round((1 - u.hiz) * 100)}%`, false],
@@ -133,6 +140,7 @@ export class Hud {
       btn.dataset.eylem = sahip ? 'kus' : 'al';
       btn.textContent = takili ? 'Kuşanıldı' : sahip ? 'Kuşan' : 'Satın al';
       btn.disabled = takili || (!sahip && durum.kredi < u.fiyat);
+      if (bolum === 'weapons' && sahip) { btn.textContent = 'Sahipsin'; btn.disabled = true; }
       if (!sahip && durum.kredi < u.fiyat) btn.textContent = 'Kredi yetersiz';
       kart.append(btn);
       grid.append(kart);

@@ -152,7 +152,8 @@ export class Weaponry {
     let done = 0;
 
     for (const def of WEAPONS) {
-      const gltf = await loader.loadAsync(def.file);
+      // basePath: sayfa alt klasördeyse (tank bölümü) dosya yolu öneki
+      const gltf = await loader.loadAsync((this.basePath ?? '') + def.file);
       const model = gltf.scene;
 
       const { muzzle } = normalizeModel(model, def.view.length, {

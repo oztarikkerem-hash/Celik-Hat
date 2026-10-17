@@ -88,6 +88,19 @@ export const KASKLAR = [
   },
 ];
 
+/* Silahlar: kalıcı kilit açmalar (kuşanılmaz, bir kez alınır). Tank
+   bölümü aynı kaydı okur: 'tankmg' alınmışsa tankın içinden makineli
+   kullanılır. */
+export const SILAHLAR = [
+  {
+    id: 'tankmg', ad: 'Otomatik Tank Makinelisi', fiyat: 15000,
+    aciklama: 'Uzaktan kumandalı kule makinelisi. Tank bölümünde tanktan '
+      + 'çıkmadan E basılı tut ve tetiğe bas: tepe makinelisi ateş eder, '
+      + 'mürettebat açıkta kalmaz.',
+    kullanim: 'Tankta E basılı + sol tık', atis: '700 / dk', murettebat: 'Korunur',
+  },
+];
+
 const VARSAYILAN = {
   kredi: 0,
   sahip: ['hafif', 'bere'],
@@ -140,16 +153,20 @@ export class Shop {
   sahipMi(id) { return this.durum.sahip.includes(id); }
 
   urun(id) {
-    return YELEKLER.find((u) => u.id === id) ?? KASKLAR.find((u) => u.id === id) ?? null;
+    return YELEKLER.find((u) => u.id === id) ?? KASKLAR.find((u) => u.id === id)
+      ?? SILAHLAR.find((u) => u.id === id) ?? null;
   }
 
   satinAl(id) {
+    // Tank bölümü de krediyi aynı kayda yazıyor: önce diskten tazele,
+    // yoksa bellekteki eski bakiye onun kazandırdıklarının üzerine yazar
+    this.yukle();
     const u = this.urun(id);
     if (!u || this.sahipMi(id)) return { ok: false, sebep: 'zaten' };
     if (this.durum.kredi < u.fiyat) return { ok: false, sebep: 'kredi' };
     this.durum.kredi -= u.fiyat;
     this.durum.sahip.push(id);
-    this.kus(id);
+    if (!this.kus(id)) this.kaydet();     // silahlar kuşanılmaz, yine de kaydet
     return { ok: true };
   }
 

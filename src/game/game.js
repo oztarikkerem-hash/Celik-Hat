@@ -16,7 +16,7 @@ import { MissionBook, MISSIONS } from './missions.js';
 import { HEADSHOT_MULT, BODY_MULT, LEG_MULT } from './weapons.js';
 import { EnemyGear } from './enemyGear.js';
 import { SoldierFactory } from './soldier.js';
-import { Shop, YELEKLER, KASKLAR } from './shop.js';
+import { Shop, YELEKLER, KASKLAR, SILAHLAR } from './shop.js';
 import { TankFactory, TANK_TIPLERI } from './tanks.js';
 import { TankBattle } from './tankbattle.js';
 import { TankPilot } from './tankpilot.js';
@@ -186,6 +186,7 @@ export class Game {
     on('home-shop-btn', () => this.showShop('vest'));
     on('shop-tab-vest', () => this.showShop('vest'));
     on('shop-tab-helm', () => this.showShop('helm'));
+    on('shop-tab-weapons', () => this.showShop('weapons'));
     on('shop-back-btn', () => this.toHome());
     document.getElementById('shop-grid')?.addEventListener('click', (e) => {
       const btn = e.target.closest('.shop-btn');
@@ -682,10 +683,12 @@ export class Game {
   showShop(bolum = this.shopBolum) {
     this.shopBolum = bolum;
     this.state = 'home';
-    this.hud.buildShop(bolum, bolum === 'vest' ? YELEKLER : KASKLAR, {
+    this.shop.yukle();      // tank bölümünün kazandırdığı kredi görünsün
+    const urunler = bolum === 'vest' ? YELEKLER : bolum === 'helm' ? KASKLAR : SILAHLAR;
+    this.hud.buildShop(bolum, urunler, {
       kredi: this.shop.kredi,
       sahipMi: (id) => this.shop.sahipMi(id),
-      takili: bolum === 'vest' ? this.shop.yelek.id : this.shop.kask.id,
+      takili: bolum === 'vest' ? this.shop.yelek.id : bolum === 'helm' ? this.shop.kask.id : null,
     });
     this.hud.screen('shopScreen');
   }

@@ -243,6 +243,19 @@ AYRI bir kopyadır, buradaki değişiklikler oraya gitmez.
 - **Market** (kapının önü, E): el bombası ×3, AK-47, PKM, Dragunov — hepsi
   30 altın. Altın: düşman tankı +30, hedef +10, başlangıç 60.
 - Ses tercihi Çelik Hat ile paylaşılır (`localStorage 'celikhat.sessiz'`).
+- Tank oyunu artık yerel Three'yi (`../vendor`, r171) kullanır ve Çelik Hat
+  modüllerini doğrudan içe aktarır: yayayken `Weaponry` + `FPArms` (eller,
+  şarjör değiştirme). `Weaponry.basePath = '../'` (dosya yolu öneki).
+  Yedek mermi sınırsız; bazuka roketi tanka 30 hasar (kullanıcı kuralı);
+  tüfekler `tankHasari()` ile (keskin nişancı ×0.4, diğerleri ×0.25).
+- Saha yarıçapı `SAHA_R` 800 m; yakıt `YAKIT_MENZIL` 10 km (iki tur).
+- Siperler: `setKur()` toprak set + kum torbası; mermiyi `siperIcinde()` /
+  `siperIsini()` tutar; birlikler `siperSec()` ile setin arkasına girer.
+- Puanın %60'ı Çelik Hat mağazasına kredi olur (`krediEkle`, aynı kayıt
+  `celikhat.shop.v1`). Mağaza satın almadan önce kaydı diskten tazeler.
+- Mağaza "Silahlar" bölümü: `tankmg` (15.000) alınmışsa tankta E basılı +
+  tetik kulenin üstündeki uzaktan kumandalı makineliyi ateşler (`rwsAtes`);
+  alınmamışsa E eskisi gibi açıktaki tepe makinelisine çıkarır.
 
 ## Siper savaşı
 
