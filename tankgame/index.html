@@ -97,6 +97,24 @@ h1 span{color:var(--signal)}
 .mitem button[disabled]{background:rgba(255,255,255,.12);color:var(--dim);cursor:default}
 #mktClose{align-self:flex-start;font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:.08em;background:transparent;color:var(--text);border:1px solid var(--line);padding:8px 18px;cursor:pointer}
 #market button:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+/* İç kamera: tankın içindeki nişancı monitörü */
+#ickam{position:fixed;inset:0;display:none;pointer-events:none;z-index:2;font-family:var(--mono);color:#b9f29a}
+#ickam.on{display:block}
+#ickam .ekran{position:absolute;inset:0;
+ background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px),
+  radial-gradient(ellipse at 50% 50%,transparent 58%,rgba(0,0,0,.55) 100%)}
+#ickam .cerceve{position:absolute;inset:0;border:clamp(14px,3.2vmin,30px) solid #0b0d0a;border-radius:clamp(18px,4vmin,40px);
+ box-shadow:inset 0 0 0 2px #2a3226,inset 0 0 40px rgba(0,0,0,.6)}
+#ickam svg.nisan{position:absolute;left:50%;top:50%;width:min(46vmin,420px);height:min(46vmin,420px);transform:translate(-50%,-50%)}
+#ickam .ust{position:absolute;top:calc(env(safe-area-inset-top,0px) + 92px);left:50%;transform:translateX(-50%);white-space:nowrap;
+ font-size:13px;letter-spacing:.14em;display:flex;gap:18px;text-shadow:0 0 6px rgba(150,255,120,.35)}
+#ickam .sol,#ickam .sag{position:absolute;bottom:calc(clamp(14px,3.2vmin,30px) + 70px);font-size:12px;line-height:1.7;letter-spacing:.1em;
+ text-shadow:0 0 6px rgba(150,255,120,.35)}
+#ickam .sol{left:calc(clamp(14px,3.2vmin,30px) + 190px)}
+#ickam .sag{right:calc(clamp(14px,3.2vmin,30px) + 18px);text-align:right}
+#ickam .ust,#ickam .sol,#ickam .sag{background:rgba(6,10,5,.55);padding:4px 10px;border-radius:3px}
+#ickam b{color:#e6ffd8;font-weight:600}
+#ickam .kayit{color:#ff6b4a}
 @media (max-width:560px){.val{font-size:22px}#compass{width:72px;height:72px}.box{min-width:66px;padding:6px 9px}}
 @media (prefers-reduced-motion:reduce){#msg{transition:none}}
 </style>
@@ -131,6 +149,19 @@ h1 span{color:var(--signal)}
 <div class="hud" id="bottom"><div id="reloadTxt">HAZIR</div><div id="reload"><div id="reloadFill"></div></div></div>
 <div class="hud" id="msg"></div>
 <div class="hud" id="prompt"></div>
+<div id="ickam" aria-hidden="true">
+  <div class="ekran"></div>
+  <div class="cerceve"></div>
+  <svg class="nisan" viewBox="-100 -100 200 200"><g stroke="#b9f29a" stroke-width=".9" fill="none" opacity=".9">
+    <path d="M-100 0h80M20 0h80M0 20v80M0 -100v80"/>
+    <path d="M-6 0h12M0 -6v12" stroke-width="1.2"/>
+    <path d="M-30 -30h8M-30 -30v8M30 -30h-8M30 -30v8M-30 30h8M-30 30v-8M30 30h-8M30 30v-8"/>
+    <g font-size="5" fill="#b9f29a" stroke="none" font-family="IBM Plex Mono"><text x="4" y="40">4</text><text x="4" y="60">8</text><text x="4" y="80">12</text></g>
+    <path d="M-4 38h8M-4 58h8M-4 78h8"/></g></svg>
+  <div class="ust"><span>YÖN <b id="ikYon">000°</b></span><span>MESAFE <b id="ikMes">----</b> m</span><span>×<b id="ikZum">1</b></span></div>
+  <div class="sol">KULE <b id="ikKule">0°</b><br>NAMLU <b id="ikNamlu">0</b> mil<br>HIZ <b id="ikHiz">0</b> km/sa</div>
+  <div class="sag"><span class="kayit">●</span> NİŞANCI KAMERASI · GÜNDÜZ<br>TOP <b id="ikTop">HAZIR</b><br>V: DIŞ GÖRÜNÜŞ</div>
+</div>
 <div id="market" role="dialog" aria-label="Benzinlik marketi"><div class="card">
   <h2>BENZİNLİK <span>MARKETİ</span></h2>
   <p class="sub">Her ürün 30 altın. Altın, düşman tankı imha ettikçe kazanılır. Satın aldığın silahlar yayayken kullanılır — tank imha olsa da yanında kalır.</p>
@@ -160,6 +191,7 @@ h1 span{color:var(--signal)}
       <span class="k">F</span><span>Benzinlikte tanktan in · tankın yanında yeniden bin</span>
       <span class="k">1–9 · G · R</span><span>Yayayken silah seç · el bombası · şarjör değiştir</span>
       <span class="k">E + tık</span><span>Mağazadan Otomatik Tank Makinelisi alındıysa: tanktan çıkmadan makineli</span>
+      <span class="k">V</span><span>İç kamera (tankın içindeki nişancı ekranı) / dış görünüş</span>
       <span class="k">M</span><span>Sesi aç / kapat</span>
       <span class="k">Esc</span><span>Fareyi serbest bırak</span>
     </div>
@@ -625,9 +657,14 @@ fetch('abrams_glb.txt').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);retu
 
 // ---------------- input
 const keys={};let camYaw=0,camPitch=-0.12,zoom=false,firing=false,started=false;
+/* Görüş: 'dis' = tankın arkasından takip kamerası, 'ic' = tankın İÇİNDEN,
+   kuleye takılı nişancı kamerasının monitör görüntüsü (gerçek tank
+   mürettebatının gördüğü gibi). V ile değişir. */
+let gorus='dis';
 addEventListener('keydown',e=>{
  if(marketAcik){if(e.code==='Escape'||e.code==='KeyE')marketKapat();return;}
  keys[e.code]=true;if(e.code==='Space'){firing=true;e.preventDefault();}if(e.code==='KeyZ')zoom=!zoom;
+ if(e.code==='KeyV'&&started&&(mode==='tank')){gorus=gorus==='dis'?'ic':'dis';camInit=false;msg(gorus==='ic'?'İÇ KAMERA':'DIŞ GÖRÜNÜŞ');}
  if(e.code==='KeyM')sfx.sesDegistir();
  if(!started||oyunBitti)return;
  if(e.code==='KeyE'){
@@ -1465,7 +1502,19 @@ function updateCamera(dt){
   return;}
 
  const tp=new THREE.Vector3(tank.x,tank.y+3.2,tank.z);
- if(zoom){ // gunner sight
+ if(gorus==='ic'){
+  // Kule tavanındaki nişancı kamerası: kuleyle döner, bakış fareyle;
+  // ×1 geniş açı, Z / sağ tık ×6
+  const sight=tank.kind==='abrams'?new THREE.Vector3(-0.62,1.18,0.95):new THREE.Vector3(0.95,1.18,0.62);tank.turret.localToWorld(sight);
+  camera.position.copy(sight);
+  camera.fov+=((zoom?9.5:56)-camera.fov)*Math.min(1,dt*10);
+  const look=new THREE.Vector3(Math.cos(camPitch)*Math.cos(camYaw),Math.sin(camPitch),-Math.cos(camPitch)*Math.sin(camYaw));
+  camera.lookAt(sight.clone().add(look));
+  // Motor titreşimi ve atış sarsıntısı monitörde de hissedilir
+  const titre=0.004*Math.min(1,Math.abs(tank.speed)/8);
+  camera.rotation.z+=(Math.random()-.5)*titre;
+  if(shake>0){camera.rotation.x+=(Math.random()-.5)*shake*0.02;shake=Math.max(0,shake-dt*1.8);}
+ }else if(zoom){ // gunner sight
   const sight=tank.kind==='abrams'?new THREE.Vector3(-0.62,1.08,0.95):new THREE.Vector3(0.95,1.08,0.62);tank.turret.localToWorld(sight);
   camera.position.copy(sight);camera.fov+= (12-camera.fov)*Math.min(1,dt*10);
   const look=new THREE.Vector3(Math.cos(camPitch)*Math.cos(camYaw),Math.sin(camPitch),-Math.cos(camPitch)*Math.sin(camYaw));camera.lookAt(sight.clone().add(look));
@@ -1499,9 +1548,24 @@ function updateHud(){
  // where the gun actually points
  const g=RIG[tank.kind].dirLocal.clone().multiplyScalar(80);tank.gun.localToWorld(g);g.project(camera);const gm=$('gunmark');
  gm.style.left=((g.x+1)/2*innerWidth)+'px';gm.style.top=((1-g.y)/2*innerHeight)+'px';gm.style.display=g.z<1?'block':'none';
- const durbun=(zoom&&mode==='tank'&&!rws)||(mode==='foot'&&yaya.hazir&&yaya.W.scoped);
+ const ic=gorus==='ic'&&mode==='tank';
+ const durbun=(zoom&&mode==='tank'&&!rws&&!ic)||(mode==='foot'&&yaya.hazir&&yaya.W.scoped);
+ $('ickam').classList.toggle('on',ic);
+ // Gündüz kamerası: yeşilimsi, düşük doygunluk, sert kontrast
+ const filtre=ic?'saturate(.35) sepia(.45) hue-rotate(48deg) contrast(1.25) brightness(1.06)':'';
+ if(cvs.style.filter!==filtre)cvs.style.filter=filtre;
+ if(ic){
+  const yon=((90-camYaw*180/Math.PI)%360+360)%360;
+  $('ikYon').textContent=String(Math.round(yon)).padStart(3,'0')+'°';
+  const mes=tank.aim?camera.position.distanceTo(tank.aim):0;
+  $('ikMes').textContent=mes>1150?'----':String(Math.round(mes)).padStart(4,'0');
+  $('ikZum').textContent=zoom?'6':'1';
+  $('ikKule').textContent=Math.round(((tank.turretYaw*180/Math.PI)%360+540)%360-180)+'°';
+  $('ikNamlu').textContent=Math.round(tank.gunPitch*1000);
+  $('ikHiz').textContent=Math.round(Math.abs(tank.speed)*3.6);
+  $('ikTop').textContent=rws?'MAKİNELİ':tank.reload>0?'DOLUYOR '+tank.reload.toFixed(1):'HAZIR';}
  $('scope').classList.toggle('on',durbun);
- $('cross').style.display=durbun?'none':'block';
+ $('cross').style.display=(durbun||ic)?'none':'block';
  yakitYaz();
  // Ekran ipucu: ne yapılabileceğini o anda göster
  let ip='';
