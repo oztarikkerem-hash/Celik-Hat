@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Claude Code: kişisel izinler (paylaşılmaz)
+.claude/settings.local.json
+
+# Blender yedekleri ve geçici dosyalar
+*.blend1
+*.tmp
+__pycache__/

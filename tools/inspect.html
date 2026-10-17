@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Model İnceleme</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #11150f; color: #dde1d7;
+               font: 12px "Share Tech Mono", ui-monospace, monospace; overflow: hidden; }
+  #c { position: fixed; inset: 0; }
+  #grid { position: fixed; inset: 0; display: grid;
+          grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr);
+          pointer-events: none; }
+  #grid div { border: 1px solid rgba(127,143,114,0.22); padding: 6px 8px; color: #e8a33d;
+              letter-spacing: 0.08em; }
+  #grid div span { display: block; color: #7f8f72; margin-top: 2px; }
+  #note { position: fixed; left: 10px; bottom: 8px; color: #7f8f72; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="grid"></div>
+<div id="note">yandan görünüş · yeşil ok = ileri (-Z) · namlu SAĞA bakmalı (kırmızı top = namlu ucu) · kabza aşağıda</div>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three.module.js", "three/addons/": "../vendor/addons/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { WEAPONS } from '../src/game/weapons.js';
+import { normalizeModel } from '../src/game/align.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.setScissorTest(true);
+
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xaac0cc, 0x2a2f26, 1.3));
+const key = new THREE.DirectionalLight(0xffffff, 2.4);
+key.position.set(3, 4, 4);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x88bbff, 1.4);
+rim.position.set(-3, 1, -3);
+scene.add(rim);
+
+const loader = new GLTFLoader();
+const COLS = 2, ROWS = 4;
+const grid = document.getElementById('grid');
+const cells = [];
+
+for (const def of WEAPONS) {
+  const gltf = await loader.loadAsync('../' + def.file);
+  const model = gltf.scene;
+  const info = normalizeModel(model, 1.0, {   // hepsi 1 m: karşılaştırma kolay
+    flipForward: def.view.flipForward,
+    flipUp: def.view.flipUp,
+    roll: def.view.roll,
+  });
+
+  // Silüet okunabilsin diye malzemeleri geçici olarak açık griye çevir.
+  const plain = new THREE.MeshStandardMaterial({ color: 0xcfd4c9, roughness: 0.55, metalness: 0.2 });
+  model.traverse((o) => { if (o.isMesh) o.material = plain; });
+
+  const holder = new THREE.Group();
+  holder.add(model);
+  holder.visible = false;
+  scene.add(holder);
+
+  // Yön işaretleri
+  const fwd = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, -0.32, 0.5), 1.1, 0x5dd36a, 0.1, 0.06);
+  const up = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -0.32, 0.5), 0.4, 0x6fa8ff, 0.07, 0.045);
+  holder.add(fwd, up);
+
+  // Namlu ucu işareti
+  const muzzle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.035, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff5a3c }),
+  );
+  muzzle.position.copy(info.muzzle);
+  holder.add(muzzle);
+
+  cells.push({ def, holder, info });
+
+  const d = info.diagnostics;
+  const label = document.createElement('div');
+  label.innerHTML = `${def.id}<span>ileri: ${d.flipForward} · ters: ${d.flipUp}`
+    + ` · kalınlık ön/arka: ${d.frontThick.toFixed(3)}/${d.backThick.toFixed(3)}<br>`
+    + `ham ölçü: ${d.preSize.join(' × ')} · eksen sırası: ${d.axisOrder.join('')}`
+    + ` · atılan parça: ${d.pruned.length}</span>`;
+  grid.append(label);
+}
+for (let i = cells.length; i < COLS * ROWS; i++) grid.append(document.createElement('div'));
+
+// Her hücre kendi görünümünü çizer (scissor): yandan ortografik bakış.
+function render() {
+  const w = innerWidth / COLS, h = innerHeight / ROWS;
+  renderer.setSize(innerWidth, innerHeight);
+
+  cells.forEach(({ holder }, i) => {
+    const cx = (i % COLS) * w, cy = innerHeight - (Math.floor(i / COLS) + 1) * h;
+    const aspect = w / h;
+    // Genişliğe göre sığdır: silah 1 m, kenarlarda pay kalsın.
+    const halfW = 0.72, halfH = halfW / aspect;
+    const cam = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.01, 20);
+    cam.position.set(4, 0.1, -0.5);     // sağ yandan bak
+    cam.lookAt(0, 0.1, -0.5);
+
+    renderer.setViewport(cx, cy, w, h);
+    renderer.setScissor(cx, cy, w, h);
+    for (const c of cells) c.holder.visible = false;
+    holder.visible = true;
+    renderer.render(scene, cam);
+  });
+}
+
+render();
+addEventListener('resize', render);
+window.cells = cells;
+</script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Elde Görünüm Kontrolü</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1a1f1c; color: #dde1d7;
+               font: 12px "Share Tech Mono", ui-monospace, monospace; overflow: hidden; }
+  #c { position: fixed; inset: 0; }
+  #grid { position: fixed; inset: 0; display: grid;
+          grid-template-columns: var(--cols); grid-template-rows: var(--rows);
+          pointer-events: none; }
+  #grid div { border: 1px solid rgba(127,143,114,0.25); padding: 5px 8px; color: #e8a33d; }
+  #grid div span { color: #7f8f72; }
+  #note { position: fixed; left: 10px; bottom: 6px; color: #7f8f72; }
+  .cross { position: absolute; width: 10px; height: 10px; border: 1px solid #c8432a;
+           border-radius: 50%; transform: translate(-50%, -50%); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="grid"></div>
+<script>
+  { const q = new URLSearchParams(location.search);
+    const c = Number(q.get('cols') ?? 2), r = Number(q.get('rows') ?? 4);
+    document.documentElement.style.setProperty('--cols', `repeat(${c}, 1fr)`);
+    document.documentElement.style.setProperty('--rows', `repeat(${r}, 1fr)`); }
+</script>
+<div id="note">oyuncunun gözünden · namlu EKRANIN İÇİNE bakmalı · kırmızı halka = ekran ortası (nişangah)</div>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three.module.js", "three/addons/": "../vendor/addons/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// Sürüm damgası: tarayıcı eski modülü önbellekten çalıştırmasın.
+const v = `?v=${Date.now()}`;
+const { WEAPONS } = await import('../src/game/weapons.js' + v);
+const { normalizeModel } = await import('../src/game/align.js' + v);
+const { applyFinish } = await import('../src/game/finish.js' + v);
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.3;
+renderer.setScissorTest(true);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1f1c);
+scene.add(new THREE.HemisphereLight(0xaac0cc, 0x2a2f26, 1.1));
+const key = new THREE.DirectionalLight(0xfff0d8, 2.2);
+key.position.set(2, 3, 2);
+scene.add(key);
+
+const loader = new GLTFLoader();
+const params = new URLSearchParams(location.search);
+const COLS = Number(params.get('cols') ?? 2);
+const ROWS = Number(params.get('rows') ?? 4);
+const PAGE = Number(params.get('page') ?? 0);
+const PER = COLS * ROWS;
+const grid = document.getElementById('grid');
+const cells = [];
+
+for (const def of WEAPONS.slice(PAGE * PER, PAGE * PER + PER)) {
+  const gltf = await loader.loadAsync('../' + def.file);
+  const model = gltf.scene;
+  const info = normalizeModel(model, def.view.length, {
+    flipForward: def.view.flipForward,
+    flipUp: def.view.flipUp,
+    roll: def.view.roll,
+  });
+  if (def.finish) applyFinish(model, def.finish);
+  model.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+
+  // Oyundaki dizilimin aynısı: holder → model, holder oyuncunun gözünde
+  const holder = new THREE.Group();
+  holder.add(model);
+  holder.position.set(...def.view.pos);
+  holder.visible = false;
+  scene.add(holder);
+
+  // Namlu ucu işareti
+  const muzzle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.012, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff3b1f }),
+  );
+  muzzle.position.copy(info.muzzle);
+  holder.add(muzzle);
+
+  cells.push({ def, holder });
+
+  const label = document.createElement('div');
+  label.innerHTML = `${def.id}<br><span>boy ${def.view.length} m · ileri:${def.view.flipForward}`
+    + ` ters:${def.view.flipUp}</span>`;
+  grid.append(label);
+}
+for (let i = cells.length; i < COLS * ROWS; i++) grid.append(document.createElement('div'));
+
+function render() {
+  const w = innerWidth / COLS, h = innerHeight / ROWS;
+  renderer.setSize(innerWidth, innerHeight);
+
+  cells.forEach(({ holder }, i) => {
+    const cx = (i % COLS) * w, cy = innerHeight - (Math.floor(i / COLS) + 1) * h;
+    const cam = new THREE.PerspectiveCamera(78, w / h, 0.02, 100);
+    cam.position.set(0, 0, 0);     // oyuncunun gözü
+    cam.lookAt(0, 0, -1);
+
+    renderer.setViewport(cx, cy, w, h);
+    renderer.setScissor(cx, cy, w, h);
+    for (const c of cells) c.holder.visible = false;
+    holder.visible = true;
+    renderer.render(scene, cam);
+  });
+}
+
+render();
+addEventListener('resize', render);
+
+// Ekran ortası işaretleri (nişangah hizası)
+for (let i = 0; i < cells.length; i++) {
+  const mark = document.createElement('div');
+  mark.className = 'cross';
+  mark.style.left = `${((i % COLS) + 0.5) * (100 / COLS)}%`;
+  mark.style.top = `${(Math.floor(i / COLS) + 0.5) * (100 / ROWS)}%`;
+  document.body.append(mark);
+}
+window.cells = cells;
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+# Çelik Hat
+
+Tarayıcıda çalışan birinci şahıs nişancı oyunu. Three.js (görüntü) ve
+cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
+
+- Dokuz silah (Desert Eagle, AK-47, MAR 556, MG 43, Barrett M82, M98B,
+  Minigun, M4 Karabina, Bazuka) — gerçek ellerle tutuluyor, her birinin
+  kendine özgü şarjör değiştirme animasyonu var.
+- Sandıklardan siper hatları; düşmanlar siperde saklanıp doğrularak ateş
+  ediyor, siperden sipere ilerliyor.
+- Görevler, müttefik askerler, mağaza (yelek ve kask).
+- **Bölümler:** tank oyunu (Death Star) — T-90 ya da M1 Abrams, müttefik ve
+  düşman tanklar, yakıt, benzinlik ve market.
+
+## Çalıştırma
+
+Oyun dosyaları doğrudan açılmaz (tarayıcı modülleri `file://` üzerinden
+yüklemez); yerel bir sunucu gerekir:
+
+```bash
+python3 tools/devserver.py 8777
+```
+
+Sonra tarayıcıda `http://localhost:8777` adresini aç.
+
+## Kontroller
+
+| Tuş | İş |
+|---|---|
+| W A S D | Hareket |
+| Fare | Nişan |
+| Sol tık / Sağ tık | Ateş / nişan al |
+| R | Şarjör değiştir |
+| 1–9, fare tekerleği | Silah seç |
+| C / Ctrl | Çömel (siperin arkasında tamamen saklanırsın) |
+| G | El bombası |
+| M | Sesi aç / kapat |
+
+Tank bölümünde: W/S sür, A/D dön, E (basılı) tepe makinelisi ya da
+benzinlikte yakıt al / market, F benzinlikte tanktan in / tanka bin.
+
+## Klasörler
+
+- `src/` — oyun kodu (`core` altyapı, `game` oyun, `ui` arayüz)
+- `tankgame/` — Bölümler'deki tank oyunu (tek sayfa)
+- `assets/` — modeller ve dokular
+- `vendor/` — Three.js ve cannon-es
+- `tools/` — geliştirme sunucusu, Blender dönüştürücüleri, ayar araçları
+
+Ayrıntılı geliştirici notları: [CLAUDE.md](CLAUDE.md).
+
+## Model lisansları
+
+- Asker modelleri: **SpatialNeglect** — S.W.A.T. Operator ve FSB Operator
+  (Sketchfab, CC BY 4.0).
+- Diğer silah, araç ve yapı modelleri Sketchfab ve kişisel Blender
+  dosyalarından alındı; depoyu herkese açık paylaşmadan önce her birinin
+  lisansının yeniden dağıtıma izin verdiğini kontrol et.

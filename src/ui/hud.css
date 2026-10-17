@@ -1,0 +1,1334 @@
+/* Çelik Hat — HUD
+   Tek bir görsel dünyaya bağlı kalır (saha telemetrisi / askeri gösterge
+   paneli), bu yüzden tema değişkeni yok: her renk açıkça tanımlı.        */
+
+:root {
+  --ink:        #0b0f0d;  /* en koyu zemin  */
+  --steel:      #151b18;  /* panel gövdesi  */
+  --steel-up:   #1e2621;  /* panel kenarı   */
+  --olive:      #7f8f72;  /* ikincil metin  */
+  --bone:       #dde1d7;  /* ana metin      */
+  --amber:      #e8a33d;  /* vurgu / cephane*/
+  --amber-dim:  #8a6124;
+  --rust:       #c8432a;  /* tehlike        */
+  --jade:       #6fae7a;  /* iyi durum      */
+
+  --mono: "Share Tech Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --disp: "Saira Condensed", "Oswald", "Arial Narrow", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+/* `hidden` özniteliği her zaman kazanmalı: aşağıdaki sınıflar display
+   tanımladığı için tarayıcının varsayılan [hidden] kuralını eziyorlardı. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--disp);
+  -webkit-font-smoothing: antialiased;
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: none;
+}
+
+body.unlocked #viewport { cursor: default; }
+
+.label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--olive);
+  text-transform: uppercase;
+}
+
+/* ───────────────────────────── Nişangah ───────────────────────────── */
+
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  pointer-events: none;
+  z-index: 20;
+  /* --spread: JS tarafından 0–1 arası sürülür */
+  --spread: 0.25;
+  opacity: 0.92;
+}
+
+.ch-arm {
+  position: absolute;
+  background: var(--bone);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
+  transition: transform 60ms linear;
+}
+
+.ch-top, .ch-bottom { left: 50%; width: 2px; height: 8px; margin-left: -1px; }
+.ch-left, .ch-right { top: 50%; height: 2px; width: 8px; margin-top: -1px; }
+
+.ch-top    { top: 0;    transform: translateY(calc(var(--spread) * -9px)); }
+.ch-bottom { bottom: 0; transform: translateY(calc(var(--spread) * 9px)); }
+.ch-left   { left: 0;   transform: translateX(calc(var(--spread) * -9px)); }
+.ch-right  { right: 0;  transform: translateX(calc(var(--spread) * 9px)); }
+
+.ch-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  background: var(--amber);
+  border-radius: 50%;
+}
+
+.crosshair.hidden { opacity: 0; }
+
+.hitmarker {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  z-index: 21;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.hitmarker svg { width: 100%; height: 100%; }
+
+.hitmarker path {
+  stroke: var(--bone);
+  stroke-width: 2.5;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.hitmarker.kill path { stroke: var(--rust); }
+
+.hitmarker.show { animation: hit-pop 240ms ease-out; }
+
+@keyframes hit-pop {
+  0%   { opacity: 1; transform: scale(0.7); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+/* ────────────────────────────── Dürbün ────────────────────────────── */
+
+.scope {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+
+.scope.on { opacity: 1; }
+
+.scope-glass {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 50%,
+      rgba(0, 0, 0, 0) 0 28vmin,
+      rgba(0, 0, 0, 0.82) 28.4vmin 30vmin,
+      #000 30.4vmin 100%);
+}
+
+.scope-line {
+  position: absolute;
+  background: rgba(10, 12, 10, 0.85);
+}
+
+.scope-v { left: 50%; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; }
+.scope-h { top: 50%; left: 0; right: 0; height: 1px; margin-top: -0.5px; }
+
+.scope-mil {
+  position: absolute;
+  left: 50%;
+  width: 14px;
+  height: 1px;
+  margin-left: -7px;
+  background: rgba(10, 12, 10, 0.8);
+}
+
+.scope-mil-1 { top: calc(50% + 4vmin); }
+.scope-mil-2 { top: calc(50% + 8vmin); }
+.scope-mil-3 { top: calc(50% + 12vmin); }
+
+/* ───────────────────── Hasar ve çerçeve efektleri ──────────────────── */
+
+.damage-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 60%,
+    rgba(200, 67, 42, 0) 35%, rgba(200, 67, 42, 0.55) 100%);
+}
+
+.damage-flash.hit { animation: dmg 420ms ease-out; }
+
+@keyframes dmg {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 17;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%,
+    rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* ──────────────────────────── HUD yerleşimi ───────────────────────── */
+
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  padding: 20px 26px;
+  gap: 10px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
+.hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.wave-block, .score-block { display: grid; gap: 2px; }
+.score-block { justify-items: end; text-align: right; }
+
+.wave-num, .score {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.wave-num { color: var(--bone); }
+.score    { color: var(--amber); }
+
+.wave-meta { display: grid; gap: 5px; margin-top: 2px; }
+
+.enemies-left {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--olive);
+  letter-spacing: 0.06em;
+}
+
+.wave-bar {
+  width: 148px;
+  height: 3px;
+  background: rgba(127, 143, 114, 0.22);
+}
+
+.wave-bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--rust);
+  transition: width 220ms ease-out;
+}
+
+.combo {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+  min-height: 14px;
+}
+
+/* Müttefik isim etiketleri (3B dünyadan ekrana yansıtılır) */
+
+.nametags {
+  position: fixed;
+  inset: 0;
+  z-index: 21;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.nametag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  font-family: var(--mono);
+  letter-spacing: 0.1em;
+  color: #9fd0ff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.nametag-name::after {
+  content: attr(data-state);
+  color: var(--rust);
+  margin-left: 6px;
+}
+
+.nametag-bar {
+  width: 46px;
+  height: 3px;
+  background: rgba(11, 15, 13, 0.75);
+  border: 1px solid rgba(159, 208, 255, 0.35);
+}
+
+.nametag-bar i {
+  display: block;
+  height: 100%;
+  background: #4ea8e8;
+  transition: width 160ms linear;
+}
+
+.nametag.downed { color: var(--rust); }
+.nametag.downed .nametag-bar i { background: var(--rust); }
+
+/* Taktik harita (sağ üst) */
+
+.minimap-wrap {
+  margin-top: 10px;
+  padding: 4px;
+  background: rgba(11, 15, 13, 0.45);
+  border: 1px solid rgba(127, 143, 114, 0.3);
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.minimap {
+  width: 164px;
+  height: 164px;
+  display: block;
+  border-radius: 50%;
+}
+
+@media (max-height: 760px) {
+  .minimap, .minimap-wrap { width: 128px; height: 128px; }
+}
+
+/* Görev takibi (HUD) */
+
+.mission-tracker {
+  justify-self: start;
+  align-self: start;
+  display: grid;
+  gap: 2px;
+  padding: 7px 11px 8px;
+  background: rgba(11, 15, 13, 0.52);
+  border-left: 2px solid var(--amber);
+  min-width: 190px;
+}
+
+.mission-tracker strong {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.mission-tracker.done strong { color: var(--jade); }
+
+.mission-row { display: flex; align-items: center; gap: 8px; }
+
+.mission-bar {
+  flex: 1;
+  height: 3px;
+  background: rgba(127, 143, 114, 0.22);
+}
+
+.mission-bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--amber);
+  transition: width 240ms ease-out;
+}
+
+.mission-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--olive);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Öldürme akışı */
+
+.killfeed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  justify-items: start;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.killfeed li {
+  background: rgba(11, 15, 13, 0.55);
+  border-left: 2px solid var(--amber-dim);
+  padding: 3px 8px;
+  color: var(--bone);
+  animation: feed-in 180ms ease-out;
+}
+
+.killfeed li.crit { border-left-color: var(--rust); color: var(--amber); }
+
+@keyframes feed-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ───────────────────────── Alt HUD: can / cephane ─────────────────── */
+
+.hud-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.vitals { display: grid; gap: 5px; }
+
+.vital-row { display: flex; align-items: center; gap: 10px; }
+
+.health-bar {
+  width: 196px;
+  height: 10px;
+  background: rgba(11, 15, 13, 0.7);
+  border: 1px solid rgba(127, 143, 114, 0.3);
+  padding: 1px;
+}
+
+.health-bar span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(180deg, var(--jade), #4e8a5c);
+  transition: width 140ms ease-out, background 200ms linear;
+}
+
+.health-bar span.warn { background: linear-gradient(180deg, var(--amber), #a9711f); }
+.health-bar span.crit { background: linear-gradient(180deg, var(--rust), #8d2b17); }
+
+.health-num {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  min-width: 48px;
+}
+
+.stamina-row { display: flex; align-items: center; gap: 8px; }
+
+.stamina-bar {
+  width: 196px;
+  height: 4px;
+  background: rgba(127, 143, 114, 0.18);
+}
+
+.stamina-bar span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: rgba(221, 225, 215, 0.6);
+  transition: width 120ms linear, background 200ms linear;
+}
+
+.stamina-bar span.low   { background: var(--amber); }
+.stamina-bar span.spent { background: var(--rust); }
+
+.stamina-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--rust);
+  animation: reload-pulse 0.9s ease-in-out infinite;
+}
+
+.sector-readout {
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--olive);
+  font-variant-numeric: tabular-nums;
+}
+
+.arsenal { display: grid; gap: 6px; justify-items: end; }
+
+.weapon-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 4px;
+}
+
+.weapon-strip li {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 3px 7px;
+  color: var(--olive);
+  background: rgba(11, 15, 13, 0.5);
+  border: 1px solid rgba(127, 143, 114, 0.22);
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+}
+
+.weapon-strip li .slot { color: var(--amber-dim); }
+
+.weapon-strip li.active {
+  color: var(--ink);
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.weapon-strip li.active .slot { color: rgba(11, 15, 13, 0.6); }
+
+.weapon-strip li.locked { opacity: 0.35; }
+
+.ammo-block {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.85;
+}
+
+.ammo-mag {
+  font-size: 54px;
+  font-weight: 700;
+  color: var(--bone);
+}
+
+.ammo-mag.low  { color: var(--amber); }
+.ammo-mag.empty { color: var(--rust); }
+
+.ammo-sep { font-size: 22px; color: var(--amber-dim); }
+
+.ammo-reserve {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--olive);
+}
+
+.weapon-name-row { display: flex; align-items: center; gap: 8px; }
+
+.weapon-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.fire-mode {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+  border: 1px solid var(--amber-dim);
+  padding: 1px 5px;
+}
+
+/* El bombası sayacı */
+
+.grenade-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 6px 2px;
+  border: 1px solid rgba(127, 143, 114, 0.35);
+  background: rgba(11, 15, 13, 0.5);
+}
+
+.grenade-key {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber-dim);
+}
+
+.grenade-chip strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--jade);
+  font-variant-numeric: tabular-nums;
+}
+
+.grenade-chip.empty strong { color: var(--rust); }
+
+.reload-row {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+}
+
+.reload-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--amber);
+  animation: reload-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes reload-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.reload-bar {
+  width: 182px;
+  height: 4px;
+  background: rgba(127, 143, 114, 0.2);
+}
+
+.reload-bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--amber);
+}
+
+/* ──────────────────────────── Katman ekranlar ─────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(31, 38, 33, 0.6), rgba(7, 10, 9, 0.94)),
+    var(--ink);
+}
+
+.overlay[hidden] { display: none; }
+
+.panel {
+  width: min(560px, 100%);
+  background: linear-gradient(180deg, var(--steel-up), var(--steel));
+  border: 1px solid rgba(127, 143, 114, 0.26);
+  border-top: 2px solid var(--amber);
+  padding: 30px 32px 34px;
+  display: grid;
+  gap: 16px;
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.95);
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: var(--amber);
+}
+
+.panel h1 {
+  margin: 0;
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 16px;
+  color: var(--olive);
+  line-height: 1.45;
+}
+
+.controls {
+  margin: 4px 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 18px;
+  font-size: 13px;
+}
+
+.controls > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(127, 143, 114, 0.14);
+}
+
+.controls dt {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.06em;
+}
+
+.controls dd { margin: 0; color: var(--olive); }
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(127, 143, 114, 0.18);
+  border-bottom: 1px solid rgba(127, 143, 114, 0.18);
+}
+
+.stat-row > div { display: grid; gap: 2px; }
+
+.stat-row strong {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────── Ana sayfa ve görev seçimi ─────────────────── */
+
+.home, .missions-screen {
+  background:
+    linear-gradient(105deg, rgba(7, 10, 9, 0.97) 38%, rgba(10, 14, 12, 0.72) 100%),
+    radial-gradient(circle at 78% 30%, rgba(232, 163, 61, 0.1), transparent 55%);
+  place-items: stretch;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.home-wrap {
+  width: min(960px, 100%);
+  margin: auto;
+  padding: 44px 46px 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px 36px;
+  align-content: center;
+}
+
+/* Başlık sağ üstte, içerik solda */
+.home-title {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  justify-self: end;
+  align-self: start;
+  text-align: right;
+  font-size: clamp(52px, 8vw, 92px);
+  font-weight: 700;
+  line-height: 0.86;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.home-wrap > *:not(.home-title) { grid-column: 1; }
+
+.home-head { display: grid; gap: 10px; align-self: end; }
+.home-head.compact { gap: 6px; }
+
+.home-head h1 {
+  margin: 0;
+  font-size: clamp(44px, 7vw, 76px);
+  font-weight: 700;
+  line-height: 0.88;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.home-head .lede { max-width: 48ch; }
+
+@media (max-width: 720px) {
+  .home-wrap { grid-template-columns: 1fr; }
+  .home-title { grid-column: 1; grid-row: auto; justify-self: start; text-align: left; }
+}
+
+.home-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 18px;
+  padding: 16px 0;
+  border-top: 1px solid rgba(127, 143, 114, 0.22);
+  border-bottom: 1px solid rgba(127, 143, 114, 0.22);
+}
+
+.home-stats > div { display: grid; gap: 3px; }
+
+.home-stats strong {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-nav { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.home-nav .primary-btn { justify-self: auto; }
+
+.home-arsenal {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 1px;
+  background: rgba(127, 143, 114, 0.14);
+  border: 1px solid rgba(127, 143, 114, 0.14);
+}
+
+.home-arsenal li {
+  background: var(--steel);
+  padding: 9px 12px;
+  display: grid;
+  gap: 2px;
+}
+
+.home-arsenal strong {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.home-arsenal span {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--olive);
+  letter-spacing: 0.05em;
+}
+
+/* Görev kartları */
+
+.mission-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+  gap: 10px;
+}
+
+.mission-card {
+  background: linear-gradient(180deg, var(--steel-up), var(--steel));
+  border: 1px solid rgba(127, 143, 114, 0.2);
+  border-left: 3px solid rgba(127, 143, 114, 0.3);
+  padding: 12px 14px 13px;
+  display: grid;
+  gap: 7px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: border-color 120ms linear, transform 120ms ease-out;
+}
+
+.mission-card:hover { border-left-color: var(--amber); transform: translateY(-1px); }
+
+.mission-card.selected {
+  border-color: var(--amber);
+  border-left-color: var(--amber);
+  box-shadow: inset 0 0 0 1px rgba(232, 163, 61, 0.3);
+}
+
+.mission-card.done { border-left-color: var(--jade); }
+.mission-card.done strong { color: var(--jade); }
+
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+
+.card-head strong {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.card-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--olive);
+  font-variant-numeric: tabular-nums;
+}
+
+.mission-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--olive);
+}
+
+.card-bar { height: 3px; background: rgba(127, 143, 114, 0.2); }
+
+.card-bar span {
+  display: block;
+  height: 100%;
+  background: var(--amber);
+}
+
+.mission-card.done .card-bar span { background: var(--jade); }
+
+/* Görev ekranındaki cephanelik paneli */
+
+.arsenal-panel {
+  display: grid;
+  gap: 7px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(127, 143, 114, 0.22);
+}
+
+/* Menüdeki görev listesi */
+
+.missions { display: grid; gap: 8px; }
+
+.missions-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid rgba(127, 143, 114, 0.18);
+  padding-bottom: 5px;
+}
+
+.mission-progress {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+}
+
+.mission-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+  max-height: 212px;
+  overflow-y: auto;
+}
+
+.mission-list li {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: baseline;
+  gap: 9px;
+  padding: 5px 2px;
+  border-bottom: 1px solid rgba(127, 143, 114, 0.1);
+}
+
+.mission-list .mark {
+  font-size: 12px;
+  color: var(--jade);
+  text-align: center;
+}
+
+.mission-list .body { display: grid; gap: 1px; }
+
+.mission-list strong {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.mission-list .desc {
+  font-size: 12px;
+  color: var(--olive);
+  line-height: 1.35;
+}
+
+.mission-list .count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--olive);
+  font-variant-numeric: tabular-nums;
+}
+
+.mission-list li.done strong { color: var(--jade); }
+.mission-list li.done .count { color: var(--jade); }
+
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn-row .primary-btn, .btn-row .ghost-btn { white-space: nowrap; }
+
+.ghost-btn {
+  pointer-events: auto;
+  font-family: var(--disp);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--olive);
+  background: transparent;
+  border: 1px solid rgba(127, 143, 114, 0.4);
+  padding: 11px 22px;
+  cursor: pointer;
+  transition: color 120ms linear, border-color 120ms linear;
+}
+
+.ghost-btn:hover { color: var(--bone); border-color: var(--bone); }
+
+.ghost-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+.primary-btn {
+  justify-self: start;
+  pointer-events: auto;
+  font-family: var(--disp);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--amber);
+  border: none;
+  padding: 12px 30px;
+  cursor: pointer;
+  transition: background 120ms linear, transform 120ms ease-out;
+}
+
+.primary-btn:hover { background: #f4b457; }
+.primary-btn:active { transform: translateY(1px); }
+
+.primary-btn:focus-visible {
+  outline: 2px solid var(--bone);
+  outline-offset: 3px;
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--olive);
+}
+
+/* Yükleme */
+
+.load-bar {
+  height: 4px;
+  background: rgba(127, 143, 114, 0.2);
+}
+
+.load-bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--amber);
+  transition: width 180ms ease-out;
+}
+
+.load-status {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--olive);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Ana ekran künyesi: model lisansı (CC-BY) atıf gerektiriyor */
+.home-credit {
+  margin: 18px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(226, 232, 240, 0.42);
+}
+.home-credit strong { color: rgba(226, 232, 240, 0.62); font-weight: 600; }
+
+/* ── Mağaza ─────────────────────────────────────────────────────────── */
+.shop {
+  /* .overlay içeriği ortalıyor; mağaza uzun olduğu için üstten başlayıp
+     kaydırılabilir olmalı. */
+  place-items: start center;
+  overflow-y: auto;
+  padding: 0;
+}
+.shop-wrap {
+  width: 100%;              /* .overlay grid'i içeriğe göre daraltıyordu */
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 48px 32px 56px;
+}
+.shop-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.12);
+}
+.shop-head h2 {
+  margin: 6px 0 0;
+  font-size: 30px;
+  letter-spacing: 0.02em;
+}
+.shop-credit { text-align: right; }
+.shop-credit .label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: rgba(226, 232, 240, 0.45);
+}
+.shop-credit strong {
+  font-size: 30px;
+  color: #e9b949;
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-tabs { display: flex; gap: 10px; margin: 22px 0 14px; }
+.shop-tab {
+  flex: 0 0 auto;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(226, 232, 240, 0.6);
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  cursor: pointer;
+}
+.shop-tab:hover { color: #e2e8f0; border-color: rgba(148, 163, 184, 0.4); }
+.shop-tab.active {
+  color: #0b1220;
+  background: #e9b949;
+  border-color: #e9b949;
+  font-weight: 700;
+}
+
+.shop-note {
+  margin: 0 0 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(226, 232, 240, 0.5);
+  max-width: 70ch;
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+.shop-card.owned { border-color: rgba(148, 163, 184, 0.3); }
+.shop-card.equipped {
+  border-color: #e9b949;
+  background: rgba(233, 185, 73, 0.07);
+}
+.shop-card header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.shop-card h3 { margin: 0; font-size: 15px; letter-spacing: 0.01em; }
+.shop-price {
+  font-size: 13px;
+  color: #e9b949;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.shop-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(226, 232, 240, 0.58);
+  min-height: 3.1em;
+}
+.shop-card dl { margin: 0; display: grid; gap: 4px; }
+.shop-card dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11.5px;
+  padding: 3px 0;
+  border-bottom: 1px dotted rgba(148, 163, 184, 0.14);
+}
+.shop-card dt { color: rgba(226, 232, 240, 0.45); }
+.shop-card dd { margin: 0; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.shop-card dl > div.hi dd { color: #7dd3a0; font-weight: 600; }
+
+.shop-btn {
+  margin-top: auto;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #0b1220;
+  background: #e2e8f0;
+  border: 0;
+  cursor: pointer;
+}
+.shop-btn:hover:not(:disabled) { background: #fff; }
+.shop-btn:disabled { cursor: default; opacity: 0.45; }
+.shop-btn.on {
+  background: transparent;
+  color: #e9b949;
+  border: 1px solid #e9b949;
+  opacity: 1;
+}
+.shop-foot { margin-top: 26px; }
+
+/* ── Tank arayüzü ───────────────────────────────────────────────────── */
+#tank-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+  font-size: 12px;
+}
+#tank-hud[hidden] { display: none !important; }
+
+.tank-panel {
+  position: absolute;
+  left: 28px;
+  bottom: 28px;
+  display: grid;
+  gap: 8px;
+  min-width: 320px;
+}
+.tank-row {
+  display: grid;
+  grid-template-columns: 54px 1fr 46px;
+  align-items: center;
+  gap: 10px;
+}
+.tank-row .label {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  color: rgba(226, 232, 240, 0.5);
+}
+.tank-row strong {
+  font-size: 15px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+.tank-panel .bar,
+.tank-weapon .bar {
+  height: 9px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  overflow: hidden;
+}
+.tank-panel .bar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #7dd3a0;
+  transition: width 0.12s linear;
+}
+.tank-panel .bar.fuel i { background: #e9b949; }
+.tank-panel .bar i.low { background: #e5604d; }
+
+.tank-weapon {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  display: grid;
+  grid-template-columns: auto 160px auto;
+  align-items: center;
+  gap: 12px;
+}
+.tank-weapon #tank-mode {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: #e9b949;
+}
+.tank-weapon #tank-mg {
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.6);
+  font-variant-numeric: tabular-nums;
+  min-width: 68px;
+  text-align: right;
+}
+.tank-weapon .bar.reload i {
+  display: block;
+  height: 100%;
+  background: #cfd8e3;
+  transition: width 0.1s linear;
+}
+
+.tank-objectives {
+  position: absolute;
+  left: 28px;
+  top: 26px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+  background: rgba(10, 14, 20, 0.6);
+  border-left: 2px solid #e9b949;
+}
+.tank-objectives .eyebrow { color: #e9b949; }
+.tank-objectives span { font-size: 12px; color: rgba(226, 232, 240, 0.78); }
+
+.tank-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 9px 18px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #0b1220;
+  background: #e9b949;
+}
+.tank-hint[hidden] { display: none !important; }
+
+/* ── Zırhlı görev çerçevesi (Death Star) ────────────────────────────── */
+#tankFrame {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #0d110b;
+}
+#tankFrame[hidden] { display: none !important; }
+#tankIframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+#tankExit {
+  position: absolute;
+  /* Oyunun kendi göstergeleri köşelerde; düğme üst ortaya çekildi */
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 7px 14px;
+  font-size: 11px;
+  opacity: 0.35;
+}
+#tankExit:hover { opacity: 1; }

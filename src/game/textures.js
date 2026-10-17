@@ -1,0 +1,380 @@
+/* Prosedürel dokular.
+
+   Harici doku dosyası yok: hepsi canvas üzerinde çiziliyor. Böylece oyun tek
+   klasörde taşınabilir kalıyor ve yükleme süresi sıfıra yakın. Dokular bir
+   kez üretilip paylaşılır.                                                 */
+
+import * as THREE from 'three';
+
+const cache = new Map();
+
+function canvas(size = 512) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  return { c, g: c.getContext('2d') };
+}
+
+/** Düzgün dağılmış gürültü lekeleri — beton/asfalt tanesi. */
+function speckle(g, size, count, colors, min = 1, max = 3) {
+  for (let i = 0; i < count; i++) {
+    g.fillStyle = colors[(Math.random() * colors.length) | 0];
+    const r = min + Math.random() * (max - min);
+    g.fillRect(Math.random() * size, Math.random() * size, r, r);
+  }
+}
+
+function finish(c, repeat) {
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeat, repeat);
+  tex.anisotropy = 8;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function make(name, fn) {
+  if (!cache.has(name)) cache.set(name, fn());
+  return cache.get(name);
+}
+
+/** Zemin betonu: panel derzleri, çatlaklar, yağ lekeleri. */
+export function concreteTexture(repeat = 24) {
+  return make(`concrete${repeat}`, () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+
+    g.fillStyle = '#4a5047';
+    g.fillRect(0, 0, S, S);
+    speckle(g, S, 9000, ['#525848', '#434a41', '#575e52', '#3d443b'], 1, 4);
+
+    // Panel derzleri
+    g.strokeStyle = 'rgba(26,30,26,0.75)';
+    g.lineWidth = 3;
+    for (const p of [0, S / 2]) {
+      g.beginPath(); g.moveTo(p, 0); g.lineTo(p, S); g.stroke();
+      g.beginPath(); g.moveTo(0, p); g.lineTo(S, p); g.stroke();
+    }
+
+    // Çatlaklar
+    g.strokeStyle = 'rgba(22,26,22,0.5)';
+    g.lineWidth = 1.5;
+    for (let i = 0; i < 7; i++) {
+      g.beginPath();
+      let x = Math.random() * S, y = Math.random() * S;
+      g.moveTo(x, y);
+      for (let k = 0; k < 6; k++) {
+        x += (Math.random() - 0.5) * 90;
+        y += (Math.random() - 0.5) * 90;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+
+    // Yağ/pas lekeleri
+    for (let i = 0; i < 14; i++) {
+      const x = Math.random() * S, y = Math.random() * S, r = 14 + Math.random() * 54;
+      const grad = g.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, 'rgba(30,26,20,0.38)');
+      grad.addColorStop(1, 'rgba(30,26,20,0)');
+      g.fillStyle = grad;
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    }
+
+    return finish(c, repeat);
+  });
+}
+
+/** Asfalt yol: koyu, ortasında sarı şerit. */
+export function roadTexture(repeat = 6) {
+  return make(`road${repeat}`, () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+
+    g.fillStyle = '#2b2e2b';
+    g.fillRect(0, 0, S, S);
+    speckle(g, S, 12000, ['#333733', '#262926', '#3a3e39'], 1, 3);
+
+    // Kenar çizgileri (yol boyunca sürsün diye yatay)
+    g.fillStyle = 'rgba(214,180,90,0.75)';
+    g.fillRect(0, S * 0.08, S, 7);
+    g.fillRect(0, S * 0.92 - 7, S, 7);
+
+    // Orta kesik çizgi
+    g.fillStyle = 'rgba(222,222,206,0.55)';
+    for (let x = 0; x < S; x += 96) g.fillRect(x, S / 2 - 4, 54, 8);
+
+    return finish(c, repeat);
+  });
+}
+
+/** Düz asfalt (çizgisiz) — yolların kesiştiği kare için. */
+export function asphaltTexture(repeat = 3) {
+  return make(`asphalt${repeat}`, () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+    g.fillStyle = '#2b2e2b';
+    g.fillRect(0, 0, S, S);
+    speckle(g, S, 12000, ['#333733', '#262926', '#3a3e39'], 1, 3);
+    // Yama izleri
+    for (let i = 0; i < 6; i++) {
+      g.fillStyle = `rgba(20,22,20,${0.1 + Math.random() * 0.12})`;
+      g.fillRect(Math.random() * S, Math.random() * S, 40 + Math.random() * 120, 30 + Math.random() * 90);
+    }
+    return finish(c, repeat);
+  });
+}
+
+/** Konteyner sacı: dikey nervürler ve pas. */
+export function containerTexture(repeat = 1) {
+  return make(`container${repeat}`, () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+
+    g.fillStyle = '#39574e';
+    g.fillRect(0, 0, S, S);
+
+    // Nervürler
+    for (let x = 0; x < S; x += 32) {
+      g.fillStyle = 'rgba(255,255,255,0.07)';
+      g.fillRect(x, 0, 14, S);
+      g.fillStyle = 'rgba(0,0,0,0.22)';
+      g.fillRect(x + 14, 0, 7, S);
+    }
+
+    // Üst/alt kuşak
+    g.fillStyle = 'rgba(0,0,0,0.3)';
+    g.fillRect(0, 0, S, 18);
+    g.fillRect(0, S - 18, S, 18);
+
+    // Pas akıntıları
+    for (let i = 0; i < 26; i++) {
+      const x = Math.random() * S, y = Math.random() * S * 0.7;
+      const h = 30 + Math.random() * 150;
+      const grad = g.createLinearGradient(x, y, x, y + h);
+      grad.addColorStop(0, 'rgba(120,62,30,0.5)');
+      grad.addColorStop(1, 'rgba(120,62,30,0)');
+      g.fillStyle = grad;
+      g.fillRect(x, y, 4 + Math.random() * 9, h);
+    }
+
+    return finish(c, repeat);
+  });
+}
+
+/** Ahşap sandık: tahtalar, çiviler, stencil damga. */
+export function crateTexture(repeat = 1) {
+  return make(`crate${repeat}`, () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+
+    g.fillStyle = '#7d6334';
+    g.fillRect(0, 0, S, S);
+
+    // Tahtalar
+    for (let y = 0; y < S; y += 64) {
+      g.fillStyle = `rgba(0,0,0,${0.12 + Math.random() * 0.1})`;
+      g.fillRect(0, y + 58, S, 6);
+      g.fillStyle = `rgba(255,220,160,${0.04 + Math.random() * 0.05})`;
+      g.fillRect(0, y + 4, S, 10);
+      // Damar
+      g.strokeStyle = 'rgba(60,42,18,0.25)';
+      g.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        g.beginPath();
+        g.moveTo(0, y + 10 + Math.random() * 44);
+        g.bezierCurveTo(S / 3, y + Math.random() * 60, (2 * S) / 3, y + Math.random() * 60, S, y + 10 + Math.random() * 44);
+        g.stroke();
+      }
+    }
+
+    // Köşe demirleri
+    g.fillStyle = 'rgba(40,40,38,0.55)';
+    g.fillRect(0, 0, 18, S); g.fillRect(S - 18, 0, 18, S);
+    g.fillRect(0, 0, S, 18); g.fillRect(0, S - 18, S, 18);
+
+    // Stencil
+    g.fillStyle = 'rgba(232,163,61,0.75)';
+    g.font = 'bold 54px "Share Tech Mono", monospace';
+    g.fillText('MÜH-07', 118, S / 2 + 14);
+    g.strokeStyle = 'rgba(232,163,61,0.6)';
+    g.lineWidth = 4;
+    g.strokeRect(96, S / 2 - 44, 300, 70);
+
+    return finish(c, repeat);
+  });
+}
+
+/** Varil sacı: pas ve tehlike bandı. */
+export function barrelTexture() {
+  return make('barrel', () => {
+    const S = 256;
+    const { c, g } = canvas(S);
+
+    g.fillStyle = '#8a3a22';
+    g.fillRect(0, 0, S, S);
+    speckle(g, S, 4000, ['#9c4529', '#742d19', '#a8513a'], 1, 4);
+
+    // Çember kuşaklar
+    g.fillStyle = 'rgba(0,0,0,0.35)';
+    g.fillRect(0, S * 0.22, S, 12);
+    g.fillRect(0, S * 0.7, S, 12);
+
+    // Tehlike bandı
+    g.fillStyle = 'rgba(232,163,61,0.9)';
+    g.fillRect(0, S * 0.44, S, 26);
+    g.fillStyle = 'rgba(20,20,18,0.85)';
+    for (let x = -S; x < S; x += 28) {
+      g.beginPath();
+      g.moveTo(x, S * 0.44); g.lineTo(x + 14, S * 0.44);
+      g.lineTo(x + 28, S * 0.44 + 26); g.lineTo(x + 14, S * 0.44 + 26);
+      g.closePath(); g.fill();
+    }
+
+    return finish(c, 1);
+  });
+}
+
+/** Sanayi duvarı: beton panel + metal kuşak. */
+export function wallTexture(repeat = 8) {
+  return make(`wall${repeat}`, () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+
+    g.fillStyle = '#565d52';
+    g.fillRect(0, 0, S, S);
+    speckle(g, S, 7000, ['#5e6659', '#4d544a', '#646c5f'], 1, 3);
+
+    // Panel çizgileri
+    g.strokeStyle = 'rgba(28,32,28,0.6)';
+    g.lineWidth = 4;
+    for (let y = 0; y <= S; y += S / 2) {
+      g.beginPath(); g.moveTo(0, y); g.lineTo(S, y); g.stroke();
+    }
+    g.lineWidth = 2;
+    for (let x = 0; x <= S; x += S / 4) {
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, S); g.stroke();
+    }
+
+    // Alt kirlilik
+    const grad = g.createLinearGradient(0, S * 0.65, 0, S);
+    grad.addColorStop(0, 'rgba(24,26,22,0)');
+    grad.addColorStop(1, 'rgba(24,26,22,0.55)');
+    g.fillStyle = grad;
+    g.fillRect(0, S * 0.65, S, S * 0.35);
+
+    return finish(c, repeat);
+  });
+}
+
+/** Depo cephesi: büyük sac panel + pencere şeridi. */
+export function buildingTexture() {
+  return make('building', () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+
+    g.fillStyle = '#4b5550';
+    g.fillRect(0, 0, S, S);
+
+    // Yatay sac nervürler
+    for (let y = 0; y < S; y += 18) {
+      g.fillStyle = y % 36 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.14)';
+      g.fillRect(0, y, S, 9);
+    }
+
+    // Pencere şeridi
+    g.fillStyle = '#10181c';
+    g.fillRect(28, 96, S - 56, 92);
+    g.fillStyle = 'rgba(150,190,210,0.22)';
+    for (let x = 36; x < S - 40; x += 58) g.fillRect(x, 102, 44, 80);
+    g.strokeStyle = 'rgba(20,24,22,0.8)';
+    g.lineWidth = 6;
+    g.strokeRect(28, 96, S - 56, 92);
+
+    // Kapı
+    g.fillStyle = '#2a2f2b';
+    g.fillRect(S / 2 - 86, S - 190, 172, 190);
+    g.fillStyle = 'rgba(232,163,61,0.5)';
+    g.fillRect(S / 2 - 86, S - 196, 172, 8);
+    for (let y = S - 182; y < S; y += 22) {
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      g.fillRect(S / 2 - 86, y, 172, 6);
+    }
+
+    // Pas ve kir
+    for (let i = 0; i < 18; i++) {
+      const x = Math.random() * S, y = Math.random() * S;
+      const grad = g.createRadialGradient(x, y, 0, x, y, 20 + Math.random() * 60);
+      grad.addColorStop(0, 'rgba(70,46,26,0.3)');
+      grad.addColorStop(1, 'rgba(70,46,26,0)');
+      g.fillStyle = grad;
+      g.fillRect(x - 60, y - 60, 120, 120);
+    }
+
+    return finish(c, 1);
+  });
+}
+
+/** Gökyüzü: tepede derin mavi, ufka doğru açılan berrak gündüz göğü.
+    Güneş dokuya çizilmez — sahnede gerçek bir cisim olarak durur (world.js),
+    böylece güneş ışığının geldiği yönle tam olarak çakışır.               */
+export function skyTexture() {
+  return make('sky', () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+
+    const grad = g.createLinearGradient(0, 0, 0, S);
+    grad.addColorStop(0.00, '#1b4fa8');   // zenit
+    grad.addColorStop(0.28, '#2f72c8');
+    grad.addColorStop(0.50, '#5ea0e0');
+    grad.addColorStop(0.68, '#9cc8ee');
+    grad.addColorStop(0.80, '#cfe4f4');   // ufuk pusu
+    grad.addColorStop(0.84, '#b9cdbd');   // yer tarafı
+    grad.addColorStop(1.00, '#7d8a77');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, S, S);
+
+    // Dağınık, yumuşak bulut kümeleri. Yatay şerit çizilmez: eşlek
+    // eşlemesinde şeritler gökte halka gibi sarılıyor.
+    for (let i = 0; i < 60; i++) {
+      const x = Math.random() * S;
+      const y = S * 0.12 + Math.random() * (S * 0.3);
+      const r = 12 + Math.random() * 46;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, `rgba(255,255,255,${0.05 + Math.random() * 0.07})`);
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.ellipse(x, y, r, r * 0.45, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    return tex;
+  });
+}
+
+/** Güneş: ortada beyaz çekirdek, dışa doğru sıcak ve yumuşak sönen hale. */
+export function sunTexture() {
+  return make('sun', () => {
+    const S = 256;
+    const { c, g } = canvas(S);
+    const R = S / 2;
+
+    const grad = g.createRadialGradient(R, R, 0, R, R, R);
+    grad.addColorStop(0.00, 'rgba(255,255,250,1)');
+    grad.addColorStop(0.07, 'rgba(255,253,235,1)');
+    grad.addColorStop(0.11, 'rgba(255,241,196,0.92)');
+    grad.addColorStop(0.20, 'rgba(255,221,150,0.42)');
+    grad.addColorStop(0.36, 'rgba(255,205,130,0.16)');
+    grad.addColorStop(0.60, 'rgba(255,214,160,0.05)');
+    grad.addColorStop(1.00, 'rgba(255,214,160,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, S, S);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  });
+}

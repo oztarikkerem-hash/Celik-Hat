@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "celik-hat",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["tools/devserver.py", "8777"],
+      "port": 8777,
+      "autoPort": false
+    }
+  ]
+}

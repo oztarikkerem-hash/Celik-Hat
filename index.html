@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Çelik Hat</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b0f0d'/><path d='M5 17h14l3-4h5v3h-4l-3 5H9z' fill='%23e8a33d'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;600;700&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="src/ui/hud.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/addons/",
+    "cannon-es": "./vendor/cannon-es.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="viewport"></canvas>
+
+<!-- Nişangah -->
+<div id="crosshair" class="crosshair" aria-hidden="true">
+  <span class="ch-arm ch-top"></span>
+  <span class="ch-arm ch-right"></span>
+  <span class="ch-arm ch-bottom"></span>
+  <span class="ch-arm ch-left"></span>
+  <span class="ch-dot"></span>
+</div>
+<div id="hitmarker" class="hitmarker" aria-hidden="true">
+  <svg viewBox="0 0 32 32"><path d="M6 6 L12 12 M26 6 L20 12 M6 26 L12 20 M26 26 L20 20" /></svg>
+</div>
+
+<!-- Dürbün maskesi -->
+<div id="scope" class="scope" aria-hidden="true">
+  <div class="scope-glass">
+    <span class="scope-line scope-v"></span>
+    <span class="scope-line scope-h"></span>
+    <span class="scope-mil scope-mil-1"></span>
+    <span class="scope-mil scope-mil-2"></span>
+    <span class="scope-mil scope-mil-3"></span>
+  </div>
+</div>
+
+<!-- Hasar / durum efektleri -->
+<div id="damage-flash" class="damage-flash" aria-hidden="true"></div>
+<div id="vignette" class="vignette" aria-hidden="true"></div>
+
+<!-- HUD -->
+<div id="hud" class="hud" hidden>
+  <header class="hud-top">
+    <div class="wave-block">
+      <span class="label">DALGA</span>
+      <strong id="wave-num" class="wave-num">1</strong>
+      <div class="wave-meta">
+        <span id="enemies-left" class="enemies-left">0 düşman</span>
+        <div class="wave-bar"><span id="wave-bar-fill"></span></div>
+      </div>
+    </div>
+    <div class="score-block">
+      <span class="label">PUAN</span>
+      <strong id="score" class="score">0</strong>
+      <span id="combo" class="combo"></span>
+      <div class="minimap-wrap">
+        <canvas id="minimap" class="minimap" width="164" height="164"></canvas>
+      </div>
+      <span id="sector-readout" class="sector-readout">SEKTÖR 0 / 0</span>
+    </div>
+  </header>
+
+  <div id="mission-tracker" class="mission-tracker">
+    <span class="label">GÖREV</span>
+    <strong id="mission-name">—</strong>
+    <div class="mission-row">
+      <div class="mission-bar"><span id="mission-fill"></span></div>
+      <span id="mission-count" class="mission-count">0/1</span>
+    </div>
+  </div>
+
+  <ul id="killfeed" class="killfeed"></ul>
+
+  <footer class="hud-bottom">
+    <div class="vitals">
+      <span class="label">SAĞLIK</span>
+      <div class="vital-row">
+        <div class="health-bar"><span id="health-fill"></span></div>
+        <strong id="health-num" class="health-num">100</strong>
+      </div>
+      <div class="stamina-row">
+        <div class="stamina-bar"><span id="stamina-fill"></span></div>
+        <span id="stamina-tag" class="stamina-tag" hidden>YORGUN</span>
+      </div>
+    </div>
+
+    <div class="arsenal">
+      <ul id="weapon-strip" class="weapon-strip"></ul>
+      <div class="ammo-block">
+        <strong id="ammo-mag" class="ammo-mag">30</strong>
+        <span class="ammo-sep">/</span>
+        <span id="ammo-reserve" class="ammo-reserve">120</span>
+      </div>
+      <div class="weapon-name-row">
+        <span id="weapon-name" class="weapon-name">—</span>
+        <span id="fire-mode" class="fire-mode">OTO</span>
+        <span class="grenade-chip"><span class="grenade-key">G</span><strong id="grenade-count">3</strong></span>
+      </div>
+      <div id="reload-row" class="reload-row" hidden>
+        <span class="reload-label">ŞARJÖR DEĞİŞTİRİLİYOR</span>
+        <div class="reload-bar"><span id="reload-fill"></span></div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- Yükleme ekranı -->
+<div id="loader" class="overlay loader">
+  <div class="panel">
+    <span class="eyebrow">ÇELİK HAT</span>
+    <h1>Cephanelik yükleniyor</h1>
+    <div class="load-bar"><span id="load-fill"></span></div>
+    <p id="load-status" class="load-status">Başlatılıyor…</p>
+  </div>
+</div>
+
+
+<!-- Ana sayfa -->
+<div id="home" class="overlay home" hidden>
+  <div class="home-wrap">
+    <h1 class="home-title">Çelik Hat</h1>
+
+    <header class="home-head">
+      <span class="eyebrow">SAHA KOMUTA</span>
+      <p class="lede">Dokuz silah, on görev, sonu gelmeyen dalgalar. Hattı ne kadar tutabilirsin?</p>
+    </header>
+
+    <div class="home-stats">
+      <div><span class="label">EN İYİ PUAN</span><strong id="home-best">0</strong></div>
+      <div><span class="label">TAMAMLANAN GÖREV</span><strong id="home-missions">0 / 10</strong></div>
+      <div><span class="label">CEPHANELİK</span><strong id="home-weapons">7</strong></div>
+    </div>
+
+    <nav class="home-nav">
+      <button id="home-missions-btn" class="primary-btn" type="button">Görevler</button>
+      <button id="home-free-btn" class="ghost-btn" type="button">Serbest hat</button>
+      <button id="home-chapters-btn" class="ghost-btn" type="button">Bölümler</button>
+      <button id="home-shop-btn" class="ghost-btn" type="button">Mağaza</button>
+      <button id="home-help-btn" class="ghost-btn" type="button">Kontroller</button>
+      <button class="ghost-btn sound-btn" type="button" aria-pressed="false">Ses: Açık</button>
+    </nav>
+
+    <!-- CC-BY lisansı künye zorunlu kılıyor: asker modelleri SpatialNeglect'e ait -->
+    <p class="home-credit">
+      Asker modelleri: <strong>SpatialNeglect</strong> (S.W.A.T. Operator &amp; FSB Operator) ·
+      CC&nbsp;BY&nbsp;4.0
+    </p>
+
+    <dl id="home-controls" class="controls" hidden>
+      <div><dt>W A S D</dt><dd>Hareket</dd></div>
+      <div><dt>Shift</dt><dd>Koşu</dd></div>
+      <div><dt>Space</dt><dd>Zıplama</dd></div>
+      <div><dt>Fare Sol</dt><dd>Ateş</dd></div>
+      <div><dt>Fare Sağ</dt><dd>Nişan al</dd></div>
+      <div><dt>R</dt><dd>Şarjör değiştir</dd></div>
+      <div><dt>G</dt><dd>El bombası</dd></div>
+      <div><dt>M</dt><dd>Sesi aç / kapat</dd></div>
+      <div><dt>1 – 7</dt><dd>Silah seç</dd></div>
+      <div><dt>Esc</dt><dd>Duraklat</dd></div>
+    </dl>
+  </div>
+</div>
+
+<!-- Görev seçimi -->
+<div id="missions-screen" class="overlay missions-screen" hidden>
+  <div class="home-wrap">
+    <header class="home-head compact">
+      <span class="eyebrow">GÖREV LİSTESİ</span>
+      <h1>Hangi hat?</h1>
+      <p class="lede">Bir görev seç — tamamlanınca kalıcı olarak işaretlenir.</p>
+    </header>
+    <ol id="mission-cards" class="mission-cards"></ol>
+
+    <section class="arsenal-panel">
+      <span class="label">CEPHANELİK</span>
+      <ul id="home-arsenal" class="home-arsenal"></ul>
+    </section>
+
+    <div class="btn-row">
+      <button id="mission-start-btn" class="primary-btn" type="button">Seçili görevle başla</button>
+      <button id="mission-back-btn" class="ghost-btn" type="button">Geri</button>
+    </div>
+  </div>
+</div>
+
+<!-- Duraklatma -->
+<div id="pause" class="overlay pause" hidden>
+  <div class="panel">
+    <span class="eyebrow">ARA</span>
+    <h1>Duraklatıldı</h1>
+    <div class="stat-row">
+      <div><span class="label">DALGA</span><strong id="pause-wave">1</strong></div>
+      <div><span class="label">PUAN</span><strong id="pause-score">0</strong></div>
+      <div><span class="label">ÖLDÜRME</span><strong id="pause-kills">0</strong></div>
+    </div>
+    <div class="btn-row">
+      <button id="resume-btn" class="primary-btn" type="button">Devam et</button>
+      <button id="menu-btn" class="ghost-btn" type="button">Ana menü</button>
+      <button class="ghost-btn sound-btn" type="button" aria-pressed="false">Ses: Açık</button>
+    </div>
+  </div>
+</div>
+
+<!-- Görev tamamlandı -->
+<div id="tank-hud" hidden>
+    <div class="tank-panel">
+      <div class="tank-row">
+        <span class="label">ZIRH</span>
+        <div class="bar"><i id="tank-hp"></i></div>
+        <strong id="tank-hp-num">100</strong>
+      </div>
+      <div class="tank-row">
+        <span class="label">YAKIT</span>
+        <div class="bar fuel"><i id="tank-fuel"></i></div>
+        <strong id="tank-fuel-num">60</strong>
+      </div>
+    </div>
+
+    <div class="tank-weapon">
+      <span id="tank-mode">ANA TOP</span>
+      <div class="bar reload"><i id="tank-reload"></i></div>
+      <span id="tank-mg">150</span>
+    </div>
+
+    <div class="tank-objectives">
+      <span class="eyebrow" id="tank-mission-name">Hat Yarması</span>
+      <span id="tank-obj-kill">0/10 tank</span>
+      <span id="tank-obj-fuel">0/1 ikmal</span>
+    </div>
+
+    <p id="tank-hint" class="tank-hint" hidden></p>
+  </div>
+
+  <div id="tankFrame" hidden>
+    <iframe id="tankIframe" title="Death Star — zırhlı görev"></iframe>
+    <button id="tankExit" class="ghost-btn" type="button">← Bölümlere dön</button>
+  </div>
+
+  <div id="chapterScreen" class="overlay shop" hidden>
+    <div class="shop-wrap">
+      <header class="shop-head">
+        <div>
+          <span class="eyebrow">ZIRHLI BİRLİK</span>
+          <h2 id="chapter-title">Bölümler</h2>
+        </div>
+        <div class="shop-credit">
+          <span class="label">BÖLÜM</span><strong id="chapter-num">1 / 1</strong>
+        </div>
+      </header>
+      <p class="shop-note" id="chapter-note"></p>
+      <div class="shop-grid" id="chapter-grid"></div>
+      <nav class="shop-foot">
+        <button id="chapter-back-btn" class="ghost-btn" type="button">Ana menüye dön</button>
+      </nav>
+    </div>
+  </div>
+
+  <div id="tankPickScreen" class="overlay shop" hidden>
+    <div class="shop-wrap">
+      <header class="shop-head">
+        <div>
+          <span class="eyebrow">ARAÇ SEÇİMİ</span>
+          <h2 id="tankpick-mission">Hat Yarması</h2>
+        </div>
+      </header>
+      <p class="shop-note">
+        Seçmediğin aracı DÜŞMAN kullanacak. Yakıtın göreve göre sınırlı:
+        haritadaki ikmal noktasına uğramadan hattı temizleyemezsin.
+      </p>
+      <div class="shop-grid" id="tankpick-grid"></div>
+      <nav class="shop-foot">
+        <button id="tankpick-back-btn" class="ghost-btn" type="button">Geri</button>
+      </nav>
+    </div>
+  </div>
+
+  <div id="shopScreen" class="overlay shop" hidden>
+    <div class="shop-wrap">
+      <header class="shop-head">
+        <div>
+          <span class="eyebrow">İKMAL</span>
+          <h2>Mağaza</h2>
+        </div>
+        <div class="shop-credit">
+          <span class="label">KREDİ</span><strong id="shop-credit">0</strong>
+        </div>
+      </header>
+
+      <nav class="shop-tabs">
+        <button id="shop-tab-vest" class="shop-tab active" type="button">Kurşun Geçirmez Yelekler</button>
+        <button id="shop-tab-helm" class="shop-tab" type="button">Kasklar</button>
+      </nav>
+
+      <p class="shop-note" id="shop-note"></p>
+      <div class="shop-grid" id="shop-grid"></div>
+
+      <nav class="shop-foot">
+        <button id="shop-back-btn" class="ghost-btn" type="button">Ana menüye dön</button>
+      </nav>
+    </div>
+  </div>
+
+  <div id="victory" class="overlay gameover" hidden>
+  <div class="panel">
+    <span class="eyebrow">HAT TUTULDU</span>
+    <h1 id="victory-title">Görev tamam</h1>
+    <p id="victory-desc" class="lede"></p>
+    <div class="stat-row">
+      <div><span class="label">DALGA</span><strong id="vic-wave">1</strong></div>
+      <div><span class="label">PUAN</span><strong id="vic-score">0</strong></div>
+      <div><span class="label">ÖLDÜRME</span><strong id="vic-kills">0</strong></div>
+      <div><span class="label">İSABET</span><strong id="vic-acc">0%</strong></div>
+    </div>
+    <div class="btn-row">
+      <button id="vic-next-btn" class="primary-btn" type="button">Sonraki göreve geç</button>
+      <button id="vic-retry-btn" class="ghost-btn" type="button">Tekrar oyna</button>
+      <button id="vic-home-btn" class="ghost-btn" type="button">Ana menüye dön</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ölüm ekranı -->
+<div id="gameover" class="overlay gameover" hidden>
+  <div class="panel">
+    <span class="eyebrow">HAT DÜŞTÜ</span>
+    <h1>Elendin</h1>
+    <div class="stat-row">
+      <div><span class="label">DALGA</span><strong id="go-wave">1</strong></div>
+      <div><span class="label">PUAN</span><strong id="go-score">0</strong></div>
+      <div><span class="label">ÖLDÜRME</span><strong id="go-kills">0</strong></div>
+      <div><span class="label">İSABET</span><strong id="go-acc">0%</strong></div>
+      <div><span class="label">GÖREV</span><strong id="go-missions">0</strong></div>
+    </div>
+    <p id="go-best" class="hint"></p>
+    <div class="btn-row">
+      <button id="retry-btn" class="primary-btn" type="button">Tekrar dene</button>
+      <button id="go-home-btn" class="ghost-btn" type="button">Ana menüye dön</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

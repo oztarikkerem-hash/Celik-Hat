@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Asker Duruş Kontrolü</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #20262a; color: #dde1d7;
+               font: 12px "Share Tech Mono", ui-monospace, monospace; overflow: hidden; }
+  #c { position: fixed; inset: 0; }
+  #grid { position: fixed; inset: 0; display: grid; pointer-events: none;
+          grid-template-columns: repeat(4, 1fr); }
+  #grid div { border-left: 1px solid rgba(127,143,114,0.25); padding: 6px 9px; color: #e8a33d; }
+  #note { position: fixed; left: 10px; bottom: 8px; color: #7f8f72; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="grid"></div>
+<div id="note">her hücre bir duruş · model kendi ekseninde döner</div>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three.module.js", "three/addons/": "../vendor/addons/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+const v = `?v=${Date.now()}`;
+const { SoldierFactory, Soldier } = await import('../src/game/soldier.js' + v);
+const { EnemyGear } = await import('../src/game/enemyGear.js' + v);
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.setScissorTest(true);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x20262a);
+scene.add(new THREE.HemisphereLight(0xbcd0dc, 0x40443a, 1.6));
+const key = new THREE.DirectionalLight(0xfff2d6, 2.4);
+key.position.set(3, 5, 4);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x9fc0d8, 1.2);
+rim.position.set(-4, 2, -3);
+scene.add(rim);
+
+const factory = await new SoldierFactory().load('../assets/characters/swat.glb');
+const gear = await new EnemyGear().load(null, '../');
+
+const STATES = [
+  { ad: 'bekleme', speed: 0, crouching: false, downed: false },
+  { ad: 'yürüme', speed: 3.2, crouching: false, downed: false },
+  { ad: 'koşma', speed: 7.5, crouching: false, downed: false },
+  { ad: 'çömelme', speed: 0, crouching: true, downed: false },
+];
+
+const grid = document.getElementById('grid');
+const cells = [];
+for (const st of STATES) {
+  const rig = factory.create();
+  const rifle = gear.makeRifle('mar556');
+  const s = new Soldier(rig, { team: 'enemy', rifle });
+  s.root.visible = false;
+  scene.add(s.root);
+  cells.push({ st, s });
+
+  const label = document.createElement('div');
+  label.textContent = st.ad;
+  grid.append(label);
+}
+
+const clock = new THREE.Clock();
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+  const w = innerWidth / cells.length, h = innerHeight;
+
+  cells.forEach(({ st, s }, i) => {
+    s.root.rotation.y = t * 0.6;        // yavaşça dön: her açıdan görelim
+    s.update({ dt, speed: st.speed, crouching: st.crouching, downed: st.downed, aimPitch: 0 });
+
+    const cam = new THREE.PerspectiveCamera(32, w / h, 0.1, 50);
+    cam.position.set(0, 1.1, 4.2);
+    cam.lookAt(0, 0.95, 0);
+
+    for (const c of cells) c.s.root.visible = false;
+    s.root.visible = true;
+    renderer.setViewport(i * w, 0, w, h);
+    renderer.setScissor(i * w, 0, w, h);
+    renderer.render(scene, cam);
+  });
+
+  requestAnimationFrame(frame);
+}
+frame();
+window.cells = cells;
+window.renderFrame = frame;      // panel rAF'i durdurursa konsoldan sürülebilir
+window.ready = true;
+</script>
+</body>
+</html>

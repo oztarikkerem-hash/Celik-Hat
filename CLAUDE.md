@@ -1,0 +1,280 @@
+# Çelik Hat — proje notları
+
+Tarayıcıda çalışan birinci şahıs nişancı oyunu. Three.js (render) + cannon-es
+(fizik). Derleme adımı yok: saf ES modülleri, kütüphaneler `vendor/` içinde.
+
+## Çalıştırma
+
+```bash
+python3 tools/devserver.py 8777      # önbelleksiz sunucu (tarayıcı eski kodu çalıştırmasın)
+```
+Sonra `http://localhost:8777`. Fare kilidi gerçek tarayıcıda çalışır; kilit
+kurulamazsa oyun "serbest bakış" moduna düşer (gömülü önizleme panelleri için).
+
+## Mimari
+
+- `src/core/` — altyapı: `input` (fare kilidi + yedek), `audio`/`music`
+  (tamamı sentezlenmiş, ses dosyası yok), `physics` (cannon-es sarmalayıcı).
+- `src/game/` — oyun: `game` (durum makinesi), `world` (sektörlü dünya ve
+  akış), `player`, `weapons`+`weaponry`, `enemies`+`enemyGear`, `grenades`,
+  `effects`, `missions`, `align`, `finish`, `textures`.
+- `src/ui/` — `hud` (DOM'a tek yazma noktası), `minimap`, `hud.css`.
+- `tools/` — Blender dönüştürücü ve model doğrulama sayfaları.
+
+### Bilinmesi gereken kurallar
+
+- **Model hizalama** (`align.js`): her silah modeli otomatik olarak
+  "-Z ileri, +Y yukarı, orijin dipçikte" sözleşmesine sokulur. Otomatik tespit
+  yanılırsa `weapons.js` içindeki `view.flipForward` / `view.flipUp` ile elle
+  ezilir. Ölçüler sınırlayıcı kutuyla değil **yüzdelik** sınırlarla alınır;
+  ayrıca Blender'dan kalan şablon düzlemleri ve zemin levhaları ayıklanır.
+- **Namlu ucu konumu holder uzayındadır** — alev/izli mermi modele değil
+  `holder`'a bağlanır.
+- **Dünya akışı** (`world.js`): 9×9 sektör, yalnızca görüş piramidine giren
+  (+ oyuncunun çevresindeki halka) sektörler kurulur; çıkanlar geometri,
+  çarpışma kutusu ve fizik gövdeleriyle sökülür. HUD'da "SEKTÖR n / 81"
+  sayacı bunu canlı gösterir.
+- **Çarpışma**: statik kutular sektörle gelir; devrilebilen eşyaların
+  (varil/sandık) kutuları her kare tazelenir (`_refreshProps`). Oyuncu onlara
+  çarpınca `pushProp`, mermi isabetinde `hitProp` fizik itmesi uygular.
+- **Vuruş bölgeleri**: `weapons.js` içindeki `HEADSHOT_MULT` (3.5),
+  `BODY_MULT` (1), `LEG_MULT` (0.5). Asker canı 120, oyuncu canı 100.
+- **Yorgunluk**: koşu 6 sn, 1 sn sonra dolmaya başlar, 5 sn'de dolar.
+  Ağır silahların `weight` alanı taşırken nefes yakar (minigun 0.24).
+- Arayüz metinleri ve kod yorumları **Türkçe**.
+
+## Varlıklar
+
+`assets/weapons/*.glb` — kaynak `.blend` dosyaları kullanıcının diskinde
+(`~/Desktop/MAR556`, `~/Downloads`, ana dizin). Yeni silah eklerken:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background <dosya>.blend \
+  --python tools/export_glb.py -- assets/weapons/<ad>.glb <maks_üçgen> <subsurf>
+```
+Sonra `weapons.js`'e künye ekle ve `tools/viewmodel.html` ile yönünü doğrula
+(namlu ekranın içine bakmalı), gerekirse flip bayraklarını ayarla.
+
+Düşmanların taşıdığı silahlar ayrı, düşük poligonlu sürümlerdir
+(`enemy_*.glb`) ve `enemyGear.js` içinde tek geometriye kaynaştırılır.
+
+Eski `soldier.glb` ve `tex/T_*.png` SİLİNDİ (kullanıcının rigsiz
+`Asker.blend`'inden üretiliyordu, artık kullanılmıyor): 108 MB → 38 MB.
+`tools/export_soldier_hq.py` o modele ait, yalnızca referans için duruyor.
+
+### Asker modelleri
+
+| Dosya | Kim | Üçgen | Kaynak |
+|---|---|---|---|
+| `assets/characters/swat.glb` | müttefikler | 50.898 | S.W.A.T. Operator Remaster |
+| `assets/characters/fsb.glb` | düşmanlar | 46.411 | FSB Operator |
+
+İkisi de **SpatialNeglect** (Sketchfab, CC BY 4.0) — künye ana ekranda
+(`.home-credit`), kaldırma. Kaynak `.blend`'ler `~/Downloads/` altında.
+İkisi de **Mixamo iskeletli**: kemik adları `mixamorig:` öneki atılarak
+oyunun beklediği sade adlara (Hips, Spine, LeftArm…) dönüşüyor.
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background <karakter>.blend \
+  --python tools/export_mixamo_char.py -- "$PWD/assets/characters/<ad>.glb" \
+  "<haric_malzemeler>" 2048 "<doku_klasoru>"
+```
+
+`export_mixamo_char.py` neyi neden yapıyor:
+
+- **Ağırlıklar vertex gruplarından okunur** (tahmin yok). Eski
+  `export_soldier_hq.py` mesafeden hesaplıyordu; bel büzülmesi ve omuzdan
+  fırlayan üçgenler oradan geliyordu — o betik yalnızca kullanıcının
+  kendi rigsiz `Asker.blend`'i için duruyor.
+- Karakterin elindeki silah modeli DIŞARIDA kalır: üçüncü argüman hariç
+  tutulacak malzeme adları (`ksvr` / `krinkov,magazine,null.001`).
+- Hiçbir yere bağlanmamış teçhizat (FSB'nin çantaları) en yakın kemiğe
+  sabitlenir ve bu bağ **gerçek vertex grubu** olarak yazılır. Köşe
+  aralığıyla takip etmek işe yaramıyor: Blender'ın `join`'i köşe sırasını
+  korumuyor, çantanın bağlantısı bota düşüp bot havada uçuyordu.
+- Parçaların **UV katmanları tek ada getirilir** (`UVMap`). Farklı adlar
+  join'de ayrı katmanlara düşüyor, model düz beyaz görünüyordu. Katmanlar
+  silinmez, yalnızca adlandırılır (silme sırasında referans geçersizleşiyor).
+- Her şey **dünya uzayında** hesaplanır. Armatür uzayı kırılgandı: FSB'nin
+  armatürü hem 0.01 ölçekli hem döndürülmüş, model yan yatıp 0.55 m çıkıyordu.
+- **Animasyon klipleri** de dışa aktarılır (`ANIMASYON` satırı). Üç tuzak:
+  Blender 5'te aksiyonu atamak yetmiyor, `action_slot` da bağlanmalı
+  (yoksa bütün klipler tek pozu pişirir); poz her karede
+  DEĞERLENDİRİLMİŞ (depsgraph) nesneden okunmalı; kök kemiğin yatay
+  kayması temizlenir (karakteri oyun kodu hareket ettiriyor).
+- Dokular `sips` ile 2048'e indirilip JPEG'e çevrilir (4K PNG'ler tek
+  karakter için 80 MB'ı buluyordu). Saydamlık gerekenler PNG kalır.
+
+### Asker duruşu (`src/game/soldier.js`)
+
+Animasyon tamamen yordamsal (modelde animasyon klibi yok):
+
+- Silah ELE değil, kökün çocuğu olan bir **mesnede** bağlı; mesnet nişan
+  açısıyla döner. Tüfek modelinin **orijini dipçikte** (gövde z: +0.02 …
+  -0.85), bu yüzden mesnet gövdenin biraz gerisinde (z=+0.14) durur.
+- Eller `gripLocal` (kabza, dipçikten 25 cm) ve `supportLocal` (el kundağı,
+  50 cm) noktalarına iki kemikli IK ile uzanır. Omuz→hedef mesafeleri
+  0.25 m ve 0.48 m; kol boyu 0.52 m olduğundan iki dirsek de bükülü kalır.
+  Bu mesafeler kol boyunu aşarsa IK kırpar ve el silaha değmez.
+- Tutuş ölçüleri SWAT rig'ine göre kalibre: omuz→kabza 0.26 m, omuz→el
+  kundağı 0.40 m, kol boyu 0.448 m. Silah `HOLD_YAW` (10°) ile çapraz
+  duruyor; düz tutulunca kısa kol kundağa yetişmiyor.
+- **Vuruş kutuları kemiğin KENDİ dünya ölçeğine göre boyutlanır**
+  (`_buildHitBoxes`), kökünkine göre değil. 0.01 ölçekli armatürden gelen
+  rig'lerde (FSB) kemik düğümleri de 0.01 ölçekli oluyor; kutular 100 kat
+  küçülüp mermi hiç isabet etmiyor, düşmanlar hasar almıyor görünüyordu.
+  Kemiğe bağlanan her şey (kol bandı dâhil) bu tuzağa düşer.
+- **Çömelme = yarım diz çökme** (kullanıcının verdiği referans fotoğrafa
+  göre): ARKA bacak dizi ve baldırı yerde, ayak ucu kıvrık — taban
+  geriye-aşağı bakar; ÖN bacak yalnızca taban yerde, baldır dik, diz 94°.
+  Yönler açı yerine doğrudan vektörle veriliyor (`kneelL/R`, `kneelShinL/R`,
+  `kneelFootL/R`): açı tabanlı `legDir` ile ön ayak diz hizasında havada
+  kalıyordu. Oranlar ölçümle kuruldu — ön uyluk yatay + ön baldır dik
+  kalçayı 0.53 m'ye indiriyor, arka uyluk oradan dik-geri inip dizi yere
+  koyuyor.
+- **Ayaklar yere basar**: bacak pozu çözüldükten sonra en alçak temas
+  noktası (taban / diz / devrilmişse omuz-kalça) ölçülüp gövde ona göre
+  kaydırılır. Sabit çömelme yüksekliği her rig'de tutmuyor — SWAT'ta
+  askeri 46 cm yere gömüyordu.
+- Mesnet güncellenirken `updateWorldMatrix(true, true)` kullanılır:
+  `updateMatrixWorld` ataları tazelemediği için eller bir kare geride
+  kalıyor, silahın ~10 cm gerisine uzanıyordu.
+- Adım genliği yürürken 0.42, koşarken 0.62 rad. Daha büyük değerler
+  askeri hamle yapıyor gibi açtırıyor.
+- Ölümde gövde ayak hizasındaki eksen etrafında yana devrilir; yere
+  oturtmayı yukarıdaki temas düzeltmesi yapar. Devrilme başlayınca tüfek
+  `body`'ye aktarılır — eskiden mesnette kalıp havada asılı duruyordu.
+
+### Mixamo animasyonları
+
+Klipler `~/Desktop/riffle/*.fbx` (Mixamo, "Without Skin", 30 fps). Modele
+eklemek:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background <karakter>.blend \
+  --python tools/merge_anims.py -- ~/Desktop/riffle /tmp/karakter_anim.blend
+# sonra /tmp/karakter_anim.blend üzerinden export_mixamo_char.py
+```
+
+`merge_anims.py` dosya adlarını oyun klip adlarına çevirir
+(idle/walk/run/crouch/fire/reload/death) ve kalça konum anahtarlarını
+NESNE ÖLÇEĞİ oranıyla düzeltir — Mixamo FBX'i 0.01 ölçekli gelir,
+anahtarlar santimetre cinsindedir; düzeltilmezse asker 80 m uzaya uçar.
+
+**Oyun artık yordamsal poz yerine bu klipleri oynatıyor**
+(`Soldier._updateClips`): idle / walk / run / crouch / death, hız
+klibin zaman ölçeğine bağlı. `crouch` klibi aslında çömelerek YÜRÜME
+("Walk Crouching Forward Right"); oynatılırsa duran asker adım atıyor.
+Bu yüzden `_plantedTime` klipte iki ayağın da en alçakta olduğu anı bir
+kez ölçer, çömelen asker o karede dondurulur; hareket eden asker
+çömelmez, ayağa kalkıp yürür. Yordamsal kod `mixer` yoksa devreye giren
+yedek olarak duruyor. Klibin üstüne yalnızca nişan açısı bindiriliyor
+(ağırlık gövdede; boyna büyük pay verilince asker kafasını eğiyor gibi
+görünüyor).
+
+Silah **sağ ele** bağlı ama her karede **iki elin arasına** hizalanıyor
+(`_fitRifleToHand`): kabza sağ avuçta, namlu ekseni sol ele bakıyor.
+Yalnızca sağ ele sabitlemek sol eli boşlukta bırakıyordu. Ölünce silah
+köke alınıp zemine yatırılır — elde kalırsa namlu yere giriyor, gövdeye
+bağlanırsa havada asılı kalıyor (gövde grubu klip ile hareket etmiyor).
+
+## Birinci şahıs eller ve şarjör değiştirme
+
+Silahlar artık gerçek ELLERLE tutuluyor; konumlar buna göre (dipçik omuzda)
+yeniden ayarlandı — eski "havada asılı silah" değerlerine dönme, kol yetişmez.
+
+- `fparms.js` — SWAT modeli klonlanır, yalnızca kol üçgenleri kalır
+  (ağırlığı kol/el/parmak kemiklerinde olanlar). İki kemikli IK + bilek
+  burulmasının yarısı ön kola + parmak pozları (`POSES`). Modelin kolu kısa
+  (0.44 m): ön kol ve el kemik konumları 1.25/1.22 ile UZATILIR (ölçek değil,
+  eldiven büyümesin). Tüfekte gövde yan durur (`stance.yaw`), sol omuz öne
+  gelir; yoksa sol el el kundağına yetişmiyor (`arms.side.L.err` > 0).
+- `mechanics.js` — silah başına `RIGS`: hareketli parça grupları (şarjör,
+  sürgü, kurma kolu, kapak, bant…), çapalar (avuç merkezi + bilek→boğum `k`
+  + avuç normali `n`, tutucu uzayında) ve koreografiler (saniye cinsinden
+  izler: `gun`, `L`, `R`, `mag`, parça izleri, `ev` olayları).
+  - `on: 'mag'` çapaları ŞARJÖR PİVOTUNA GÖRE yazılır; diğer `on` çapaları
+    (sürgü, kol, kapak) silah üzerindeki mutlak konumla.
+  - Yatırma işareti: negatif `rz` = sağ yan yukarı, yuva sol ele döner.
+  - Koreografi dönüşü dipçik ucunda değil şarjör yuvası etrafında uygulanır
+    (`weaponry.js`, pivot telafisi); dipçik kameranın arkasında olduğundan
+    küçük açılar bile namluyu gökyüzüne savuruyordu. Bazukada pivot kabza.
+- Silah türleri: AR (düz şarjör + sürgü durdurucu şaplağı), AK (ön tırnaktan
+  devrilerek, boşta sol el üstten aşıp sağdaki kolu çeker), tabanca (şaplakla
+  oturtma, son mermide sürgü açık kilitlenir, overhand bırakma), Barrett
+  (soldaki kol), M98B (her atıştan sonra sürgü döngüsü; kovan sürgü
+  çekilince çıkar), MG 43 (kapak, bant, kutu, kurma), minigun (yordamsal bant
+  ucu + namlu demetini elle çevirme), bazuka (roket önden sürülüp çevrilir).
+- Taktik doldurmada kapalı sürgülülerde namlu içi +1 (`CLOSED_BOLT`).
+- `droppedmags.js` — boş şarjörler gerçek fizik gövdesiyle yere düşer.
+- Ayar aracı: konsolda `await import('/tools/fpdebug.js?'+Date.now())`,
+  sonra `fp.eq(n)`, `fp.reload(0)`, `fp.freeze(t)`, `fp.side()`/`fp.fp()`.
+  Önizleme paneli gizliyken kare hızı düşer; ekran görüntüleri bir kare
+  geriden gelir.
+
+## Yeni silahlar
+
+- **M4 Karabina** (`m4.glb`): `~/Downloads/free-weapon` (tek parça FBX).
+  `tools/export_fbx_weapon.py` gevşek parçalardan şarjörü ayırır, dokuları
+  bağlar. Kendi PBR dokusu var (paslı gri çelik), `finish` uygulanmaz.
+- **Bazuka** (`bazuka.glb`): `~/Desktop/Bazuka/Bazuka.blend`, yalnızca yazarın
+  hazırladığı `EXPORT` koleksiyonu (`export_glb.py`'nin 4. argümanı; diğer
+  koleksiyonlar aynı parçaların kopyası). Prosedürel malzemeler glTF'e
+  beyaz geçiyor → `weapons.js` içinde `paint` ile ada göre boyanır.
+  Roketler `rockets.js`: fırlatma yükü + 0.11 sn sonra uçuş motoru, doğru
+  parçası çarpışması, alan hasarı (6.5 m, 280), geri tepme bulutu.
+- Duman için `effects.puff` normal karışımlı ayrı bir sistem kullanır
+  (toplamalı karışım gri dumanı ışık gibi parlatıyordu).
+
+## Tank bölümü (`tankgame/index.html` — Death Star kopyası)
+
+Bölümler bu sayfayı çerçevede açar; claude.ai'deki Death Star artifact'i
+AYRI bir kopyadır, buradaki değişiklikler oraya gitmez.
+
+- **Benzinlik** `istasyon.glb` (`~/Desktop/BenzinIstasyonu/Istasyon.blend`,
+  `STATION` koleksiyonu, `export_glb.py ... 4000 0 STATION`). Konum
+  `ST` (130, −120), kanopi sahaya dönük. Blender koordinatıyla çalışılır:
+  `stDunya(bx,by)` / `stYerel(x,z)` (glTF'te z = −by). `H()` istasyon
+  altını düzleştirir (`H0` ham arazi); karolar orada ağaç/kaya koymaz.
+- **Yakıt** `YAKIT_MENZIL` 5500 m = oynanabilir çemberin (420 m) çevresinin
+  iki turu. Kanopi altında E ile dolar. E başka yerde tepe makinelisi.
+- **F** yalnızca benzinlikte tanktan indirir; tankın yanında F ile binilir.
+  Yayayken park halindeki tank da vurulabilir (`tankYikik`).
+- **Market** (kapının önü, E): el bombası ×3, AK-47, PKM, Dragunov — hepsi
+  30 altın. Altın: düşman tankı +30, hedef +10, başlangıç 60.
+- Ses tercihi Çelik Hat ile paylaşılır (`localStorage 'celikhat.sessiz'`).
+
+## Siper savaşı
+
+- Her sektörde 2–3 sandık mevzisi (`world._buildTrenches`): düz, L, U.
+  Yükseklik 1.2 m — ayakta göz 1.66 m (üstünden ateş), çömelince 1.10 m
+  (tam saklanır). Duvar başına tek birleşik geometri + tek çarpışma kutusu.
+- Düşmanlar siperde SAKLAN (çömelir, ateş etmez) ↔ DOĞRUL (seri atar)
+  döngüsünde; bir mevzide ~7 sn kalınca hedefe yakın sipere sıçrar.
+- Sipere son yaklaşmada engelden kaçınma zayıflatılır: tam kuvvetle itme
+  askeri siper noktasına (duvardan 0.55 m) hiç ulaştırmıyordu.
+
+## Mağaza (`src/game/shop.js`)
+
+İki bölüm: **6 yelek**, **5 kask** (biri korumasız varsayılan bere).
+Kredi puandan kazanılır (`puanEkle`, tur sonu puanın %60'ı) ve
+`localStorage`'da birikir.
+
+- Gelen hasar `SNIPER_ESIK` (22) üstündeyse **keskin nişancı**, altındaysa
+  **seri atış** sayılır; yelekler bu iki türe ayrı yüzdelerle direnir.
+  Kevlar seriye karşı %48 ama keskine karşı %10; plaka tam tersi.
+- Koruma arttıkça `hiz` çarpanı düşer (Exo 0.80), Exo ayrıca nefesi
+  %35 hızlı tüketir.
+- Kask yalnızca `bolge === 'head'` hasarını azaltır. Düşman hitscan'i
+  artık isabet yüksekliğine göre bölge bildiriyor (`enemies.js`), yoksa
+  kask hiç devreye girmiyordu.
+- Keskin Nişancı Kaskı turda bir kez ölümcül kafa isabetini karşılar
+  (`_kaskKalkaniKullanildi`).
+
+## Sırada ne var
+
+- MAR 556 için ekranın altında yakınlaştırmayan dürbün paneli.
+- `fire` ve `reload` klipleri GLB'de var ama henüz oynatılmıyor (üst gövde
+  katmanı gerekiyor).
+- M4'te kurma kolu ve sürgü durdurucu ayrı parça değil (tek parça FBX);
+  el hareketi var ama parça kımıldamıyor.
