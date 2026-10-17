@@ -375,6 +375,7 @@ export class Game {
     this.hud.setHint(null);
     this.hud.hideBanner();
     this.hud.screen(null);                       // kapanış ekranı açık kalmasın
+    this.hud.setRaidMode(raidIds ? RAID.waves.length : 0);
     if (raidIds) {
       this.raid.setup();
       this.enemies.raid = {

@@ -1516,3 +1516,22 @@ body.unlocked #viewport { cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .finale-title, .finale-flag, .raid-banner { animation-duration: 1ms; }
 }
+
+/* Baskın: üstte "BASKIN", altında düşman can barı — her ölümde azalır,
+   bitince dalga bitmiştir. */
+.wave-block.raid .wave-num { letter-spacing: 0.06em; color: var(--rust); }
+.wave-block.raid .wave-label, .wave-block.raid #wave-label { color: var(--bone); }
+.wave-block.raid .wave-bar {
+  width: 220px;
+  height: 12px;
+  padding: 2px;
+  background: rgba(11, 15, 13, 0.7);
+  border: 1px solid rgba(221, 225, 215, 0.35);
+  box-sizing: content-box;
+}
+.wave-block.raid .wave-bar span {
+  background: linear-gradient(180deg, #e2563c, #a8311f);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: width 260ms ease-out;
+}
+.wave-block.raid .enemies-left { color: var(--bone); }

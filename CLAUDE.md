@@ -317,6 +317,10 @@ doğrudan başlatır).
   canvas'ta dalgalanan Türk bayrağı (resmî ölçülerle ay-yıldız yolu) ve
   "İkinci bölüm yakında".
 
+- **Üst gösterge**: Baskın'da sol üstte "BASKIN" yazar, altında düşman can
+  barı dolu başlar ve her ölümde azalır (`hud.setRaidMode`); bar bitince
+  dalga bitmiştir.
+
 **Dürbün (X)**: her piyade görevinde çalışır; 8× büyütme, fare hassasiyeti
 de 1/8, telemetre (ışın) ve pusula yönü. Dürbündeyken ateş edilmez.
 

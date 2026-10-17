@@ -8,6 +8,8 @@ export class Hud {
     this.el = {
       hud: $('hud'),
       wave: $('wave-num'),
+      waveBlock: $('wave-block'),
+      waveLabel: $('wave-label'),
       enemiesLeft: $('enemies-left'),
       waveBar: $('wave-bar-fill'),
       score: $('score'),
@@ -293,7 +295,25 @@ export class Hud {
 
   /* ── Üst bilgi ─────────────────────────────────────────────────────── */
 
+  /**
+   * Baskın görünümü: başlıkta "BASKIN", altında can barı gibi dolu başlayıp
+   * her ölen düşmanla azalan dalga barı. waves = toplam dalga (0 = normal).
+   */
+  setRaidMode(waves) {
+    this._raidWaves = waves;
+    this.el.waveBlock.classList.toggle('raid', waves > 0);
+    if (!waves) this.el.waveLabel.textContent = 'DALGA';
+  }
+
   setWave(n, remaining, total) {
+    if (this._raidWaves) {
+      this.el.wave.textContent = 'BASKIN';
+      this.el.waveLabel.textContent = `DALGA ${n} / ${this._raidWaves}`;
+      this.el.enemiesLeft.textContent = remaining > 0 ? `${remaining} / ${total} düşman` : 'DALGA BİTTİ';
+      const left = total > 0 ? remaining / total : 0;
+      this.el.waveBar.style.width = `${(left * 100).toFixed(1)}%`;
+      return;
+    }
     this.el.wave.textContent = n;
     this.el.enemiesLeft.textContent = remaining > 0 ? `${remaining} düşman` : 'hat temiz';
     const done = total > 0 ? 1 - remaining / total : 1;
