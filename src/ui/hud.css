@@ -1332,3 +1332,187 @@ body.unlocked #viewport { cursor: default; }
   opacity: 0.35;
 }
 #tankExit:hover { opacity: 1; }
+
+/* ───────────────────────────── El dürbünü (X) ────────────────────────── */
+
+.binoc {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.binoc[hidden] { display: none; }
+.binoc-mask { position: absolute; inset: 0; width: 100%; height: 100%; }
+.binoc-reticle {
+  fill: none;
+  stroke: rgba(12, 16, 12, 0.85);
+  stroke-width: 0.22;
+}
+.binoc-read {
+  position: absolute;
+  left: 50%;
+  bottom: 6vh;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 28px;
+  font: 13px/1 var(--mono);
+  color: #c9e6b4;
+  text-shadow: 0 0 6px rgba(120, 220, 120, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+.binoc-read span { display: flex; gap: 8px; align-items: baseline; }
+.binoc-read b { font-weight: 400; font-size: 10px; letter-spacing: 0.14em; color: var(--olive); }
+
+/* ───────────────────────────── Baskın ────────────────────────────────── */
+
+.interact-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 92px;                          /* tüfeğin gövdesini örtmesin */
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 7px 14px;
+  font: 13px/1.2 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--bone);
+  background: rgba(11, 15, 13, 0.72);
+  border: 1px solid rgba(232, 163, 61, 0.45);
+  pointer-events: none;
+}
+.interact-hint kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 6px;
+  padding: 1px 5px;
+  font: inherit;
+  text-align: center;
+  color: var(--ink);
+  background: var(--amber);
+}
+.interact-hint[hidden] { display: none; }
+
+.raid-banner {
+  position: fixed;
+  left: 50%;
+  top: 19%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  pointer-events: none;
+  text-align: center;
+  animation: banner-in 420ms ease-out both;
+}
+.raid-banner[hidden] { display: none; }
+.raid-banner strong {
+  font: 700 clamp(26px, 4.2vw, 46px)/1 var(--disp);
+  letter-spacing: 0.08em;
+  color: var(--bone);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.7);
+}
+.raid-banner .eyebrow { color: var(--amber); }
+@keyframes banner-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.loadout-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }   /* 9 silah = 3×3 */
+@media (max-width: 640px) { .loadout-grid { grid-template-columns: 1fr; } }
+.loadout-card {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.loadout-card:hover { border-color: rgba(233, 185, 73, 0.6); }
+.loadout-card:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.loadout-card .pick {
+  font: 11px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: rgba(226, 232, 240, 0.4);
+}
+.loadout-card.equipped .pick { color: #e9b949; }
+.loadout-card:disabled { opacity: 0.4; cursor: default; }
+.mission-card.special { border-left-color: var(--rust); }
+.mission-card .tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font: 10px/1.4 var(--mono);
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  background: var(--rust);
+  vertical-align: middle;
+}
+
+/* Kapanış: siyah zemin, önce yazı, sonra dalgalanan bayrak */
+.raid-finale {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #050505;
+  color: #f3efe6;
+  text-align: center;
+}
+.raid-finale[hidden] { display: none; }
+.finale-title {
+  margin: 0;
+  font: 700 clamp(44px, 9vw, 124px)/1 var(--disp);
+  letter-spacing: 0.16em;
+  padding-left: 0.16em;                 /* harf aralığı ortalamayı kaydırmasın */
+  animation: finale-title 3.6s ease-in-out both;
+}
+.finale-title::after {
+  content: "";
+  display: block;
+  width: 38%;
+  height: 3px;
+  margin: 22px auto 0;
+  background: #e30a17;
+}
+.finale-title[hidden] { display: none; }
+@keyframes finale-title {
+  0%   { opacity: 0; transform: scale(1.06); letter-spacing: 0.3em; }
+  22%  { opacity: 1; transform: scale(1); letter-spacing: 0.16em; }
+  82%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.finale-flag {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  animation: finale-flag 1.6s ease-out both;
+}
+.finale-flag[hidden] { display: none; }
+.finale-flag canvas {
+  width: min(720px, 86vw);
+  height: auto;
+  aspect-ratio: 900 / 560;
+}
+.finale-flag .eyebrow { color: #c9c2b2; }
+.finale-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
+  font: 12px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: #8f897c;
+}
+.finale-stats b { color: #f3efe6; font-weight: 400; font-variant-numeric: tabular-nums; }
+.finale-soon {
+  margin: 6px 0 4px;
+  font: 600 clamp(20px, 2.6vw, 28px)/1 var(--disp);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+@keyframes finale-flag {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .finale-title, .finale-flag, .raid-banner { animation-duration: 1ms; }
+}

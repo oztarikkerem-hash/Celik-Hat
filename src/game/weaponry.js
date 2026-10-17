@@ -118,6 +118,9 @@ export class Weaponry {
     this.rig.add(fillLight);
 
     this.slots = [];       // { def, holder, model, flash, muzzle, ammo, reserve }
+    // Baskın: yalnızca seçilen silahlar kuşanılır, mermi ortak torbadan gelir
+    this.allowed = null;   // Set(id) | null
+    this.pool = null;      // { left } | null
     this.current = null;
     this.previousId = null;
 
@@ -313,7 +316,13 @@ export class Weaponry {
 
   get slot() { return this.current; }
 
+  /** Silah bu turda kullanılabilir mi (Baskın'da yalnızca seçilen ikisi). */
+  usable(id) {
+    return !this.allowed || this.allowed.has(id);
+  }
+
   equip(id) {
+    if (!this.usable(id)) return false;
     const next = this.slots.find((s) => s.def.id === id);
     if (!next || next === this.current) return false;
 
@@ -341,9 +350,11 @@ export class Weaponry {
   }
 
   cycle(dir) {
-    const i = this.slots.indexOf(this.current);
-    const n = (i + dir + this.slots.length) % this.slots.length;
-    return this.equip(this.slots[n].def.id);
+    const list = this.slots.filter((s) => this.usable(s.def.id));
+    if (!list.length) return false;
+    const i = list.indexOf(this.current);
+    const n = (i + dir + list.length) % list.length;
+    return this.equip(list[n].def.id);
   }
 
   swapPrevious() {
@@ -394,6 +405,10 @@ export class Weaponry {
     const take = Math.min(cap - s.ammo, s.reserve);
     s.ammo += take;
     s.reserve -= take;
+    if (this._pooled(s)) {
+      this.pool.left = Math.max(0, this.pool.left - take);
+      this._syncPool();
+    }
     this.reloading = false;
     this.onEvent?.('reload-end', s);
   }
@@ -752,8 +767,40 @@ export class Weaponry {
     this.action = null;
   }
 
+  /** Roketler mermi sayılmaz: bazuka kendi 7 roketiyle gelir. */
+  _pooled(s) {
+    return Boolean(this.pool) && !s.def.rocket && this.usable(s.def.id);
+  }
+
+  _syncPool() {
+    for (const s of this.slots) if (this._pooled(s)) s.reserve = this.pool.left;
+  }
+
+  /**
+   * Baskın donanımı: yalnızca `ids` kullanılabilir; şarjörler dâhil toplam
+   * `rounds` mermi iki silah arasında ORTAK torbadan paylaşılır.
+   * `null` ile normal oyuna dönülür.
+   */
+  setLoadout(ids, rounds = 600) {
+    this.resetAmmo();
+    if (!ids) {
+      this.allowed = null;
+      this.pool = null;
+      return;
+    }
+    this.allowed = new Set(ids);
+    this.pool = { left: rounds };
+    for (const s of this.slots) {
+      if (!this._pooled(s)) continue;
+      s.ammo = Math.min(s.def.mag, this.pool.left);
+      this.pool.left -= s.ammo;
+    }
+    this._syncPool();
+  }
+
   /** Dalga sonu ikmali. */
   resupply(fraction = 0.35) {
+    if (this.pool) return;                 // Baskın'da ikmal yok
     for (const s of this.slots) {
       s.reserve = Math.min(s.def.reserve, s.reserve + Math.ceil(s.def.reserve * fraction));
     }

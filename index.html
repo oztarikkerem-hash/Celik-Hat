@@ -46,6 +46,38 @@
   </div>
 </div>
 
+<!-- El dürbünü (X): iki mercek, telemetre ve yön okuması -->
+<div id="binoc" class="binoc" aria-hidden="true" hidden>
+  <svg class="binoc-mask" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <mask id="binoc-holes">
+        <rect x="-200" y="-200" width="560" height="490" fill="#fff"/>
+        <circle cx="61" cy="45" r="34" fill="#000"/>
+        <circle cx="99" cy="45" r="34" fill="#000"/>
+      </mask>
+      <radialGradient id="binoc-edge" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0.72" stop-color="#000" stop-opacity="0"/>
+        <stop offset="1" stop-color="#000" stop-opacity="0.7"/>
+      </radialGradient>
+    </defs>
+    <!-- Kenar kararması iki merceğin birleşimine tek elips olarak: daire
+         başına çizilince kesişimde koyu bir yay kalıyordu -->
+    <ellipse cx="80" cy="45" rx="54" ry="35" fill="url(#binoc-edge)"/>
+    <rect x="-200" y="-200" width="560" height="490" fill="#050605" mask="url(#binoc-holes)"/>
+    <g class="binoc-reticle">
+      <line x1="58" y1="45" x2="76" y2="45"/><line x1="84" y1="45" x2="102" y2="45"/>
+      <line x1="80" y1="30" x2="80" y2="41"/><line x1="80" y1="49" x2="80" y2="60"/>
+      <path d="M62 43v4M66 44v2M70 43v4M74 44v2M86 44v2M90 43v4M94 44v2M98 43v4"/>
+      <path d="M76 38h-2v14h2M84 38h2v14h-2"/>
+    </g>
+  </svg>
+  <div class="binoc-read">
+    <span><b>MESAFE</b><output id="binoc-range">—</output></span>
+    <span><b>YÖN</b><output id="binoc-bearing">000°</output></span>
+    <span><b>BÜYÜTME</b><output>8×</output></span>
+  </div>
+</div>
+
 <!-- Hasar / durum efektleri -->
 <div id="damage-flash" class="damage-flash" aria-hidden="true"></div>
 <div id="vignette" class="vignette" aria-hidden="true"></div>
@@ -82,6 +114,12 @@
   </div>
 
   <ul id="killfeed" class="killfeed"></ul>
+
+  <div id="raid-banner" class="raid-banner" hidden>
+    <span id="raid-banner-eyebrow" class="eyebrow"></span>
+    <strong id="raid-banner-title"></strong>
+  </div>
+  <p id="interact-hint" class="interact-hint" hidden></p>
 
   <footer class="hud-bottom">
     <div class="vitals">
@@ -134,7 +172,7 @@
 
     <header class="home-head">
       <span class="eyebrow">SAHA KOMUTA</span>
-      <p class="lede">Dokuz silah, on görev, sonu gelmeyen dalgalar. Hattı ne kadar tutabilirsin?</p>
+      <p class="lede">Dokuz silah, on bir görev, sonu gelmeyen dalgalar. Hattı ne kadar tutabilirsin?</p>
     </header>
 
     <div class="home-stats">
@@ -152,10 +190,10 @@
       <button class="ghost-btn sound-btn" type="button" aria-pressed="false">Ses: Açık</button>
     </nav>
 
-    <!-- CC-BY lisansı künye zorunlu kılıyor: asker modelleri SpatialNeglect'e ait -->
+    <!-- CC-BY lisansı künye zorunlu kılıyor: askerler SpatialNeglect'in, M2 Ajay Kumar'ın -->
     <p class="home-credit">
       Asker modelleri: <strong>SpatialNeglect</strong> (S.W.A.T. Operator &amp; FSB Operator) ·
-      CC&nbsp;BY&nbsp;4.0
+      M2 Browning: <strong>Ajay Kumar</strong> · CC&nbsp;BY&nbsp;4.0
     </p>
 
     <dl id="home-controls" class="controls" hidden>
@@ -167,7 +205,9 @@
       <div><dt>R</dt><dd>Şarjör değiştir</dd></div>
       <div><dt>G</dt><dd>El bombası</dd></div>
       <div><dt>M</dt><dd>Sesi aç / kapat</dd></div>
-      <div><dt>1 – 7</dt><dd>Silah seç</dd></div>
+      <div><dt>X</dt><dd>Dürbün</dd></div>
+      <div><dt>E</dt><dd>M2 makineliye geç / bırak (Baskın)</dd></div>
+      <div><dt>1 – 9</dt><dd>Silah seç</dd></div>
       <div><dt>Esc</dt><dd>Duraklat</dd></div>
     </dl>
   </div>
@@ -310,6 +350,52 @@
       <nav class="shop-foot">
         <button id="shop-back-btn" class="ghost-btn" type="button">Ana menüye dön</button>
       </nav>
+    </div>
+  </div>
+
+  <!-- Baskın: görev öncesi donanım seçimi -->
+  <div id="raidLoadout" class="overlay shop" hidden>
+    <div class="shop-wrap">
+      <header class="shop-head">
+        <div>
+          <span class="eyebrow">BASKIN · DONANIM</span>
+          <h2>İki silah seç</h2>
+        </div>
+        <div class="shop-credit">
+          <span class="label">ORTAK CEPHANE</span><strong>600</strong>
+        </div>
+      </header>
+      <p class="shop-note">
+        Dört silah arkadaşınla evdesin; ev dört dalgada basılacak (20 · 25 · 30 · 25).
+        Şarjörler dâhil <b>600 mermi</b> seçtiğin iki silah arasında ortak — ikmal yok.
+        Kuzey ve güney pencerelerinde <b>iki M2 Browning</b> kurulu, her birinde
+        10.000 mermi: yanına gidip <b>E</b> ile geç. Bazuka seçersen kendi 7 roketiyle gelir.
+      </p>
+      <div class="shop-grid loadout-grid" id="raid-loadout-grid"></div>
+      <nav class="shop-foot">
+        <button id="raid-start-btn" class="primary-btn" type="button" disabled>Baskını başlat</button>
+        <button id="raid-back-btn" class="ghost-btn" type="button">Geri</button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Baskın kapanışı: "Kahraman asker", ardından bayrak -->
+  <div id="raidFinale" class="raid-finale" hidden>
+    <h1 id="finale-title" class="finale-title">KAHRAMAN ASKER</h1>
+    <div id="finale-flag" class="finale-flag" hidden>
+      <canvas id="flag-canvas" width="900" height="560" aria-label="Türk bayrağı"></canvas>
+      <span class="eyebrow">BASKIN · 1. BÖLÜM TAMAMLANDI</span>
+      <div class="finale-stats">
+        <span>DALGA <b>4/4</b></span>
+        <span>ÖLDÜRME <b id="finale-kills">0</b></span>
+        <span>PUAN <b id="finale-score">0</b></span>
+        <span>İSABET <b id="finale-acc">0%</b></span>
+      </div>
+      <p class="finale-soon">İkinci bölüm yakında</p>
+      <div class="btn-row">
+        <button id="finale-home-btn" class="primary-btn" type="button">Ana menüye dön</button>
+        <button id="finale-retry-btn" class="ghost-btn" type="button">Tekrar oyna</button>
+      </div>
     </div>
   </div>
 

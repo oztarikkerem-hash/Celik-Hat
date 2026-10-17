@@ -76,9 +76,14 @@ export class AllyManager {
     this.raycaster.far = 80;
 
     this.onEnemyHit = null;      // (enemy, damage, part, point) => void
+    this.engageRange = ENGAGE_RANGE;
   }
 
-  spawn(count, playerPos) {
+  /**
+   * @param posts  verilirse her asker kendi mevziine (pencere başı) yerleşir
+   *               ve oradan ayrılmaz: [{ pos: Vector3, facing }]
+   */
+  spawn(count, playerPos, posts = null) {
     this.clear();
     if (!this.factory?.template) return;
 
@@ -90,6 +95,11 @@ export class AllyManager {
       const ally = new Ally(soldier, i);
       const a = (i / count) * Math.PI * 2;
       ally.pos.set(playerPos.x + Math.cos(a) * 3.5, 0, playerPos.z + Math.sin(a) * 3.5);
+      if (posts?.[i]) {
+        ally.post = posts[i];
+        ally.pos.copy(ally.post.pos);
+        ally.facing = ally.post.facing;
+      }
       soldier.root.position.copy(ally.pos);
 
       // Vuruş kutuları müttefike ait: oyuncunun mermisi onlara zarar vermesin
@@ -112,7 +122,7 @@ export class AllyManager {
   /** Müttefiklerin ateş edebileceği hedefleri döndürür. */
   _pickTarget(ally, enemies) {
     let best = null;
-    let bestD = ENGAGE_RANGE;
+    let bestD = this.engageRange;
     for (const e of enemies) {
       if (!e.alive) continue;
       const d = Math.hypot(e.pos.x - ally.pos.x, e.pos.z - ally.pos.z);
@@ -158,6 +168,7 @@ export class AllyManager {
           // Oyuncunun yanında toparlanır
           const a = Math.random() * Math.PI * 2;
           ally.pos.set(player.pos.x + Math.cos(a) * 2.5, 0, player.pos.z + Math.sin(a) * 2.5);
+          if (ally.post) ally.pos.copy(ally.post.pos);       // mevziinde toparlanır
         } else {
           ally.soldier.root.position.copy(ally.pos);
           ally.soldier.update({ dt, speed: 0, crouching: true, downed: true, aimPitch: 0 });
@@ -172,7 +183,9 @@ export class AllyManager {
         ally.nextThink = now + 0.3;
         ally.target = this._pickTarget(ally, enemies);
 
-        if (ally.target) {
+        if (ally.post) {
+          ally.state = 'post';
+        } else if (ally.target) {
           // Tehdide karşı mevzi ara; yoksa oyuncunun yanında kal
           const cover = this.world.findCover(ally.pos, ally.target.pos, ally, 22);
           ally.cover = cover;
@@ -185,7 +198,9 @@ export class AllyManager {
 
       // ── Hedef konum ─────────────────────────────────────────────────
       let goal;
-      if (ally.state === 'cover' && ally.cover) {
+      if (ally.post) {
+        goal = ally.post.pos;
+      } else if (ally.state === 'cover' && ally.cover) {
         goal = ally.cover.pos;
       } else if (ally.state === 'engage' && ally.target) {
         // Siper yoksa oyuncunun hafif önünde mevzilen
@@ -198,7 +213,7 @@ export class AllyManager {
       }
 
       // Oyuncudan çok uzaklaşma
-      if (goal.distanceTo(player.pos) > FOLLOW_DIST * 2.2) {
+      if (!ally.post && goal.distanceTo(player.pos) > FOLLOW_DIST * 2.2) {
         goal = new THREE.Vector3().lerpVectors(player.pos, goal, 0.5);
       }
 
@@ -236,7 +251,9 @@ export class AllyManager {
       // ── Yönelme: hedefe, yoksa gidiş yönüne ─────────────────────────
       const look = ally.target
         ? new THREE.Vector3(ally.target.pos.x - ally.pos.x, 0, ally.target.pos.z - ally.pos.z)
-        : new THREE.Vector3(ally.vel.x, 0, ally.vel.z);
+        : ally.post && dist < 1.1
+          ? new THREE.Vector3(-Math.sin(ally.post.facing), 0, -Math.cos(ally.post.facing))
+          : new THREE.Vector3(ally.vel.x, 0, ally.vel.z);
       if (look.lengthSq() > 0.01) {
         const want = Math.atan2(-look.x, -look.z);
         let diff = want - ally.facing;

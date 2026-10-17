@@ -57,6 +57,10 @@ export class World {
     this._staticEnd = 0;
     this._staticColliders = 0;
     this._staticSolids = 0;
+    // Görev yapıları (Baskın evi): sektörlerden bağımsız, akışla sökülmez
+    this.fixtures = [];
+    // Bu dairenin içine sektör eşyası kurulmaz (görev yapısına yer açılır)
+    this.clearZone = null;        // { x, z, r }
     this._dirty = true;
     this._frustum = new THREE.Frustum();
     this._projScreen = new THREE.Matrix4();
@@ -244,9 +248,14 @@ export class World {
     const cover = [];        // siper noktaları (konum + yüzey normali)
     const M = this.materials;
     const G = this.geo;
+    const zone = this.clearZone;
+    /** Görev yapısının arsasına düşüyor mu? (sektöre göre yerel x/z) */
+    const inZone = (x, z, pad = 0) => Boolean(zone)
+      && Math.hypot(center.x + x - zone.x, center.z + z - zone.z) < zone.r + pad;
 
     /** Katı gövde yerleştirir (çarpışma + fizik + raycast). */
     const solid = (geo, mat, x, y, z, sx, sy, sz, rotY = 0) => {
+      if (inZone(x, z, Math.max(sx, sz) / 2)) return null;
       const mesh = new THREE.Mesh(geo, mat);
       mesh.scale.set(sx, sy, sz);
       mesh.position.set(center.x + x, y, center.z + z);
@@ -284,6 +293,7 @@ export class World {
 
     /** Devrilebilen eşya (fizik gövdesi mesh'i sürer). */
     const prop = (geo, mat, x, y, z, sx, sy, sz, mass) => {
+      if (inZone(x, z, 1)) return null;
       const mesh = new THREE.Mesh(geo, mat);
       mesh.scale.set(sx, sy, sz);
       mesh.position.set(center.x + x, y, center.z + z);
@@ -304,18 +314,23 @@ export class World {
       return mesh;
     };
 
-    const inRoad = (x, z) => Math.abs(center.x + x) < 6 || Math.abs(center.z + z) < 6;
+    const inRoad = (x, z) => Math.abs(center.x + x) < 6 || Math.abs(center.z + z) < 6
+      || inZone(x, z, 4);
 
     /* Arketip seçimi — yol üstündeki sektörler açık kalır. */
     const onRoad = Math.abs(center.x) < 7 || Math.abs(center.z) < 7;
     const roll = rand();
-    const archetype = onRoad ? (roll < 0.5 ? 'avlu' : 'kontrol')
+    // Görev arsasına değen sektörde boru hattı/depo binası kurulmaz: onlar
+    // sektörü baştan başa geçiyor, evin çatısından geçerdi.
+    const nearZone = zone && Math.hypot(center.x - zone.x, center.z - zone.z) < zone.r + SECTOR * 0.75;
+    const archetype = nearZone ? 'avlu' : onRoad ? (roll < 0.5 ? 'avlu' : 'kontrol')
       : roll < 0.3 ? 'depo' : roll < 0.55 ? 'atolye' : roll < 0.78 ? 'avlu' : 'boru';
 
     // ── Ortak: aydınlatma direği ───────────────────────────────────────
     {
       const lx = (rand() - 0.5) * (SECTOR - 8);
       const lz = (rand() - 0.5) * (SECTOR - 8);
+      if (!inZone(lx, lz, 1)) {
       const pole = new THREE.Mesh(G.pole, M.darkSteel);
       pole.scale.set(1, 7.5, 1);
       pole.position.set(center.x + lx, 3.75, center.z + lz);
@@ -331,6 +346,7 @@ export class World {
       const lamp = new THREE.PointLight(0xffb257, 26, 28, 2);
       lamp.position.set(center.x + lx, 7.2, center.z + lz);
       group.add(lamp);
+      }
     }
 
     // ── Arketipler ─────────────────────────────────────────────────────
@@ -625,6 +641,25 @@ export class World {
     return obj;
   }
 
+  /** Görev yapısı ekler: { colliders, solids, cover } akışla sökülmez. */
+  addFixture(f) {
+    this.fixtures.push(f);
+    this._dirty = true;
+  }
+
+  removeFixture(f) {
+    const i = this.fixtures.indexOf(f);
+    if (i >= 0) this.fixtures.splice(i, 1);
+    this._dirty = true;
+  }
+
+  /** Arsa değişince bütün sektörler sökülür; akış onları yeniden kurar. */
+  setClearZone(zone) {
+    this.clearZone = zone;
+    for (const key of [...this.sectors.keys()]) this._releaseSector(key);
+    this._dirty = true;
+  }
+
   /** Tank modunda şehir haritası gizlenir; ışık ve gökyüzü kalır. */
   setVisible(acik) {
     this.gorunur = acik;
@@ -743,6 +778,11 @@ export class World {
     this.colliders.length = this._staticColliders;
     this.solids.length = this._staticSolids;
     this.cover = [];
+    for (const f of this.fixtures) {
+      this.colliders.push(...f.colliders);
+      this.solids.push(...f.solids);
+      this.cover.push(...f.cover);
+    }
     for (const s of this.sectors.values()) {
       this.colliders.push(...s.colliders);
       this.solids.push(...s.solids);

@@ -23,6 +23,7 @@ import { TankPilot } from './tankpilot.js';
 import { BOLUMLER, gorevBul } from './chapters.js';
 import { TankArena } from './tankarena.js';
 import { AllyManager } from './allies.js';
+import { Raid, RAID, M2_DEF } from './raid.js';
 import { Hud } from '../ui/hud.js';
 import { Minimap } from '../ui/minimap.js';
 import { NameTags } from '../ui/nametags.js';
@@ -33,6 +34,9 @@ import { Physics } from '../core/physics.js';
 
 const BASE_FOV = 78;
 const BEST_KEY = 'celik-hat-best';
+const RAID_PICK_KEY = 'celikhat.baskin.silahlar';
+const BINOC_ZOOM = 8;
+const FINALE_TIME = 14;          // ufuktaki birlik görünür kaldıktan sonra kapanış
 
 export class Game {
   constructor(canvas) {
@@ -92,6 +96,12 @@ export class Game {
     this.droppedMags = new DroppedMags(this.scene, this.physics, this.audio);
     this.rockets = new Rockets(this.scene, this.effects, this.audio);
     this.missions = new MissionBook();
+    this.raid = new Raid(this);
+    this.binoc = false;
+    this._binocRead = 0;
+    let pick = [];
+    try { pick = JSON.parse(localStorage.getItem(RAID_PICK_KEY) || '[]'); } catch { pick = []; }
+    this.raidPick = new Set(Array.isArray(pick) ? pick.slice(0, 2) : []);
 
     // Oyuncunun fizik temsilcisi: bombalar ve variller ona çarpabilsin.
     this.playerBody = this.physics.addKinematicCapsule(0.4, 1.8);
@@ -202,15 +212,19 @@ export class Game {
       btn.addEventListener('click', (e) => { e.stopPropagation(); this._toggleSound(); });
     }
     this._syncSoundButtons();
-    on('mission-start-btn', () => this.start(this.selectedMission));
+    on('mission-start-btn', () => this.startMission(this.selectedMission));
     on('mission-back-btn', () => this.toHome());
+    on('raid-start-btn', () => this.startRaid([...this.raidPick]));
+    on('raid-back-btn', () => this.showMissions());
+    on('finale-home-btn', () => this.toHome());
+    on('finale-retry-btn', () => this.startMission('baskin', true));
     on('resume-btn', () => this.resume());
-    on('retry-btn', () => this.start(this.selectedMission));
+    on('retry-btn', () => this.startMission(this.selectedMission, true));
     on('menu-btn', () => this.toHome());
     on('go-home-btn', () => this.toHome());
     on('vic-home-btn', () => this.toHome());
-    on('vic-retry-btn', () => this.start(this.selectedMission));
-    on('vic-next-btn', () => this.start(this._nextMissionId()));
+    on('vic-retry-btn', () => this.startMission(this.selectedMission, true));
+    on('vic-next-btn', () => this.startMission(this._nextMissionId()));
 
     // Serbest bakış modunda Esc duraklatır (kilit olayı gelmez).
     addEventListener('keydown', (e) => {
@@ -226,11 +240,15 @@ export class Game {
     });
 
     this.input.on('key', (code) => {
-      if (this.state !== 'playing') return;
+      if (this.state !== 'playing' || this.mod !== 'piyade') return;
+      if (code === 'KeyM') this._toggleSound();
+      if (code === 'KeyX') this._setBinocular(!this.binoc);
+      if (code === 'KeyE') this._toggleMount();
+      // M2'deyken elde silah yok: değiştirme, doldurma ve bomba kapalı
+      if (this.raid.mounted) return;
       if (code === 'KeyR') this.weaponry.startReload();
       if (code === 'KeyQ') this.weaponry.swapPrevious();
       if (code === 'KeyG') this._throwGrenade();
-      if (code === 'KeyM') this._toggleSound();
       if (code.startsWith('Digit')) {
         const n = Number(code.slice(5));
         if (n >= 1 && n <= 9) this.weaponry.equipSlot(n);
@@ -238,7 +256,7 @@ export class Game {
     });
 
     this.input.on('wheel', (d) => {
-      if (this.state === 'playing') this.weaponry.cycle(d > 0 ? 1 : -1);
+      if (this.state === 'playing' && !this.raid.mounted) this.weaponry.cycle(d > 0 ? 1 : -1);
     });
 
     this.weaponry.onEvent = (name, slot) => {
@@ -263,7 +281,11 @@ export class Game {
       this.waveClean = true;
       this.hud.feed(`DALGA ${wave} — ${total} hedef`, true);
       this.hud.setWave(wave, total, total);
+      if (this.raid.active) {
+        this.hud.banner(`BASKIN · DALGA ${wave} / ${RAID.waves.length}`, `${total} DÜŞMAN GELİYOR`);
+      }
     };
+    this.enemies.onWaveClear = (wave, now) => this._onWaveClear(wave, now);
 
     this.grenades.onExplode = (ev) => this._onExplosion(ev);
 
@@ -308,8 +330,61 @@ export class Game {
 
   /* ── Durum geçişleri ───────────────────────────────────────────────── */
 
-  start(missionId = null) {
+  /** Görev listesinden başlatma: Baskın önce donanım seçtirir. */
+  startMission(id, retry = false) {
+    if (id === 'baskin') {
+      if (retry && this.raidPick.size === 2) this.startRaid([...this.raidPick]);
+      else this.showRaidLoadout();
+      return;
+    }
+    this.start(id);
+  }
+
+  showRaidLoadout() {
+    this.state = 'home';
+    this.selectedMission = 'baskin';
+    this.input.releaseLock();
+    const defs = this.weaponry.slots.map((s) => s.def);
+    // Kayıtlı seçim artık yoksa (silah adı değişti vb.) temizle
+    for (const id of this.raidPick) if (!defs.some((d) => d.id === id)) this.raidPick.delete(id);
+    const draw = () => this.hud.buildRaidLoadout(defs, this.raidPick, (id) => {
+      if (this.raidPick.has(id)) this.raidPick.delete(id);
+      else if (this.raidPick.size < 2) this.raidPick.add(id);
+      draw();
+    });
+    draw();
+    this.nametags.setVisible(false);
+    this.hud.screen('raidLoadout');
+  }
+
+  async startRaid(ids) {
+    if (ids.length !== 2) return;
+    localStorage.setItem(RAID_PICK_KEY, JSON.stringify(ids));
+    if (!this.raid.ready) {
+      this.hud.screen('loader');
+      this.hud.loading(0.1, 'Baskın evi hazırlanıyor');
+      await this.raid.load((p, label) => this.hud.loading(0.1 + p * 0.9, label));
+    }
+    this.start('baskin', ids);
+  }
+
+  start(missionId = null, raidIds = null) {
     this._kaskKalkaniKullanildi = false;
+    this._setBinocular(false);
+    this.raid.dismount();
+    this.hud.setHint(null);
+    this.hud.hideBanner();
+    this.hud.screen(null);                       // kapanış ekranı açık kalmasın
+    if (raidIds) {
+      this.raid.setup();
+      this.enemies.raid = {
+        waves: RAID.waves, center: RAID.center,
+        minR: RAID.spawnMin, maxR: RAID.spawnMax, maxAlive: RAID.maxAlive,
+      };
+    } else {
+      this.raid.teardown();
+      this.enemies.raid = null;
+    }
     this.player.setGear(this.shop.etkiler());
     this.selectedMission = missionId;
     this.missions.focus(missionId);
@@ -327,12 +402,30 @@ export class Game {
 
     this.player.reset();
     this.weaponry.resetAmmo();
-    this.weaponry.equip('ak47');
+    this.weaponry.setLoadout(raidIds, RAID.rounds);
+    this.weaponry.equip(raidIds ? raidIds[0] : 'ak47');
+    this.hud.buildWeaponStrip(
+      this.weaponry.slots.filter((x) => this.weaponry.usable(x.def.id)),
+      this.weaponry.current.def.id,
+    );
+    this.hud.setActiveWeapon(this.weaponry.current.def);
     this.enemies.reset();
-    this.allies.spawn(3, this.player.pos);
+    if (raidIds) {
+      const st = this.raid.playerStart;
+      this.player.pos.copy(st.pos);
+      this.player.yaw = st.yaw;
+      // Evin çevresindeki sektörler hemen kurulsun (ilk karede boş arazi görünmesin)
+      this.camera.position.set(st.pos.x, 1.66, st.pos.z);
+      this.camera.rotation.set(0, st.yaw, 0);
+      this.camera.updateMatrixWorld();
+      this.world.update(this.camera, this.player.pos, performance.now() / 1000, 30);
+    }
+    this.allies.engageRange = raidIds ? 80 : 42;
+    this.allies.spawn(raidIds ? 4 : 3, this.player.pos, raidIds ? this.raid.posts : null);
     this.enemies.allies = this.allies.allies;
     this.nametags.rebuild(this.allies.allies);
     this.grenades.reset(3);
+    this._finaleEndAt = 0;
     this.casings.reset();
     this.droppedMags.reset();
     this.rockets.reset();
@@ -348,6 +441,71 @@ export class Game {
     this.input.requestLock();
     this.clock.getDelta();
     this.enemies.startWave(1);
+  }
+
+  /* ── Baskın ────────────────────────────────────────────────────────── */
+
+  _setBinocular(on) {
+    this.binoc = on;
+    this.hud.setBinocular(on);
+    if (on) this.weaponry.ads = false;
+  }
+
+  /** E: yakındaki M2'ye geç ya da ondan ayrıl. */
+  _toggleMount() {
+    if (!this.raid.active) return;
+    if (this.raid.mounted) {
+      this.raid.dismount();
+      this.hud.setActiveWeapon(this.weaponry.current.def);
+      return;
+    }
+    const g = this.raid.nearbyMG(this.player.pos);
+    if (!g) return;
+    this.raid.mount(g, this.player);
+    this.player.crouching = false;
+    this.player.eye = 1.66;
+    this.hud.setActiveWeapon(M2_DEF);
+    this.audio.swap();
+  }
+
+  /** Son düşman düştüğü an: Baskın'da duyuru, son dalgada kapanış. */
+  _onWaveClear(wave, now) {
+    if (!this.raid.active) return;
+    this.missions.report({ type: 'raid-wave', wave });
+    this.hud.setMission(this.missions.active, this.missions);
+    if (wave < RAID.waves.length) {
+      this.hud.banner(`DALGA ${wave} PÜSKÜRTÜLDÜ`, 'SIRADAKİ BASKIN 10 SANİYEDE', 4200);
+      return;
+    }
+    // Son dalga: sayaç durur, ufukta yeni birlik belirir
+    this.enemies.state = 'idle';
+    this.raid.startFinale(now);
+    this._finaleEndAt = now + FINALE_TIME;
+    this.hud.banner('BASKIN PÜSKÜRTÜLDÜ', 'UFUKTA YENİ BİRLİKLER', 6500);
+    this.hud.feed('Güneydoğudan yaklaşan birlik — X ile dürbüne bak', true);
+  }
+
+  _raidVictory() {
+    this.state = 'victory';
+    this.input.releaseLock();
+    this._setBinocular(false);
+    this.raid.dismount();
+    this.hud.setHint(null);
+    this.hud.hideBanner();
+    this.music.setLevel(0.5, 1.2);
+    this.audio.waveStart();
+
+    if (this.score > this.best) {
+      this.best = this.score;
+      localStorage.setItem(BEST_KEY, String(this.score));
+    }
+    this.shop.puanEkle(this.score);
+    this.nametags.setVisible(false);
+    this.hud.raidFinale({
+      kills: this.kills,
+      score: this.score,
+      accuracy: this.shotsFired ? this.shotsHit / this.shotsFired : 0,
+    });
   }
 
   pause() {
@@ -412,6 +570,7 @@ export class Game {
   /** Seçili görev tamamlandıysa turu bitir. */
   _checkMissionEnd() {
     if (this.state !== 'playing') return false;
+    if (this.raid.active) return false;                  // Baskın kendi kapanışıyla biter
     if (!this.selectedMission) return false;              // serbest hat: sonsuz
     if (!this.missions.completed.has(this.selectedMission)) return false;
     this.missionComplete();
@@ -447,6 +606,10 @@ export class Game {
 
   gameOver() {
     this.state = 'gameover';
+    this._setBinocular(false);
+    this.raid.dismount();
+    this.hud.setHint(null);
+    this.hud.hideBanner();
     this.shop.puanEkle(this.score);
     this.input.releaseLock();
     this.audio.gameOver();
@@ -777,6 +940,9 @@ export class Game {
 
     // Piyade sistemlerini ve ŞEHİR haritasını uyut: tank savaşı açık
     // arazide geçiyor, iki dünya üst üste binmemeli.
+    this.raid.teardown();
+    this.enemies.raid = null;
+    this._setBinocular(false);
     this.enemies.reset();
     this.allies.clear();
     this.world.setVisible?.(false);
@@ -891,9 +1057,12 @@ export class Game {
 
   _step(dt, now) {
     const look = this.input.consumeLook();
-    this.player.look(look.dx, look.dy);
+    // Dürbünde fare hassasiyeti büyütmeyle orantılı düşer
+    const lookK = this.binoc ? 1 / BINOC_ZOOM : 1;
+    this.player.look(look.dx * lookK, look.dy * lookK);
+    const mounted = this.raid.mounted;
 
-    const ads = this.input.mouse(2);
+    const ads = this.input.mouse(2) && !this.binoc && !mounted;
     const moveInput = {
       forward: (this.input.down('KeyW') ? 1 : 0) - (this.input.down('KeyS') ? 1 : 0),
       right: (this.input.down('KeyD') ? 1 : 0) - (this.input.down('KeyA') ? 1 : 0),
@@ -902,7 +1071,9 @@ export class Game {
       crouch: this.input.down('ControlLeft') || this.input.down('KeyC'),
     };
 
-    this.player.update(dt, moveInput, ads, this.weaponry.current.def.weight ?? 0);
+    // M2'deyken oyuncu sehpanın arkasında sabit; kamerayı tüfek sürer
+    if (mounted) this.raid.updateMounted(dt, now, this.player, this.camera);
+    else this.player.update(dt, moveInput, ads, this.weaponry.current.def.weight ?? 0);
     this.physics.moveKinematic(
       this.playerBody, this.player.pos.x, this.player.pos.y + 0.9, this.player.pos.z,
     );
@@ -911,8 +1082,13 @@ export class Game {
     this.world.update(this.camera, this.player.pos, now);
 
     const def = this.weaponry.current.def;
-    const firing = this.input.mouse(0);
-    if (firing) {
+    const firing = this.input.mouse(0) && !this.binoc;
+    if (mounted) {
+      if (firing) {
+        const shot = this.raid.fire(now, this.camera);
+        if (shot) this._resolveShot({ ...shot, weapon: M2_DEF, slot: null, noEject: true });
+      }
+    } else if (firing) {
       if (def.auto) this.weaponry.tryFire(now);
       else if (!this._triggerHeld) this.weaponry.tryFire(now);
       this._triggerHeld = true;
@@ -920,17 +1096,22 @@ export class Game {
       this._triggerHeld = false;
     }
 
-    if (this.weaponry.current.ammo === 0 && !this.weaponry.reloading) {
-      this.weaponry.startReload();
+    this.weaponry.rig.visible = !mounted && !this.binoc;
+    if (!mounted) {
+      if (this.weaponry.current.ammo === 0 && !this.weaponry.reloading) {
+        this.weaponry.startReload();
+      }
+
+      this.weaponry.update({
+        dt, now, look, ads, firing,
+        moving: moveInput.forward !== 0 || moveInput.right !== 0,
+        sprinting: this.player.sprinting,
+      });
     }
 
-    this.weaponry.update({
-      dt, now, look, ads, firing,
-      moving: moveInput.forward !== 0 || moveInput.right !== 0,
-      sprinting: this.player.sprinting,
-    });
-
-    const zoom = THREE.MathUtils.lerp(1, def.zoom, this.weaponry.adsBlend);
+    const zoom = this.binoc ? BINOC_ZOOM
+      : mounted ? 1.12
+        : THREE.MathUtils.lerp(1, def.zoom, this.weaponry.adsBlend);
     const targetFov = BASE_FOV / zoom;
     if (Math.abs(this.camera.fov - targetFov) > 0.01) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFov, Math.min(1, dt * 14));
@@ -944,6 +1125,7 @@ export class Game {
     this.rockets.update(dt, this.world.solids, this.enemies.hitTargets, this.enemies.enemies);
     this.enemies.update(dt, now, this.player);
     this.allies.update(dt, now, this.player, this.enemies.enemies);
+    if (this.raid.active) this.raid.update(dt, now);
 
     // Dalga geçişi
     if (this.enemies.state === 'break' && now > this.enemies.breakEnd) {
@@ -953,20 +1135,49 @@ export class Game {
       // Görev hedefi dalga sayısıysa burada biter — yeni dalga başlamaz.
       if (this._checkMissionEnd()) return;
 
-      this.weaponry.resupply(0.3);
-      this.grenades.resupply(2);
+      this.weaponry.resupply(0.3);                 // Baskın'da ortak torba: etkisiz
+      this.grenades.resupply(this.raid.active ? 1 : 2);
       this.player.heal(25);
       this.hud.setGrenades(this.grenades.count);
-      this.hud.feed('İKMAL — cephane, bomba ve sağlık', true);
+      this.hud.feed(this.raid.active ? 'SOLUKLAN — sağlık ve bir bomba' : 'İKMAL — cephane, bomba ve sağlık', true);
       this.enemies.startWave(this.enemies.wave + 1);
+    }
+
+    // Baskın kapanışı: birlik bir süre görünür, sonra görev biter
+    if (this.raid.finale && now > this._finaleEndAt) {
+      this._raidVictory();
+      return;
     }
 
     this._updateHud(now);
   }
 
+  /** Dürbün: bakılan noktanın mesafesi (saniyede ~8 kez) ve pusula yönü. */
+  _updateBinocular(now) {
+    if (now < this._binocRead) return;
+    this._binocRead = now + 0.12;
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.getWorldQuaternion(new THREE.Quaternion()));
+    this.raycaster.set(this.camera.getWorldPosition(new THREE.Vector3()), dir);
+    const hit = this.raycaster.intersectObjects([...this.enemies.hitTargets, ...this.world.solids], false)[0];
+    // Pusula: kuzey −Z, doğu +X
+    const bearing = THREE.MathUtils.radToDeg(Math.atan2(dir.x, -dir.z));
+    this.hud.setBinocReadout(hit ? hit.distance : null, (bearing + 360) % 360);
+  }
+
   _updateHud(now) {
     const s = this.weaponry.current;
-    this.hud.setAmmo(s.ammo, s.def.mag, s.reserve);
+    const mg = this.raid.mounted;
+    if (mg) this.hud.setAmmo(mg.ammo, RAID.mgRounds, '—');
+    else this.hud.setAmmo(s.ammo, s.def.mag, s.reserve);
+    if (this.binoc) this._updateBinocular(now);
+
+    // Etkileşim ipucu: M2'nin arkasına gelince / üstündeyken
+    let hint = null;
+    if (mg) hint = ['E', 'M2\'yi bırak · sol tık ateş · X dürbün'];
+    else if (this.raid.active && !this.raid.finale && this.raid.nearbyMG(this.player.pos)) {
+      hint = ['E', 'M2 Browning — 10.000 mermi'];
+    }
+    this.hud.setHint(hint);
     this.hud.setHealth(this.player.health, this.player.maxHealth);
     this.hud.setStamina(this.player.stamina, this.player.exhausted);
     this.hud.setSectors(this.world.sectors.size, this.world.grid ** 2);
@@ -979,11 +1190,11 @@ export class Game {
       this.hud.setReload(null);
     }
 
-    const scoped = this.weaponry.scoped;
+    const scoped = this.weaponry.scoped && !mg && !this.binoc;
     this.hud.setScope(scoped);
     this.hud.setCrosshair(
-      THREE.MathUtils.clamp(this.weaponry.spreadDeg / 3.5, 0.08, 1),
-      scoped,
+      mg ? 0.14 : THREE.MathUtils.clamp(this.weaponry.spreadDeg / 3.5, 0.08, 1),
+      scoped || this.binoc,
     );
 
     // Müttefik isim etiketleri: dünya konumunu ekrana yansıt

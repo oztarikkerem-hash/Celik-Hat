@@ -17,7 +17,7 @@ kurulamazsa oyun "serbest bakış" moduna düşer (gömülü önizleme panelleri
   (tamamı sentezlenmiş, ses dosyası yok), `physics` (cannon-es sarmalayıcı).
 - `src/game/` — oyun: `game` (durum makinesi), `world` (sektörlü dünya ve
   akış), `player`, `weapons`+`weaponry`, `enemies`+`enemyGear`, `grenades`,
-  `effects`, `missions`, `align`, `finish`, `textures`.
+  `effects`, `missions`, `raid` (Baskın), `align`, `finish`, `textures`.
 - `src/ui/` — `hud` (DOM'a tek yazma noktası), `minimap`, `hud.css`.
 - `tools/` — Blender dönüştürücü ve model doğrulama sayfaları.
 
@@ -284,10 +284,46 @@ Kredi puandan kazanılır (`puanEkle`, tur sonu puanın %60'ı) ve
 - Keskin Nişancı Kaskı turda bir kez ölümcül kafa isabetini karşılar
   (`_kaskKalkaniKullanildi`).
 
+## Baskın görevi (`src/game/raid.js`)
+
+Görev listesinin başındaki özel görev (`special: true`). Başlatınca önce
+donanım ekranı açılır (`showRaidLoadout`): 9 silahtan tam 2 tanesi seçilir,
+seçim `celikhat.baskin.silahlar` anahtarında hatırlanır ("Tekrar oyna"
+doğrudan başlatır).
+
+- **Ev**: `RAID.center` (-42, -42) çevresinde, dünyaya "fixture" olarak
+  eklenir (`world.addFixture`) — sektör akışı onu sökmez. `world.setClearZone`
+  arsayı (r = 17) boşaltır: o daireye sektör eşyası/siperi kurulmaz, değen
+  sektörler `avlu` arketipine zorlanır (boru hattı çatıdan geçiyordu).
+  Bölge değişince bütün sektörler sökülüp yeniden kurulur.
+- **Dalgalar**: `enemies.raid = { waves, center, minR, maxR, maxAlive }`.
+  Dalga boyları sabit, doğma evin 45–72 m çevresinde, aynı anda en fazla 16
+  düşman (kuyruk bekler). Son düşman düşünce `onWaveClear` çağrılır.
+- **Müttefikler**: 4 asker, her biri bir pencere mevziinde (`ally.post`);
+  oradan ayrılmaz, yaralanınca orada toparlanır, menzil 80 m.
+- **Cephane**: `weaponry.setLoadout(ids, 600)` — yalnızca seçilen iki silah
+  kuşanılır, şarjörler dâhil 600 mermi ORTAK torbadan gelir
+  (`pool.left`), dalga arası ikmal yok. Bazuka roketleri torbaya sayılmaz.
+- **M2 Browning** (`assets/weapons/m2.glb`, Ajay Kumar, CC BY 4.0): kaynak
+  `~/Downloads/m2_browning_machine_gun.glb` (43 MB) `tools/shrink_glb.py`
+  ile 2.9 MB'a indirildi (dokular 1024 JPEG, üçgen ×0.5). Model tek ağ;
+  `splitM2` üçgen adalarının sınır kutusuna bakıp tüfeği sehpadan ayırır
+  (mermi kutusu ve kuşak tüfekle döner). Model −X'e bakar, ayaklar y=-0.377.
+  E ile geçilir; oyuncu sehpanın arkasına sabitlenir, kamera tüfeğin
+  gözüne bağlanır, ±39° yan, −11°…+14° dikey tarama. 140 hasar, 550/dk.
+- **Kapanış**: 4. dalga temizlenince 15 FSB askeri ~105 m güneydoğudan eve
+  yürür; 14 sn sonra `#raidFinale`: "KAHRAMAN ASKER" (3.6 sn), ardından
+  canvas'ta dalgalanan Türk bayrağı (resmî ölçülerle ay-yıldız yolu) ve
+  "İkinci bölüm yakında".
+
+**Dürbün (X)**: her piyade görevinde çalışır; 8× büyütme, fare hassasiyeti
+de 1/8, telemetre (ışın) ve pusula yönü. Dürbündeyken ateş edilmez.
+
 ## Sırada ne var
 
 - MAR 556 için ekranın altında yakınlaştırmayan dürbün paneli.
 - `fire` ve `reload` klipleri GLB'de var ama henüz oynatılmıyor (üst gövde
   katmanı gerekiyor).
+- Baskın 2. bölüm ("yakında" yazıyor): ufukta görünen birlik.
 - M4'te kurma kolu ve sürgü durdurucu ayrı parça değil (tek parça FBX);
   el hareketi var ama parça kımıldamıyor.

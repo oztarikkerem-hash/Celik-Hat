@@ -378,3 +378,95 @@ export function sunTexture() {
     return tex;
   });
 }
+
+/** Badana sıva (Baskın evi): kırık beyaz, lekeli, alt kısmı kirli.
+    Tekrar 1: kutu yüzlerinin UV'leri metreye göre ölçeklenir (1 kare = 2 m). */
+export function plasterTexture() {
+  return make('plaster', () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+    g.fillStyle = '#cfc4ad';
+    g.fillRect(0, 0, S, S);
+    speckle(g, S, 9000, ['rgba(120,104,80,0.10)', 'rgba(255,250,235,0.12)', 'rgba(90,80,64,0.08)'], 1, 4);
+    // Geniş lekeler: yağmur izi ve kabaran boya
+    for (let i = 0; i < 26; i++) {
+      const x = Math.random() * S, y = Math.random() * S, r = 20 + Math.random() * 70;
+      const grd = g.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, `rgba(110,96,72,${0.05 + Math.random() * 0.08})`);
+      grd.addColorStop(1, 'rgba(110,96,72,0)');
+      g.fillStyle = grd;
+      g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    // İnce çatlaklar
+    g.strokeStyle = 'rgba(70,60,46,0.35)';
+    g.lineWidth = 1;
+    for (let i = 0; i < 7; i++) {
+      let x = Math.random() * S, y = Math.random() * S;
+      g.beginPath();
+      g.moveTo(x, y);
+      for (let k = 0; k < 6; k++) {
+        x += (Math.random() - 0.5) * 40;
+        y += Math.random() * 26;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    return finish(c, 1);
+  });
+}
+
+/** Ahşap döşeme tahtaları. */
+export function plankTexture() {
+  return make('plank', () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+    g.fillStyle = '#6b4f2e';
+    g.fillRect(0, 0, S, S);
+    const W = 64;
+    for (let x = 0; x < S; x += W) {
+      const tone = 0.85 + Math.random() * 0.3;
+      g.fillStyle = `rgba(${Math.round(120 * tone)},${Math.round(86 * tone)},${Math.round(48 * tone)},0.55)`;
+      g.fillRect(x + 2, 0, W - 4, S);
+      g.strokeStyle = 'rgba(48,32,16,0.25)';
+      for (let i = 0; i < 5; i++) {
+        g.beginPath();
+        const ox = x + 6 + Math.random() * (W - 12);
+        g.moveTo(ox, 0);
+        g.bezierCurveTo(ox + 6, S / 3, ox - 6, (2 * S) / 3, ox + 3, S);
+        g.stroke();
+      }
+      // Derz ve ek yeri
+      g.fillStyle = 'rgba(30,20,10,0.6)';
+      g.fillRect(x, 0, 2, S);
+      g.fillRect(x, (Math.random() * S) | 0, W, 2);
+    }
+    return finish(c, 1);
+  });
+}
+
+/** Kiremit sıraları (beşik çatı). */
+export function tileTexture() {
+  return make('tile', () => {
+    const S = 256;
+    const { c, g } = canvas(S);
+    g.fillStyle = '#7c3523';
+    g.fillRect(0, 0, S, S);
+    const rowH = 32, w = 32;
+    for (let r = 0; r < S / rowH; r++) {
+      const off = (r % 2) * (w / 2);
+      for (let x = -w; x < S + w; x += w) {
+        const tone = 0.82 + Math.random() * 0.3;
+        const grd = g.createLinearGradient(0, r * rowH, 0, r * rowH + rowH);
+        grd.addColorStop(0, `rgb(${Math.round(150 * tone)},${Math.round(70 * tone)},${Math.round(44 * tone)})`);
+        grd.addColorStop(1, `rgb(${Math.round(96 * tone)},${Math.round(40 * tone)},${Math.round(26 * tone)})`);
+        g.fillStyle = grd;
+        g.beginPath();
+        g.roundRect(x + off + 1, r * rowH, w - 2, rowH - 3, [0, 0, 10, 10]);
+        g.fill();
+      }
+      g.fillStyle = 'rgba(30,12,8,0.45)';
+      g.fillRect(0, r * rowH + rowH - 3, S, 3);
+    }
+    return finish(c, 1);
+  });
+}

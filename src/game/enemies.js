@@ -494,9 +494,13 @@ export class EnemyManager {
 
     this.onKill = null;        // (enemy, part) => void
     this.onWaveStart = null;   // (wave, total) => void
+    this.onWaveClear = null;   // (wave, now) => void — son düşman düştüğü an
     this.onPlayerHit = null;   // (damage, bolge, enemy) => void
     this.onAllyHit = null;     // (ally, damage, enemy) => void
     this.allies = [];          // müttefik listesi (hedef seçimi için)
+    // Baskın görevi: sabit dalga boyları, evin çevresinden doğma.
+    // { waves: [20, 25, 30, 25], center, minR, maxR, maxAlive }
+    this.raid = null;
   }
 
   get hitTargets() {
@@ -534,7 +538,9 @@ export class EnemyManager {
 
   /** Dalga kompozisyonu: ilerledikçe ağır ve menzilli tipler karışır. */
   _composition(wave) {
-    const total = Math.round(4 + wave * 1.7);
+    const total = this.raid
+      ? this.raid.waves[Math.min(wave, this.raid.waves.length) - 1]
+      : Math.round(4 + wave * 1.7);
     const list = [];
     for (let i = 0; i < total; i++) {
       const r = Math.random();
@@ -551,7 +557,7 @@ export class EnemyManager {
     this.pending = this.queue.length;
     this.waveTotal = this.queue.length;
     this.state = 'spawning';
-    this.spawnInterval = Math.max(0.28, 1.1 - wave * 0.05);
+    this.spawnInterval = this.raid ? 0.55 : Math.max(0.28, 1.1 - wave * 0.05);
     this.nextSpawn = performance.now() / 1000 + 0.8;
     this.audio.waveStart();
     this.onWaveStart?.(wave, this.waveTotal);
@@ -561,7 +567,10 @@ export class EnemyManager {
     const e = new Enemy(type, this.wave, this.gear, this.soldierFactory);
 
     // Oyuncudan belirli uzaklıkta, yüklü bir sektörde doğsun.
-    const pick = this.world.spawnPoint(player.pos);
+    const r = this.raid;
+    const pick = r
+      ? this.world.spawnPoint(r.center, r.minR, r.maxR)
+      : this.world.spawnPoint(player.pos);
     e.pos.copy(pick);
     e.group.position.copy(e.pos);
     this.scene.add(e.group);
@@ -626,7 +635,10 @@ export class EnemyManager {
 
   update(dt, now, player) {
     // ── Doğma ──────────────────────────────────────────────────────────
-    if (this.state === 'spawning' && this.queue.length && now >= this.nextSpawn) {
+    // Baskında aynı anda sahada olan düşman sınırlı: 30 kişilik dalga
+    // birden doğsa hem kare hızı düşer hem ev ilk saniyede çiğnenir.
+    const room = !this.raid || this.aliveCount < this.raid.maxAlive;
+    if (this.state === 'spawning' && this.queue.length && now >= this.nextSpawn && room) {
       this._spawnOne(this.queue.shift(), player);
       this.pending = this.queue.length;
       this.nextSpawn = now + this.spawnInterval;
@@ -728,7 +740,8 @@ export class EnemyManager {
     // ── Dalga bitti mi ─────────────────────────────────────────────────
     if (this.state === 'fighting' && this.aliveCount === 0) {
       this.state = 'break';
-      this.breakEnd = now + 7;
+      this.breakEnd = now + (this.raid ? 10 : 7);
+      this.onWaveClear?.(this.wave, now);
     }
 
     // Ölüleri temizle

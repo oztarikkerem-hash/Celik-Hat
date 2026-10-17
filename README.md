@@ -12,6 +12,9 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
 - Sandıklardan siper hatları; düşmanlar siperde saklanıp doğrularak ateş
   ediyor, siperden sipere ilerliyor.
 - Görevler, müttefik askerler, mağaza (yelek ve kask).
+- **Baskın** (özel görev): dört silah arkadaşınla bir evi dört dalgaya karşı
+  tut (20 · 25 · 30 · 25). Yanında seçtiğin iki silah ve ortak 600 mermi;
+  pencerelerde 10.000'er mermili iki M2 Browning.
 - **Bölümler:** tank oyunu (Death Star) — T-90 ya da M1 Abrams, müttefik ve
   düşman tanklar, yakıt, benzinlik ve market.
 
@@ -37,6 +40,8 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | 1–9, fare tekerleği | Silah seç |
 | C / Ctrl | Çömel (siperin arkasında tamamen saklanırsın) |
 | G | El bombası |
+| X | Dürbün |
+| E | M2 makineliye geç / bırak (Baskın) |
 | M | Sesi aç / kapat |
 
 Tank bölümünde: W/S sür, A/D dön, E (basılı) tepe makinelisi ya da
@@ -56,6 +61,8 @@ Ayrıntılı geliştirici notları: [CLAUDE.md](CLAUDE.md).
 
 - Asker modelleri: **SpatialNeglect** — S.W.A.T. Operator ve FSB Operator
   (Sketchfab, CC BY 4.0).
+- M2 Browning makineli tüfek: **Ajay Kumar** — "M2 Browning Machine Gun"
+  (Sketchfab, CC BY 4.0); dokular küçültüldü, üçgen sayısı yarıya indirildi.
 - Diğer silah, araç ve yapı modelleri Sketchfab ve kişisel Blender
   dosyalarından alındı; depoyu herkese açık paylaşmadan önce her birinin
   lisansının yeniden dağıtıma izin verdiğini kontrol et.

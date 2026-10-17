@@ -60,6 +60,15 @@ export class Hud {
       homeArsenal: $('home-arsenal'),
       homeControls: $('home-controls'),
       missionCards: $('mission-cards'),
+      binoc: $('binoc'),
+      binocRange: $('binoc-range'),
+      binocBearing: $('binoc-bearing'),
+      interactHint: $('interact-hint'),
+      raidBanner: $('raid-banner'),
+      raidBannerEyebrow: $('raid-banner-eyebrow'),
+      raidBannerTitle: $('raid-banner-title'),
+      raidLoadout: $('raidLoadout'),
+      raidFinale: $('raidFinale'),
     };
     this._lastScore = 0;
     this._feedTimers = [];
@@ -73,7 +82,7 @@ export class Hud {
   }
 
   screen(name) {
-    for (const key of ['loader', 'home', 'missionsScreen', 'shopScreen', 'chapterScreen', 'tankPickScreen', 'victory', 'pause', 'gameover']) {
+    for (const key of ['loader', 'home', 'missionsScreen', 'shopScreen', 'chapterScreen', 'tankPickScreen', 'raidLoadout', 'raidFinale', 'victory', 'pause', 'gameover']) {
       this.el[key].hidden = key !== name;
     }
     this.el.hud.hidden = name !== null;
@@ -268,11 +277,11 @@ export class Hud {
     for (const m of missions) {
       const { done, value } = book.get(m);
       const li = document.createElement('li');
-      li.className = `mission-card${done ? ' done' : ''}${m.id === selectedId ? ' selected' : ''}`;
+      li.className = `mission-card${done ? ' done' : ''}${m.id === selectedId ? ' selected' : ''}${m.special ? ' special' : ''}`;
       li.dataset.id = m.id;
       li.innerHTML = `
         <div class="card-head">
-          <strong>${m.name}</strong>
+          <strong>${m.name}${m.special ? '<span class="tag">ÖZEL</span>' : ''}</strong>
           <span class="card-count">${value}/${m.target}</span>
         </div>
         <p>${m.desc}</p>
@@ -431,6 +440,160 @@ export class Hud {
 
   setScope(on) {
     this.el.scope.classList.toggle('on', on);
+  }
+
+  /* ── Dürbün, etkileşim ipucu, Baskın ───────────────────────────────── */
+
+  setBinocular(on) {
+    if (this.el.binoc.hidden === !on) return;
+    this.el.binoc.hidden = !on;
+  }
+
+  /** range: metre (null = hedef yok), bearing: derece (0 = kuzey) */
+  setBinocReadout(range, bearing) {
+    this.el.binocRange.textContent = range == null ? '— m' : `${Math.round(range)} m`;
+    this.el.binocBearing.textContent = `${String(Math.round(bearing) % 360).padStart(3, '0')}°`;
+  }
+
+  /** Ekranın ortasında tuş ipucu; [tuş, metin] ya da null. */
+  setHint(hint) {
+    const el = this.el.interactHint;
+    const key = hint ? hint.join('|') : '';
+    if (key === this._hintKey) return;
+    this._hintKey = key;
+    el.hidden = !hint;
+    if (!hint) return;
+    el.innerHTML = '';
+    const kbd = document.createElement('kbd');
+    kbd.textContent = hint[0];
+    el.append(kbd, hint[1]);
+  }
+
+  /** Dalga duyurusu: üstte kısa süre kalan büyük başlık. */
+  banner(eyebrow, title, ms = 2800) {
+    const el = this.el.raidBanner;
+    this.el.raidBannerEyebrow.textContent = eyebrow;
+    this.el.raidBannerTitle.textContent = title;
+    el.hidden = false;
+    el.style.animation = 'none';
+    void el.offsetWidth;                  // animasyonu baştan oynat
+    el.style.animation = '';
+    clearTimeout(this._bannerTimer);
+    this._bannerTimer = setTimeout(() => { el.hidden = true; }, ms);
+  }
+
+  hideBanner() {
+    clearTimeout(this._bannerTimer);
+    this.el.raidBanner.hidden = true;
+  }
+
+  /**
+   * Baskın donanım kartları. defs: silah künyeleri, selected: Set(id),
+   * onToggle(id): seçim değişince.
+   */
+  buildRaidLoadout(defs, selected, onToggle) {
+    const grid = $('raid-loadout-grid');
+    grid.innerHTML = '';
+    const full = selected.size >= 2;
+    for (const d of defs) {
+      const on = selected.has(d.id);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = `shop-card loadout-card${on ? ' equipped' : ''}`;
+      card.disabled = full && !on;
+      card.setAttribute('aria-pressed', String(on));
+      const rows = d.rocket
+        ? [['Roket', `${d.mag} + ${d.reserve}`], ['Patlama hasarı', d.rocket.maxDamage]]
+        : [['Şarjör', d.mag], ['Hasar', d.damage], ['Atış hızı', `${d.rpm} /dk`]];
+      card.innerHTML = `
+        <header><h3>${d.name}</h3><span class="pick">${on ? 'SEÇİLDİ' : `YUVA ${d.slot}`}</span></header>
+        <dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
+      card.addEventListener('click', () => onToggle(d.id));
+      grid.append(card);
+    }
+    $('raid-start-btn').disabled = selected.size !== 2;
+  }
+
+  /**
+   * Görev sonu: siyah ekranda "KAHRAMAN ASKER", ardından dalgalanan Türk
+   * bayrağı ve "İkinci bölüm yakında". stats: { kills, score, accuracy }
+   */
+  raidFinale({ kills, score, accuracy }) {
+    const title = $('finale-title');
+    const flag = $('finale-flag');
+    $('finale-kills').textContent = kills;
+    $('finale-score').textContent = score.toLocaleString('tr-TR');
+    $('finale-acc').textContent = `${Math.round(accuracy * 100)}%`;
+    title.hidden = false;
+    flag.hidden = true;
+    title.style.animation = 'none';
+    void title.offsetWidth;
+    title.style.animation = '';
+    this.screen('raidFinale');
+
+    clearTimeout(this._finaleTimer);
+    this._finaleTimer = setTimeout(() => {
+      title.hidden = true;
+      flag.hidden = false;
+      this._waveFlag($('flag-canvas'));
+    }, 3600);
+  }
+
+  /** Bayrak: önce düz çizilir, sonra dilim dilim dalga ve gölgeyle basılır. */
+  _waveFlag(canvas) {
+    const g = canvas.getContext('2d');
+    const CW = canvas.width, CH = canvas.height;
+    const FW = 780, FH = 520;                 // 3:2 (TS 4991 oranı)
+    const flat = document.createElement('canvas');
+    flat.width = FW;
+    flat.height = FH;
+    const f = flat.getContext('2d');
+    f.fillStyle = '#e30a17';
+    f.fillRect(0, 0, FW, FH);
+    // Resmî ölçülerle ay-yıldız (G = bayrak eni = 60000 birim)
+    f.save();
+    f.scale(FW / 90000, FH / 60000);
+    f.translate(0, 30000);
+    f.fillStyle = '#ffffff';
+    f.fill(new Path2D(
+      'm41750 0 13568-4408-8386 11541V-7133l8386 11541z'
+      + 'm925 8021a15000 15000 0 1 1 0-16042 12000 12000 0 1 0 0 16042z',
+    ));
+    f.restore();
+
+    const ox = 96, oy = 18;                   // gönderin sağı
+    const t0 = performance.now();
+    const frame = () => {
+      if (this.el.raidFinale.hidden) return;   // ekran kapanınca dur
+      const t = (performance.now() - t0) / 1000;
+      g.clearRect(0, 0, CW, CH);
+
+      // Gönder
+      const pole = g.createLinearGradient(ox - 16, 0, ox, 0);
+      pole.addColorStop(0, '#6e6a62');
+      pole.addColorStop(0.5, '#e6e2d8');
+      pole.addColorStop(1, '#5b5850');
+      g.fillStyle = pole;
+      g.fillRect(ox - 14, 6, 10, CH - 6);
+      g.fillStyle = '#d9b45a';
+      g.beginPath();
+      g.arc(ox - 9, 8, 8, 0, Math.PI * 2);
+      g.fill();
+
+      // Dalga: gönderden uzaklaştıkça genlik artar
+      const step = 3;
+      for (let x = 0; x < FW; x += step) {
+        const k = x / FW;
+        const phase = x * 0.016 - t * 3.2;
+        const dy = Math.sin(phase) * 16 * k + Math.sin(phase * 0.47 + 1.3) * 6 * k;
+        const shade = Math.cos(phase) * 0.22 * (0.25 + k);
+        g.drawImage(flat, x, 0, step + 0.6, FH, ox + x, oy + dy, step + 0.6, FH);
+        g.fillStyle = shade > 0 ? `rgba(255,255,255,${shade * 0.55})` : `rgba(0,0,0,${-shade})`;
+        g.fillRect(ox + x, oy + dy, step + 0.6, FH);
+      }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
   }
 
   /* ── Panel istatistikleri ──────────────────────────────────────────── */

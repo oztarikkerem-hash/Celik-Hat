@@ -10,6 +10,14 @@ const SNIPERS = new Set(['barrett_m82', 'm98b']);
 
 export const MISSIONS = [
   {
+    // Özel görev: kendi haritası (ev), sabit dalgalar ve donanım seçimi var.
+    // İlerlemeyi yalnızca Baskın'ın kendi dalgaları sayar.
+    id: 'baskin', name: 'Baskın', target: 4, special: true,
+    desc: 'Dört silah arkadaşınla evi tut: 20, 25, 30 ve 25 kişilik dört baskın. '
+      + 'Yanında iki silah, ortak 600 mermi ve pencerelerde iki M2 Browning.',
+    on: (ev) => (ev.type === 'raid-wave' ? 1 : 0),
+  },
+  {
     id: 'ilk-kan', name: 'İlk Kan', target: 1,
     desc: 'Sahaya in ve ilk hedefi düşür.',
     on: (ev) => (ev.type === 'kill' ? 1 : 0),
