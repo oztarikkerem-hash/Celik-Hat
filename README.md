@@ -1,7 +1,7 @@
 # Çelik Hat
 
 **Oyna:** https://oztarikkerem-hash.github.io/Celik-Hat/
-(ilk açılışta ~100 MB model iner; bağlantıya göre bir-iki dakika sürebilir)
+(ilk açılışta ~40 MB model iner; sonraki açılışlarda tarayıcı önbelleğinden gelir)
 
 Tarayıcıda çalışan birinci şahıs nişancı oyunu. Three.js (görüntü) ve
 cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.

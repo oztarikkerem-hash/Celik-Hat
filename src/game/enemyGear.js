@@ -42,10 +42,11 @@ export class EnemyGear {
     const loader = new GLTFLoader();
     const kinds = Object.keys(SOURCES);
 
+    const downloads = kinds.map((k) => loader.loadAsync(base + SOURCES[k].file));
     for (let i = 0; i < kinds.length; i++) {
       const kind = kinds[i];
       const src = SOURCES[kind];
-      const gltf = await loader.loadAsync(base + src.file);
+      const gltf = await downloads[i];
       const root = gltf.scene;
 
       const info = normalizeModel(root, src.length, {

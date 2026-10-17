@@ -104,6 +104,15 @@ oyunun beklediği sade adlara (Hips, Spine, LeftArm…) dönüşüyor.
   kayması temizlenir (karakteri oyun kodu hareket ettiriyor).
 - Dokular `sips` ile 2048'e indirilip JPEG'e çevrilir (4K PNG'ler tek
   karakter için 80 MB'ı buluyordu). Saydamlık gerekenler PNG kalır.
+- Açılış için sonradan `assets/characters/tex` elle küçültüldü: yalnızca
+  birinci şahıs kollarının kullandığı `Body_Base_color` ve
+  `Body_Normal_OpenGL` 2048'de; diğerleri 1024 (göz 256, kirpik/arma 512),
+  JPEG kalitesi 82. 33.6 MB → 8.5 MB. Karakter yeniden dışa aktarılırsa
+  bu küçültme tekrarlanmalı.
+
+**Açılış**: `game.load` silahları, düşman teçhizatını ve iki asker modelini
+AYNI ANDA indirir (`Promise.all`); `loadAll` da silahları paralel indirip
+yuva sırasıyla işler. Açılışta inen toplam ~40 MB (eskiden ~66 MB, sırayla).
 
 ### Asker duruşu (`src/game/soldier.js`)
 

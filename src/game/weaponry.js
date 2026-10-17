@@ -153,9 +153,19 @@ export class Weaponry {
     const loader = new GLTFLoader();
     let done = 0;
 
-    for (const def of WEAPONS) {
-      // basePath: sayfa alt klasördeyse (tank bölümü) dosya yolu öneki
-      const gltf = await loader.loadAsync((this.basePath ?? '') + def.file);
+    // Bütün modeller AYNI ANDA indirilir (sırayla beklemek açılışı
+    // uzatıyordu); işleme yine yuva sırasıyla yapılır.
+    // basePath: sayfa alt klasördeyse (tank bölümü) dosya yolu öneki
+    const downloads = WEAPONS.map((def) => loader.loadAsync((this.basePath ?? '') + def.file)
+      .then((gltf) => {
+        done++;
+        onProgress?.(done / WEAPONS.length, def.name);
+        return gltf;
+      }));
+
+    for (let wi = 0; wi < WEAPONS.length; wi++) {
+      const def = WEAPONS[wi];
+      const gltf = await downloads[wi];
       const model = gltf.scene;
 
       const { muzzle } = normalizeModel(model, def.view.length, {
@@ -248,9 +258,6 @@ export class Weaponry {
       };
       if (slot.rig) this._buildParts(slot);
       this.slots.push(slot);
-
-      done++;
-      onProgress?.(done / WEAPONS.length, def.name);
     }
 
     this.equip(WEAPONS[1].id); // AK-47 ile başla

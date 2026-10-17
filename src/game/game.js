@@ -126,23 +126,26 @@ export class Game {
 
   async load() {
     this.hud.screen('loader');
-    await this.weaponry.loadAll((p, name) => {
-      this.hud.loading(p * 0.8, `${name} yükleniyor…`);
-    });
-
-    // Düşmanların taşıdığı silahlar (tek geometriye kaynaştırılır)
-    await this.gear.load((p, kind) => {
-      this.hud.loading(0.78 + p * 0.1, `Düşman teçhizatı: ${kind}`);
-    });
-
-    // Asker modelleri (Mixamo iskeletli; animasyonlar kodda üretiliyor)
+    // Bütün varlıklar AYNI ANDA iner: silahlar, düşman teçhizatı ve iki
+    // asker modeli. Sırayla beklenince her dosyanın gecikmesi üst üste
+    // biniyor, açılış uzuyordu. Çubuk, inen parçaların ağırlıklı toplamı.
+    const pay = { w: 0, g: 0, s: 0, e: 0 };
+    const goster = (label) => this.hud.loading(
+      pay.w * 0.55 + pay.g * 0.05 + pay.s * 0.2 + pay.e * 0.2, label,
+    );
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
-    await this.soldiers.load('assets/characters/swat.glb', () => {
-      this.hud.loading(0.90, 'Müttefik askerler');
-    }, aniso);
-    await this.enemySoldiers.load('assets/characters/fsb.glb', () => {
-      this.hud.loading(0.95, 'Düşman askerler');
-    }, aniso);
+    await Promise.all([
+      this.weaponry.loadAll((p, name) => { pay.w = p; goster(`${name} yüklendi`); }),
+      // Düşmanların taşıdığı silahlar (tek geometriye kaynaştırılır)
+      this.gear.load((p, kind) => { pay.g = p; goster(`Düşman teçhizatı: ${kind}`); }),
+      // Asker modelleri (Mixamo iskeletli)
+      this.soldiers.load('assets/characters/swat.glb', () => {
+        pay.s = 1; goster('Müttefik askerler');
+      }, aniso),
+      this.enemySoldiers.load('assets/characters/fsb.glb', () => {
+        pay.e = 1; goster('Düşman askerler');
+      }, aniso),
+    ]);
 
     // Birinci şahıs eller: müttefiklerin SWAT modelinin kolları
     this.weaponry.attachArms(new FPArms(this.soldiers.template, this.soldiers.height));
