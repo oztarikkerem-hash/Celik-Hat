@@ -11,6 +11,26 @@ python3 tools/devserver.py 8777      # önbelleksiz sunucu (tarayıcı eski kodu
 Sonra `http://localhost:8777`. Fare kilidi gerçek tarayıcıda çalışır; kilit
 kurulamazsa oyun "serbest bakış" moduna düşer (gömülü önizleme panelleri için).
 
+## Sürüm damgası (önbellek)
+
+GitHub Pages her dosyayı 10 dk önbellekte tutturuyor; tarayıcı sayfa
+yenilense bile eski modülleri çalıştırıyordu ("oyun güncellenmiyor").
+`tools/stamp.py` içerik özetinden bir SÜRÜM üretir ve:
+
+- `index.html` ile `tankgame/index.html` import map'ine (`SÜRÜM:BAŞ` /
+  `SÜRÜM:SON` arası, ELLE DÜZENLEME) her `src/` modülü için `?v=SÜRÜM`
+  eşlemesi yazar — göreli içe aktarmalar da yeni adrese gider;
+- `index.html`'deki `BUILD` sabitini ve `hud.css?v=` damgasını,
+  `version.json`'ı günceller. Sayfa `version.json`'ı önbelleksiz okur,
+  kendi sürümü eskiyse bir kez `?v=YENİ` ile kendini yeniden yükler.
+- Ana modül import map'ten geçmediği için `src/main.js` sabit `<script>`
+  ile değil, sürüm denetiminden sonra kodla eklenir.
+
+`.git/hooks/pre-commit` her commit'te betiği çalıştırır (kanca depoya
+girmez; yeni klonda yoksa commit'ten önce `python3 tools/stamp.py`).
+Yeni bir modül eklenince ya da import map'e sabit bir giriş gerekince
+`stamp.py` içindeki `PAGES` güncellenir.
+
 ## Mimari
 
 - `src/core/` — altyapı: `input` (fare kilidi + yedek), `audio`/`music`
