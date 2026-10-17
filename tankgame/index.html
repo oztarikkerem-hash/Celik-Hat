@@ -101,7 +101,7 @@ h1 span{color:var(--signal)}
 #ickam{position:fixed;inset:0;display:none;pointer-events:none;z-index:2;font-family:var(--mono);color:#b9f29a}
 #ickam.on{display:block}
 #ickam .ekran{position:absolute;inset:0;
- background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px),
+ background:repeating-linear-gradient(0deg,rgba(0,0,0,.32) 0 2px,transparent 2px 4px),
   radial-gradient(ellipse at 50% 50%,transparent 58%,rgba(0,0,0,.55) 100%)}
 #ickam .cerceve{position:absolute;inset:0;border:clamp(14px,3.2vmin,30px) solid #0b0d0a;border-radius:clamp(18px,4vmin,40px);
  box-shadow:inset 0 0 0 2px #2a3226,inset 0 0 40px rgba(0,0,0,.6)}
@@ -114,6 +114,13 @@ h1 span{color:var(--signal)}
 #ickam .sag{right:calc(clamp(14px,3.2vmin,30px) + 18px);text-align:right}
 #ickam .ust,#ickam .sol,#ickam .sag{background:rgba(6,10,5,.55);padding:4px 10px;border-radius:3px}
 #ickam b{color:#e6ffd8;font-weight:600}
+#ickam .yatay{position:absolute;left:0;right:0;top:50%;height:0}
+#ickam .yatay i{position:absolute;top:-1px;height:2px;background:#b9f29a;
+ box-shadow:0 0 0 1px rgba(0,0,0,.55),0 0 6px rgba(150,255,120,.35)}
+#ickam .yatay i:first-child{left:clamp(14px,3.2vmin,30px);right:calc(50% + 46px)}
+#ickam .yatay i:last-child{right:clamp(14px,3.2vmin,30px);left:calc(50% + 46px)}
+#ickam .yatay.alt{top:calc(50% + 12vmin)}
+#ickam .yatay.alt i{height:1px;opacity:.55}
 #ickam .kayit{color:#ff6b4a}
 @media (max-width:560px){.val{font-size:22px}#compass{width:72px;height:72px}.box{min-width:66px;padding:6px 9px}}
 @media (prefers-reduced-motion:reduce){#msg{transition:none}}
@@ -152,8 +159,10 @@ h1 span{color:var(--signal)}
 <div id="ickam" aria-hidden="true">
   <div class="ekran"></div>
   <div class="cerceve"></div>
+  <div class="yatay"><i></i><i></i></div>
+  <div class="yatay alt"><i></i><i></i></div>
   <svg class="nisan" viewBox="-100 -100 200 200"><g stroke="#b9f29a" stroke-width=".9" fill="none" opacity=".9">
-    <path d="M-100 0h80M20 0h80M0 20v80M0 -100v80"/>
+    <path d="M0 20v80M0 -100v80"/>
     <path d="M-6 0h12M0 -6v12" stroke-width="1.2"/>
     <path d="M-30 -30h8M-30 -30v8M30 -30h-8M30 -30v8M-30 30h8M-30 30v-8M30 30h-8M30 30v-8"/>
     <g font-size="5" fill="#b9f29a" stroke="none" font-family="IBM Plex Mono"><text x="4" y="40">4</text><text x="4" y="60">8</text><text x="4" y="80">12</text></g>
