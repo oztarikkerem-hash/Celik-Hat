@@ -15,6 +15,7 @@
 
 import * as THREE from 'three';
 import { Soldier } from './soldier.js';
+import { RIGS } from './mechanics.js';
 
 const VIEW_KEY = 'celikhat.gorus';
 const DIST = 2.35, DIST_ADS = 1.25;
@@ -29,6 +30,9 @@ export class ThirdPerson {
     this.enabled = saved === 'omuz';
     this.active = false;        // bu karede gerçekten omuz üstü mü
     this.avatar = null;
+    this.guns = new Map();      // silah kimliği → karakterin elindeki kopya
+    this.gunId = null;
+    this._flashUntil = 0;
     this._adsK = 0;
     this._ray = new THREE.Raycaster();
   }
@@ -52,6 +56,43 @@ export class ThirdPerson {
     return soldier;
   }
 
+  /**
+   * Birinci şahıs silahının (tutucu: model + hareketli parçalar) üçüncü
+   * şahıs kopyası. Geometri/malzeme paylaşılır; ışıklar atılır, alev
+   * kopyası atışta kısa süre görünür.
+   */
+  _gunFor(slot) {
+    const id = slot.def.id;
+    if (this.guns.has(id)) return this.guns.get(id);
+    slot.flash.name = '__alev';
+    const g = slot.holder.clone(true);
+    g.position.set(0, 0, 0);
+    g.rotation.set(0, 0, 0);
+    g.scale.set(1, 1, 1);
+    g.visible = true;
+    const lights = [];
+    g.traverse((o) => {
+      if (o.isLight) lights.push(o);
+      if (o.isMesh) { o.castShadow = true; o.frustumCulled = true; }
+    });
+    for (const l of lights) l.parent.remove(l);
+    const flash = g.getObjectByName('__alev');
+    if (flash) flash.visible = false;
+    g.userData.muzzle = slot.muzzle.clone();
+    const gun = { group: g, flash, grip: new THREE.Vector3().fromArray(RIGS[id]?.anchors.grip.p ?? [0, -0.055, -0.25]) };
+    this.guns.set(id, gun);
+    return gun;
+  }
+
+  /** Atış: karakterin silahında kısa namlu alevi. */
+  flash(now) {
+    const gun = this.guns.get(this.gunId);
+    if (!gun?.flash) return;
+    gun.flash.visible = true;
+    gun.flash.rotation.z = Math.random() * Math.PI;
+    this._flashUntil = now + 0.05;
+  }
+
   hide() {
     this.active = false;
     if (this.avatar) this.avatar.root.visible = false;
@@ -61,6 +102,7 @@ export class ThirdPerson {
   reset() {
     if (this.avatar) this.game.scene.remove(this.avatar.root);
     this.avatar = null;
+    this.gunId = null;
     this.active = false;
   }
 
@@ -77,6 +119,16 @@ export class ThirdPerson {
     const p = g.player;
     this.active = true;
 
+    // Elindeki silah: birinci şahısta seçili olanın kopyası
+    const slot = g.weaponry.current;
+    if (slot && slot.def.id !== this.gunId) {
+      const gun = this._gunFor(slot);
+      av.setRifle(gun.group, gun.grip);
+      this.gunId = slot.def.id;
+    }
+    const gun = this.guns.get(this.gunId);
+    if (gun?.flash?.visible && performance.now() / 1000 > this._flashUntil) gun.flash.visible = false;
+
     // Karakter: oyuncunun yerinde, nişan yönüne dönük
     av.root.visible = true;
     av.root.position.set(p.pos.x, p.pos.y, p.pos.z);
@@ -88,7 +140,9 @@ export class ThirdPerson {
       crouching: p.crouching,
       downed: p.downed,
       aimPitch: p.pitch,
-      aiming: aiming && !p.sprinting,
+      // Omuz üstünde silah hep omuzda (koşarken iner): gövde nişan yönüne
+      // döner, karakter yamuk durmaz
+      aiming: !p.sprinting || aiming,
     });
 
     // Kamera: sağ omzun arkası; nişanda yaklaşır

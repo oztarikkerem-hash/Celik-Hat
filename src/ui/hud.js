@@ -44,6 +44,7 @@ export class Hud {
       home: $('home'),
       missionsScreen: $('missions-screen'),
       shopScreen: $('shopScreen'),
+      licensesScreen: $('licensesScreen'),
       tankHud: $('tank-hud'),
       tankHp: $('tank-hp'), tankHpNum: $('tank-hp-num'),
       tankFuel: $('tank-fuel'), tankFuelNum: $('tank-fuel-num'),
@@ -85,7 +86,7 @@ export class Hud {
   }
 
   screen(name) {
-    for (const key of ['loader', 'home', 'missionsScreen', 'shopScreen', 'chapterScreen', 'tankPickScreen', 'mapPick', 'raidLoadout', 'raidFinale', 'victory', 'pause', 'gameover']) {
+    for (const key of ['loader', 'home', 'missionsScreen', 'shopScreen', 'licensesScreen', 'chapterScreen', 'tankPickScreen', 'mapPick', 'raidLoadout', 'raidFinale', 'victory', 'pause', 'gameover']) {
       this.el[key].hidden = key !== name;
     }
     this.el.hud.hidden = name !== null;
@@ -510,6 +511,13 @@ export class Hud {
     this.el.scope.classList.toggle('on', on);
   }
 
+  /** Büyütmesiz silah dürbünü görüntüsü. */
+  setOptic(on) {
+    const el = $('optic');
+    if (el.hidden === !on) return;
+    el.hidden = !on;
+  }
+
   /* ── Dürbün, etkileşim ipucu, Baskın ───────────────────────────────── */
 
   setBinocular(on) {
@@ -586,10 +594,14 @@ export class Hud {
    * Baskın donanım kartları. defs: silah künyeleri, selected: Set(id),
    * onToggle(id): seçim değişince.
    */
-  buildRaidLoadout(defs, selected, onToggle) {
+  buildRaidLoadout(defs, selected, onToggle, max = 2, baskin = true) {
     const grid = $('raid-loadout-grid');
     grid.innerHTML = '';
-    const full = selected.size >= 2;
+    const full = selected.size >= max;
+    $('loadout-eyebrow').textContent = baskin ? 'BASKIN · DONANIM' : 'GÖREV · DONANIM';
+    $('loadout-title').textContent = baskin ? 'İki silah seç' : 'Dört silah seç';
+    $('loadout-note-baskin').hidden = !baskin;
+    $('loadout-note-genel').hidden = baskin;
     for (const d of defs) {
       const on = selected.has(d.id);
       const card = document.createElement('button');
@@ -606,8 +618,8 @@ export class Hud {
       card.addEventListener('click', () => onToggle(d.id));
       grid.append(card);
     }
-    $('raid-start-btn').disabled = selected.size !== 2;
-    $('raid-pick-count').textContent = `${selected.size} / 2`;
+    $('raid-start-btn').disabled = selected.size !== max;
+    $('raid-pick-count').textContent = `${selected.size} / ${max}`;
   }
 
   /**

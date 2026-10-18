@@ -41,6 +41,8 @@ const BASE_FOV = 78;
 const BEST_KEY = 'celik-hat-best';
 const RAID_PICK_KEY = 'celikhat.baskin.silahlar';
 const MAP_KEY = 'celikhat.alan';
+const PICK4_KEY = 'celikhat.silahlar4';
+const PICK_COUNT = 4;              // normal görevlere bu kadar silahla girilir
 const BINOC_ZOOM = 8;
 const FINALE_TIME = 7;           // ufuktaki birlik belirdikten sonra tahliye sinematiği
 // Ağır yaralı: kalbin çevresindeki çember hasar almadan bu sürede dolar
@@ -122,6 +124,9 @@ export class Game {
     let pick = [];
     try { pick = JSON.parse(localStorage.getItem(RAID_PICK_KEY) || '[]'); } catch { pick = []; }
     this.raidPick = new Set(Array.isArray(pick) ? pick.slice(0, 2) : []);
+    let pick4 = [];
+    try { pick4 = JSON.parse(localStorage.getItem(PICK4_KEY) || '[]'); } catch { pick4 = []; }
+    this.pick4 = new Set(Array.isArray(pick4) ? pick4.slice(0, PICK_COUNT) : []);
 
     // Oyuncunun fizik temsilcisi: bombalar ve variller ona çarpabilsin.
     this.playerBody = this.physics.addKinematicCapsule(0.4, 1.8);
@@ -239,18 +244,25 @@ export class Game {
       if (b) this._setAutoDrive(b.dataset.auto === '1');
     });
     on('cine-skip', () => { if (this.state === 'cinematic') this.activeCine?.skip(); });
-    on('home-free-btn', () => this._askMap(null, () => this.start(null)));
+    on('home-free-btn', () => this.startMission(null));
     on('home-help-btn', () => this.hud.toggleControls());
+    on('home-licenses-btn', () => this.hud.screen('licensesScreen'));
+    on('licenses-back-btn', () => this.toHome());
     // Ses aç/kapat: ana ekranda ve duraklatma menüsünde aynı düğme
     for (const btn of document.querySelectorAll('.sound-btn')) {
       btn.addEventListener('click', (e) => { e.stopPropagation(); this._toggleSound(); });
     }
     this._syncSoundButtons();
-    on('mission-start-btn', () => this._askMap(this.selectedMission, () => this.startMission(this.selectedMission)));
+    on('mission-start-btn', () => this.startMission(this.selectedMission));
     on('mappick-back-btn', () => (this._mapBack ?? (() => this.toHome()))());
     on('mission-back-btn', () => this.toHome());
-    on('raid-start-btn', () => this.startRaid([...this.raidPick]));
-    on('raid-back-btn', () => this.showMissions());
+    // Silah seçimi tamam → alan seçimi → görev
+    on('raid-start-btn', () => {
+      const m = this._loadoutFor;
+      if (m === 'baskin') this._askMap('baskin', () => this.startRaid([...this.raidPick]));
+      else this._askMap(m, () => this._startWithPick(m));
+    });
+    on('raid-back-btn', () => (this._loadoutFor === null ? this.toHome() : this.showMissions()));
     on('finale-home-btn', () => this.toHome());
     on('finale-retry-btn', () => this.startMission('baskin', true));
     on('resume-btn', () => this.resume());
@@ -259,7 +271,7 @@ export class Game {
     on('go-home-btn', () => this.toHome());
     on('vic-home-btn', () => this.toHome());
     on('vic-retry-btn', () => this.startMission(this.selectedMission, true));
-    on('vic-next-btn', () => this.startMission(this._nextMissionId()));
+    on('vic-next-btn', () => this.startMission(this._nextMissionId(), true));
 
     // Serbest bakış modunda Esc duraklatır (kilit olayı gelmez).
     addEventListener('keydown', (e) => {
@@ -410,7 +422,8 @@ export class Game {
     this.state = 'home';
     this.input.releaseLock();
     const mission = MISSIONS.find((m) => m.id === missionId);
-    this._mapBack = missionId ? () => this.showMissions() : () => this.toHome();
+    // Geri: silah seçimine (akış: silah → alan → görev)
+    this._mapBack = () => this._showLoadout(missionId ?? null);
     this.hud.buildMapPick(MAPS, this.mapId, mission?.name ?? null, (id) => {
       this.mapId = id;
       try { localStorage.setItem(MAP_KEY, id); } catch { /* gizli sekme */ }
@@ -420,32 +433,50 @@ export class Game {
     this.hud.screen('mapPick');
   }
 
-  /** Görev listesinden başlatma: Baskın önce donanım seçtirir. */
+  /**
+   * Görev başlatma akışı: önce silah seçimi (Baskın'da 2, diğerlerinde 4),
+   * sonra alan seçimi, sonra görev. Tekrar oynarken / sonraki görevde son
+   * seçimler kullanılır. id: görev (null = serbest hat)
+   */
   startMission(id, retry = false) {
     if (id === 'baskin') {
       if (retry && this.raidPick.size === 2) this.startRaid([...this.raidPick]);
-      else this.showRaidLoadout();
+      else this._showLoadout('baskin');
       return;
     }
-    this.start(id);
+    if (retry && this.pick4.size === PICK_COUNT) this._startWithPick(id);
+    else this._showLoadout(id);
   }
 
-  showRaidLoadout() {
+  _startWithPick(id) {
+    const ids = [...this.pick4];
+    try { localStorage.setItem(PICK4_KEY, JSON.stringify(ids)); } catch { /* gizli sekme */ }
+    this.start(id, null, ids);
+  }
+
+  /** Silah seçim ekranı. missionId 'baskin' → 2 silah, diğerleri → 4. */
+  _showLoadout(missionId) {
     this.state = 'home';
-    this.selectedMission = 'baskin';
+    if (missionId) this.selectedMission = missionId;
+    this._loadoutFor = missionId;
     this.input.releaseLock();
+    const baskin = missionId === 'baskin';
+    const max = baskin ? 2 : PICK_COUNT;
+    const pick = baskin ? this.raidPick : this.pick4;
     const defs = this.weaponry.slots.map((s) => s.def).filter((d) => !d.melee);   // bıçak zaten yanında
     // Kayıtlı seçim artık yoksa (silah adı değişti vb.) temizle
-    for (const id of this.raidPick) if (!defs.some((d) => d.id === id)) this.raidPick.delete(id);
-    const draw = () => this.hud.buildRaidLoadout(defs, this.raidPick, (id) => {
-      if (this.raidPick.has(id)) this.raidPick.delete(id);
-      else if (this.raidPick.size < 2) this.raidPick.add(id);
+    for (const id of pick) if (!defs.some((d) => d.id === id)) pick.delete(id);
+    const draw = () => this.hud.buildRaidLoadout(defs, pick, (id) => {
+      if (pick.has(id)) pick.delete(id);
+      else if (pick.size < max) pick.add(id);
       draw();
-    });
+    }, max, baskin);
     draw();
     this.nametags.setVisible(false);
     this.hud.screen('raidLoadout');
   }
+
+  showRaidLoadout() { this._showLoadout('baskin'); }
 
   async startRaid(ids) {
     if (ids.length !== 2) return;
@@ -458,7 +489,8 @@ export class Game {
     this.start('baskin', ids);
   }
 
-  start(missionId = null, raidIds = null) {
+  /** loadout: normal görevde seçilen 4 silah (null = hepsi) */
+  start(missionId = null, raidIds = null, loadout = null) {
     this._kaskKalkaniKullanildi = false;
     this._treating = null;
     this.hud.setDowned(false);
@@ -496,8 +528,9 @@ export class Game {
 
     this.player.reset();
     this.weaponry.resetAmmo();
-    this.weaponry.setLoadout(raidIds);
-    this.weaponry.equip(raidIds ? raidIds[0] : 'ak47');
+    const secilen = raidIds ?? loadout;
+    this.weaponry.setLoadout(secilen);
+    this.weaponry.equip(secilen ? secilen[0] : 'ak47');
     this.hud.buildWeaponStrip(
       this.weaponry.slots.filter((x) => this.weaponry.usable(x.def.id)),
       this.weaponry.current.def.id,
@@ -983,6 +1016,7 @@ export class Game {
       dir = aim.sub(tpFrom).normalize();
       origin = this.tp.muzzle();
       this.tp.avatar?.kick();
+      this.tp.flash(performance.now() / 1000);
     }
 
     // Boş kovan (sürgülü tüfekte sürgü çekilince çıkar)
@@ -1704,9 +1738,12 @@ export class Game {
 
     const scoped = this.weaponry.scoped && !mg && !this.binoc;
     this.hud.setScope(scoped);
+    const optic = this.weaponry.optic && !mg && !this.binoc && !this.tp.active
+      && !this.vehicles.driving && !this.vehicles.topside;
+    this.hud.setOptic(optic);
     this.hud.setCrosshair(
       mg ? 0.14 : THREE.MathUtils.clamp(this.weaponry.spreadDeg / 3.5, 0.08, 1),
-      scoped || this.binoc,
+      scoped || this.binoc || optic,
     );
 
     // Müttefik isim etiketleri: dünya konumunu ekrana yansıt

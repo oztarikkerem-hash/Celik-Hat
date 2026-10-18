@@ -90,7 +90,9 @@ Eski `soldier.glb` ve `tex/T_*.png` SİLİNDİ (kullanıcının rigsiz
 | `assets/characters/fsb.glb` | düşmanlar | 46.411 | FSB Operator |
 
 İkisi de **SpatialNeglect** (Sketchfab, CC BY 4.0) — künye ana ekranda
-(`.home-credit`), kaldırma. Kaynak `.blend`'ler `~/Downloads/` altında.
+(`.home-credit`) ve **Lisanslar** ekranında (`#licensesScreen`), kaldırma.
+Yeni hazır model eklenince Lisanslar ekranına da satır ekle.
+Kaynak `.blend`'ler `~/Downloads/` altında.
 İkisi de **Mixamo iskeletli**: kemik adları `mixamorig:` öneki atılarak
 oyunun beklediği sade adlara (Hips, Spine, LeftArm…) dönüşüyor.
 
@@ -336,7 +338,7 @@ Ağaçlar sektör başına TEK geometriye kaynaşır (`trees` kapanışı); göv
 mermi durdurur ve çarpışır, taç yalnızca görünüm. Baskın arsasına değen
 sektörde yalnızca "güvenli" arketip (boru/atölye/depo değil) kurulur.
 
-## M4A1 Kırmızı Nokta (yuva **B**)
+## M4A1 Dürbünlü (yuva **B**)
 
 `assets/weapons/m4classic.glb` — `~/Downloads/classic_m4.glb` (Sketchfab
 "Classic M4", **Mateusz Woliński, CC BY 4.0** — künye ana ekranda),
@@ -347,6 +349,32 @@ metallik 0.25 — yüksek metallikte gökyüzünü yansıtıp maviye çalıyordu
 Tutuş ölçüleri modelden ölçüldü (kabza −0.32, el kundağı −0.63, tüp
 merkezi bore'un 10.5 cm üstü); `rot` yaw 0 (3° iken nişanda tüp solda
 kalıyordu). Şarjör değişimi `ar` koreografisi.
+
+**Büyütmesiz dürbün** (`def.optic`, `zoom: 1`): nişanda (`adsBlend` >
+0.75) ekrana `#optic` SVG'si gelir (koyu tüp halkası, amber mercek, yatay
+çizgiler, amber ok, alt çentikler) ve modelin `opticHide` (`/^Scope/`)
+parçaları gizlenir — yoksa tüpün içi görüşü kapatıyor. Barrett'in büyüten
+keskin nişancı dürbünü (`def.scope`) ayrı ve değişmedi. Omuz üstünde,
+araçta ve dürbünde gösterilmez.
+
+## Gez-arpacık ölçümü
+
+`adsPos` gözle değil ölçümle ayarlanır: kameradan ekran merkezine ışın
+atılıp modelin hangi parçasına (tutucu uzayında z) değdiği taranır;
+arpacık tepesi merkezde, gez altında olmalı. DİKKAT: hareketli parçalar
+(sürgü, gez!) ayrı pivotlara taşınır — yalnızca `s.model`'i taramak onları
+atlar, `s.holder`'ın tamamı taranmalı. Desert Eagle modelinde arpacık yok
+(gez sürgüde, önü 103 mm'lik ray): `def.sights` ile ray ucuna kodla
+arpacık eklenir (`makeIronSights`, isteğe bağlı çentikli gez de kurar).
+`view.adsRot` nişanda ek eğim verir (şu an kullanılmıyor).
+
+## Silah seçimi (görev başında)
+
+Görev → **silah seçimi** → alan seçimi → başla. Normal görevler ve serbest
+hatta 4 silah (`celikhat.silahlar4`), Baskın'da 2; bıçak her zaman ek.
+Tekrar dene / sonraki görev son seçimi kullanır (`startMission(id, true)`).
+Seçim ekranı Baskın'ınkiyle aynı (`hud.buildRaidLoadout(..., max, baskin)`);
+alan ekranındaki "geri" silah seçimine döner.
 
 ## Bıçak
 
@@ -438,6 +466,15 @@ Araçta, kulede, M2'de, dürbünde ve keskin nişancı dürbünüyle nişanda g�
 görüşe geçilir. Birinci şahıs silah/eller gizlenir (şarjör animasyonu
 karakterde yok).
 
+- Karakterin elindeki silah, birinci şahısta seçili silahın tutucusunun
+  KOPYASI (`_gunFor`; ışıklar atılır, alev kopyası atışta 0.05 sn
+  görünür). Silah değişince `soldier.setRifle(grup, kabza)`. İzli mermi
+  bu kopyanın namlu ucundan çıkar.
+- Koşmuyorsa silah hep omuzda (`aiming`), gövde nişan yönünde.
+- Gövde burulması her karede ölçülür: iki el arası doğrultu kökün ileri
+  ekseniyle karşılaştırılıp hata `Spine`'a ters döndürme olarak verilir
+  (sabit `yawFix` çömelme klibinde gövdeyi döndürüyordu).
+
 ## Eğilme, çömelme, etkileşim tuşları
 
 - **Q / E**: basılı tutunca sola/sağa eğilme (`player.lean`): baş 0.48 m
@@ -449,7 +486,7 @@ karakterde yok).
   (`game._interact`, öncelik bu sırayla). Q'daki "önceki silah" kaldırıldı.
   M2'den kalkınca o pencerenin camı kapanır.
 
-## Ağır yaralı ve tedavi## Ağır yaralı ve tedavi
+## Ağır yaralı ve tedavi
 
 - Can 0 olunca `game._goDown()`: oyuncu yere düşer (`player.downed`, göz
   0.55 m), silah inik, hareket yok. Ekranda üstte "AĞIR YARALI", ortada

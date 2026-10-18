@@ -1,4 +1,9 @@
 /* Silah tanımları.
+
+   adsPos (nişan konumu) modelden ÖLÇÜLDÜ: gez ve arpacığın en üst noktaları
+   (silah ekseninin ±1.2 cm bandında) namlunun ne kadar üstündeyse tutucu o
+   kadar aşağı iner, nişan hattı ekranın tam ortasından geçer. Eski elle
+   verilmiş değerler AK'de 3.2, M4'te 2.5 cm sapıyordu.
    Modeller Blender'dan GLB olarak geldi; her birinin ölçeği ve yönü farklı
    olduğu için `view` alanı modeli kameraya göre hizalamak için kullanılır.
    `view.length` metre cinsinden hedef namlu-dipçik uzunluğudur; model
@@ -28,9 +33,15 @@ export const WEAPONS = [
     flash: 0.9,
     sound: { body: 190, crack: 3000, length: 0.26, punch: 0.85 },
     view: {
-      length: 0.33, pos: [0.10, -0.188, -0.32], rot: [0, 3, 0], adsPos: [0, -0.115, -0.30],
+      length: 0.33, pos: [0.10, -0.188, -0.32], rot: [0, 3, 0], adsPos: [0, -0.1135, -0.30],
       flipForward: true, flipUp: false,
     },
+    // Modelde arpacık yok: gez (sürgüde, 111 mm) var ama önünde yalnızca
+    // üst ray (103 mm) uzanıyor, nişan alınca hedefe bakan bir şey
+    // kalmıyordu. Ray ucuna arpacık eklenir; tepesi (113.5 mm) nişanda
+    // tam merkezde, gezin hemen üstünde görünür. Gez sürgü pivotunda
+    // durduğu için yalnızca model taranan ölçümlerde görünmez.
+    sights: { front: [-0.215, 0.099, 0.1135] },
   },
   {
     id: 'ak47',
@@ -55,7 +66,7 @@ export const WEAPONS = [
     flash: 1,
     sound: { body: 150, crack: 2400, length: 0.2, punch: 0.72 },
     view: {
-      length: 0.72, pos: [0.13, -0.2, 0.04], rot: [0, 3, 0], adsPos: [0, -0.125, 0.0],
+      length: 0.72, pos: [0.13, -0.2, 0.04], rot: [0, 3, 0], adsPos: [0, -0.092, 0.0],
       flipForward: false, flipUp: false,
     },
   },
@@ -82,7 +93,7 @@ export const WEAPONS = [
     flash: 0.85,
     sound: { body: 135, crack: 2900, length: 0.16, punch: 0.6 },
     view: {
-      length: 0.74, pos: [0.13, -0.205, 0.027], rot: [0, 3, 0], adsPos: [0, -0.122, -0.01],
+      length: 0.74, pos: [0.13, -0.205, 0.027], rot: [0, 3, 0], adsPos: [0.006, -0.134, -0.01],
       flipForward: false, flipUp: false,
     },
   },
@@ -224,7 +235,7 @@ export const WEAPONS = [
     flash: 0.9,
     sound: { body: 140, crack: 2800, length: 0.16, punch: 0.62 },
     view: {
-      length: 0.86, pos: [0.13, -0.18, 0.11], rot: [0, 3, 0], adsPos: [0, -0.118, 0.07],
+      length: 0.86, pos: [0.13, -0.18, 0.11], rot: [0, 3, 0], adsPos: [0, -0.087, 0.07],
       // Otomatik tespit yanılıyor: iskelet dipçik namlu ağzından ince
       // olduğu için dipçiği namlu sanıp silahı ters çeviriyordu
       flipForward: true,
@@ -274,7 +285,7 @@ export const WEAPONS = [
     id: 'm4a1',
     // Sketchfab "Classic M4" (Mateusz Woliński, CC BY 4.0): kırmızı noktalı
     // nişangâh, kayış. Kendi dokuları siyah; renk ayarı siyahı koyulaştırır.
-    name: 'M4A1 Kırmızı Nokta',
+    name: 'M4A1 Dürbünlü',
     file: 'assets/weapons/m4classic.glb',
     kind: 'Piyade Tüfeği',
     slot: 'B',
@@ -288,7 +299,11 @@ export const WEAPONS = [
     adsSpread: 0.14,
     recoil: 0.8,
     kickback: 0.032,
-    zoom: 1.45,
+    zoom: 1,              // dürbün görüntüsü var ama YAKINLAŞTIRMAZ
+    // Nişanda dürbün görüntüsü (keskin nişancı gibi, büyütmesiz); modelin
+    // nişangâh parçası o an gizlenir, görüşü kapatmasın
+    optic: true,
+    opticHide: /^Scope/,
     tracer: 0xffd9a0,
     flash: 0.9,
     sound: { body: 145, crack: 2850, length: 0.16, punch: 0.6 },

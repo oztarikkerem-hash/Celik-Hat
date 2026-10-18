@@ -60,6 +60,31 @@ function makeBelt() {
   return g;
 }
 
+/**
+ * Modelinde gez/arpacık eksik silahlar için basit demir nişangâh
+ * (tutucu uzayında, metre): `front` arpacık [z, alt, üst], isteğe bağlı
+ * `rear` gez [z, taban, çentik dibi, kulak tepesi]; çentik 4.5 mm.
+ */
+function makeIronSights(sp) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.55, metalness: 0.4 });
+  const g = new THREE.Group();
+  const box = (w, h, d, x, y, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    m.frustumCulled = false;
+    g.add(m);
+  };
+  const [fz, fy0, fy1] = sp.front;
+  box(0.0034, fy1 - fy0, 0.006, 0, (fy0 + fy1) / 2, fz);
+  if (sp.rear) {
+    const [rz, ry0, notch, ear] = sp.rear;
+    const gap = 0.0045, earW = 0.0055;
+    box(gap + earW * 2, notch - ry0, 0.008, 0, (ry0 + notch) / 2, rz);
+    for (const s of [-1, 1]) box(earW, ear - notch, 0.008, s * (gap + earW) / 2, (notch + ear) / 2, rz);
+  }
+  return g;
+}
+
 function makeFlash(scale) {
   const group = new THREE.Group();
   const mat = new THREE.MeshBasicMaterial({
@@ -230,6 +255,7 @@ export class Weaponry {
 
       const holder = new THREE.Group();
       holder.add(model);
+      if (def.sights) holder.add(makeIronSights(def.sights));
       if (def.view.rot) {
         holder.rotation.set(def.view.rot[0] * DEG, def.view.rot[1] * DEG, def.view.rot[2] * DEG);
       }
@@ -617,10 +643,16 @@ export class Weaponry {
       pz + this._kick * (1 - this.adsBlend * 0.5) + g[2],
     );
 
+    // Kalçadan tutuşun yan/yatık açısı nişanda sıfırlanır: açılı kalınca
+    // gez-arpacık / nişangâh ekran merkezine oturmuyordu
+    const rk = 1 - this.adsBlend;
     const baseRot = def.view.rot ?? [0, 0, 0];
-    const bx = baseRot[0] * DEG + this._punch.y * DEG;
-    const by = baseRot[1] * DEG + this._punch.x * DEG - this._swayX * 2.5;
-    const bz = baseRot[2] * DEG + this._swayX * 1.5;
+    // adsRot: nişanda ek eğim (gezi arpacıktan yüksek modellerde nişan hattı
+    // ancak silah hafif burnu yukarı tutulunca açılır)
+    const adsRot = def.view.adsRot ?? [0, 0, 0];
+    const bx = baseRot[0] * DEG * rk + adsRot[0] * DEG * this.adsBlend + this._punch.y * DEG;
+    const by = baseRot[1] * DEG * rk + this._punch.x * DEG - this._swayX * 2.5;
+    const bz = baseRot[2] * DEG * rk + this._swayX * 1.5;
     h.rotation.set(bx + g[3], by + g[4], bz + g[5]);
 
     // Koreografi dönüşü dipçik ucu (tutucu orijini, kameranın arkası)
@@ -639,6 +671,15 @@ export class Weaponry {
     // Dürbünlü silah: nişan alınca model gizlenir, dürbün maskesi devralır
     const scoped = Boolean(def.scope) && this.adsBlend > 0.72;
     s.model.visible = !scoped;
+    // Büyütmesiz dürbün: nişanda modelin nişangâh parçası gizlenir (ekrandaki
+    // dürbün görüntüsü onun yerini alır)
+    if (def.opticHide) {
+      const gizle = this.adsBlend > 0.75;
+      if (s._opticHidden !== gizle) {
+        s._opticHidden = gizle;
+        s.model.traverse((o) => { if (o.isMesh && def.opticHide.test(o.name)) o.visible = !gizle; });
+      }
+    }
     for (const p of Object.values(s.parts)) p.pivot.visible = !scoped;
 
     // ── Hareketli parçalar ──────────────────────────────────────────────
@@ -808,6 +849,11 @@ export class Weaponry {
 
     this.arms.reach('R', R, R.pose, poleR);
     this.arms.reach('L', L, L.pose, poleL);
+  }
+
+  /** Büyütmesiz dürbün görüntüsü açık mı (M4A1 gibi). */
+  get optic() {
+    return Boolean(this.current?.def.optic) && this.adsBlend > 0.75;
   }
 
   get scoped() {

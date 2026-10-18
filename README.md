@@ -7,7 +7,7 @@ Tarayıcıda çalışan birinci şahıs nişancı oyunu. Three.js (görüntü) v
 cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
 
 - On silah (Desert Eagle, AK-47, MAR 556, MG 43, Barrett M82, M98B,
-  Minigun, M4 Karabina, Bazuka, M4A1 Kırmızı Nokta) ve bıçak — gerçek ellerle tutuluyor, her birinin
+  Minigun, M4 Karabina, Bazuka, M4A1 Dürbünlü) ve bıçak — gerçek ellerle tutuluyor, her birinin
   kendine özgü şarjör değiştirme animasyonu var.
 - Sandıklardan siper hatları; düşmanlar siperde saklanıp doğrularak ateş
   ediyor, siperden sipere ilerliyor.
@@ -48,7 +48,7 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | R | Şarjör değiştir |
 | 1–9, fare tekerleği | Silah seç |
 | 0 | Bıçak (sol tık savurur; arkadan üç kat hasar) |
-| B | M4A1 kırmızı noktalı tüfek |
+| B | M4A1 dürbünlü tüfek (büyütmesiz dürbün) |
 | C / Ctrl | Çömel (siperin arkasında tamamen saklanırsın) |
 | G | El bombası |
 | X | Dürbün |
@@ -74,6 +74,8 @@ benzinlikte yakıt al / market, F benzinlikte tanktan in / tanka bin.
 Ayrıntılı geliştirici notları: [CLAUDE.md](CLAUDE.md).
 
 ## Model lisansları
+
+Oyun içinde ana menüdeki **Lisanslar** ekranında da listelenir.
 
 - Asker modelleri: **SpatialNeglect** — S.W.A.T. Operator ve FSB Operator
   (Sketchfab, CC BY 4.0).

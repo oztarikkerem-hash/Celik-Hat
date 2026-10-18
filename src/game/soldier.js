@@ -363,13 +363,22 @@ export class Soldier {
     this.aimW += (nisan - this.aimW) * Math.min(1, dt * 5);
     if (this._aimBones && this.aimW > 0.01) {
       for (const [bone, q] of this._aimBones) bone.quaternion.slerp(q, this.aimW);
-      // Yan duruşu düzelt: omurga dikey eksende döner, tüfek ileri bakar
-      const spine = this.bones.Spine;
-      if (spine && this._aimYawFix) {
+      // Yan duruşu düzelt: tüfek yönü (sağ el → sol el) HER KAREDE ölçülür,
+      // omurga o kadar geri döndürülür. Tek seferlik ölçüm yalnızca bekleme
+      // klibinde doğruydu; çömelirken/yürürken kalça farklı açıda olduğu
+      // için üst gövde dönüyor, kötü görünüyordu. (Mikser kemikleri her
+      // kare baştan yazdığı için düzeltme birikmez.)
+      const spine = this.bones.Spine, L = this.bones.LeftHand, R = this.bones.RightHand;
+      if (spine && L && R) {
+        this.body.updateMatrixWorld(true);
+        const rootQ = this.root.getWorldQuaternion(new THREE.Quaternion());
+        const tersQ = rootQ.clone().invert();
+        const d = new THREE.Vector3().setFromMatrixPosition(L.matrixWorld)
+          .sub(new THREE.Vector3().setFromMatrixPosition(R.matrixWorld)).applyQuaternion(tersQ);
+        const hata = Math.atan2(-d.x, -d.z);             // 0 = tam ileri
         const parentQ = spine.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
-        const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(this.root.getWorldQuaternion(new THREE.Quaternion()))
-          .applyQuaternion(parentQ).normalize();
-        spine.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, -this._aimYawFix * this.aimW));
+        const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(rootQ).applyQuaternion(parentQ).normalize();
+        spine.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, -hata * this.aimW));
       }
     }
     if (!dying) {
@@ -622,6 +631,20 @@ export class Soldier {
     // dönüyor ve namlu göğe bakıyordu. İlk kare oynadıktan sonra, elin
     // gerçek duruşuna göre hizalanır.
     this._fitRifle = true;
+  }
+
+  /**
+   * Elindeki silahı değiştirir (omuz üstü görüşte oyuncunun seçtiği silah).
+   * grip: kabzanın silah uzayındaki yeri (RIGS çapası) — silahın boyuna
+   * göre değişiyor: tabancada 6 cm, tüfekte ~30 cm.
+   */
+  setRifle(rifle, grip = null) {
+    if (this.rifle === rifle) return;
+    if (this.rifle) this.rifle.parent?.remove(this.rifle);
+    const s = 1 / (this.root.scale.x || 1);
+    this._holdRifleInHand(rifle, s);
+    if (grip) this.gripLocal = grip.clone().multiplyScalar(s);
+    this._rifleDirL = null;
   }
 
   /* Silahı İKİ ELİN ARASINA hizalar. Yalnızca sağ ele bağlamak yetmiyordu:
