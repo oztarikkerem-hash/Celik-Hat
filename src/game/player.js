@@ -8,6 +8,11 @@ const HEIGHT = 1.8;
 const EYE = 1.66;
 const EYE_CROUCH = 1.1;
 const EYE_DOWNED = 0.55;         // ağır yaralı: yerde yarı uzanmış
+// Yana eğilme (Q / E): baş bu kadar yana kayar, kamera bu kadar yatar.
+// Duvar köşesinden yalnızca baş ve omuz çıkar.
+const LEAN_DIST = 0.48;
+const LEAN_ROLL = 0.22;          // rad (~13°)
+const LEAN_DROP = 0.06;          // eğilince göz biraz alçalır
 const GRAVITY = 24;
 const JUMP_V = 8.2;
 
@@ -62,6 +67,10 @@ export class Player {
     this.downed = false;
     this.healthCap = this.maxHealth;
     this.treatStage = 0;
+
+    // Eğilme: −1 sol, +1 sağ (yumuşak geçiş); leanOffset baş kayması (dünya)
+    this.lean = 0;
+    this.leanOffset = new THREE.Vector3();
   }
 
   get wounded() { return this.healthCap < this.maxHealth; }
@@ -72,6 +81,8 @@ export class Player {
     this.yaw = Math.PI;
     this.pitch = 0;
     this.health = this.maxHealth;
+    this.lean = 0;
+    this.leanOffset.set(0, 0, 0);
     this.downed = false;
     this.healthCap = this.maxHealth;
     this.treatStage = 0;
@@ -116,8 +127,32 @@ export class Player {
     this.health = Math.min(this.healthCap, this.health + amount);
   }
 
+  /** Göz (baş) konumu — eğilince yana kayar: düşman ateşi buraya nişan alır. */
   get eyePosition() {
-    return new THREE.Vector3(this.pos.x, this.pos.y + this.eye, this.pos.z);
+    return new THREE.Vector3(
+      this.pos.x + this.leanOffset.x, this.pos.y + this.eye + this.leanOffset.y, this.pos.z + this.leanOffset.z,
+    );
+  }
+
+  /** Belirgin biçimde eğilmiş mi (isabet alma olasılığı düşer). */
+  get leaning() { return Math.abs(this.lean) > 0.5; }
+
+  /**
+   * Eğilme miktarı: baş duvara/engele girecekse kısılır (köşeden bakarken
+   * kamera duvarın içine geçmesin).
+   */
+  _leanRoom(dir, want) {
+    if (!want) return 0;
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    const y = this.pos.y + this.eye;
+    for (let k = 1; k > 0; k -= 0.2) {
+      const x = this.pos.x + rx * LEAN_DIST * k * dir;
+      const z = this.pos.z + rz * LEAN_DIST * k * dir;
+      const blocked = this.arena.colliders.some((b) => y > b.min.y && y < b.max.y
+        && x > b.min.x - 0.15 && x < b.max.x + 0.15 && z > b.min.z - 0.15 && z < b.max.z + 0.15);
+      if (!blocked) return k;
+    }
+    return 0;
   }
 
   /** input: { forward, right, jump, sprint, crouch }, ads: nişan alıyor mu */
@@ -229,17 +264,25 @@ export class Player {
     const shakeX = (Math.random() - 0.5) * this._shake * 0.07;
     const shakeY = (Math.random() - 0.5) * this._shake * 0.07;
 
+    // ── Yana eğilme ─────────────────────────────────────────────────
+    const leanIn = this.downed ? 0 : (input.lean ?? 0);
+    const room = this._leanRoom(Math.sign(leanIn), leanIn !== 0);
+    const leanTarget = leanIn * room;
+    this.lean += (leanTarget - this.lean) * Math.min(1, dt * 9);
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    this.leanOffset.set(rx * LEAN_DIST * this.lean, -LEAN_DROP * Math.abs(this.lean), rz * LEAN_DIST * this.lean);
+
     this.camera.position.set(
-      this.pos.x + Math.cos(this._bobPhase) * bobAmp * 0.35 + shakeX,
-      this.pos.y + this.eye + Math.sin(this._bobPhase * 2) * bobAmp - this._landDip + shakeY,
-      this.pos.z,
+      this.pos.x + Math.cos(this._bobPhase) * bobAmp * 0.35 + shakeX + this.leanOffset.x,
+      this.pos.y + this.eye + Math.sin(this._bobPhase * 2) * bobAmp - this._landDip + shakeY + this.leanOffset.y,
+      this.pos.z + this.leanOffset.z,
     );
 
     this.camera.rotation.set(0, 0, 0);
     this.camera.rotateY(this.yaw + this.recoilYaw);
     this.camera.rotateX(this.pitch + this.recoilPitch);
-    // Koşarken hafif yana yatma
-    this.camera.rotateZ(Math.cos(this._bobPhase) * bobAmp * 0.5);
+    // Koşarken hafif yana yatma + eğilme yatışı
+    this.camera.rotateZ(Math.cos(this._bobPhase) * bobAmp * 0.5 - this.lean * LEAN_ROLL);
 
     // Hasar sonrası yavaş yenilenme
     if (this.alive && !this.downed && now - this.lastHurt > 6 && this.health < this.healthCap) {

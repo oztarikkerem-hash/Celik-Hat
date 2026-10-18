@@ -1,6 +1,6 @@
-/* Zırhlı personel taşıyıcı (M1200 Armored Knight).
+/* Zırhlı personel taşıyıcı (özgün model: apc.js).
 
-   Oyuncu yanına gelip E'ye basınca sürücü koltuğuna geçer; çevredeki silah
+   Oyuncu yanına gelip F'ye basınca sürücü koltuğuna geçer; çevredeki silah
    arkadaşları da araca biner. Biri kuledeki ağır makineliye geçer ve
    yakındaki düşmana kendiliğinden ateş eder. Araç zırhlıdır: içindekiler
    vurulmaz, mermiler gövdeye saplanır ve aracın zırhını aşındırır; zırh
@@ -11,12 +11,11 @@
    dünyadaki kutulara karşı itilir; devrilebilen eşyalar savrulur. Hızlı
    giden araç önüne çıkan düşmanı ezer.
 
-   Model ön tarafı +X'e bakar (sürücü x = 1.73). Kök dönüşü yaw iken ileri
-   yön (cos yaw, 0, −sin yaw).                                              */
+   Model ön tarafı +X'e bakar. Kök dönüşü yaw iken ileri yön
+   (cos yaw, 0, −sin yaw).                                                  */
 
 import * as THREE from 'three';
-
-const MODEL = 'assets/vehicles/m1200.glb';
+import { buildAPC, camoFor } from './apc.js';
 const MAX_HP = 2500;
 const VMAX = 17;               // m/sn (~60 km/sa)
 const VREV = 6;
@@ -46,44 +45,9 @@ export class Vehicles {
     this._ray = new THREE.Raycaster();
   }
 
-  /** Model yoksa (ör. depoya konmamışsa) oyun araçsız devam eder. */
+  /** Model kodla kurulur (apc.js); yüklenecek dosya yok. */
   async load() {
-    try {
-      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-      const gltf = await new GLTFLoader().loadAsync(MODEL);
-      const root = gltf.scene;
-      root.traverse((o) => {
-        if (!o.isMesh) return;
-        o.castShadow = true;
-        o.receiveShadow = true;
-        const m = o.material;
-        if (/glass/i.test(o.name)) {
-          // Camlar yarı saydam kalır
-          m.transparent = true;
-          m.opacity = 0.35;
-          m.depthWrite = false;
-        } else {
-          // Doku saydamlık kanalı bütün gövdeyi hayalet gibi gösteriyordu
-          m.transparent = false;
-          m.opacity = 1;
-          m.alphaTest = 0;
-          m.depthWrite = true;
-        }
-        if (m.name?.startsWith('m2a1')) {
-          // Kuledeki M2'nin dokusu yok (beyaz geliyordu): tabanca çeliği
-          m.color.setHex(0x2b2e2f);
-          m.metalness = 0.75;
-          m.roughness = 0.45;
-          m.alphaTest = 0;
-        }
-        m.needsUpdate = true;
-      });
-      this.template = root;
-      this.ready = true;
-    } catch (err) {
-      console.info('Araç modeli yok, araçsız devam ediliyor:', err?.message ?? err);
-      this.ready = false;
-    }
+    this.ready = true;
   }
 
   /* ── Kurulum ──────────────────────────────────────────────────────── */
@@ -100,7 +64,7 @@ export class Vehicles {
   }
 
   /** Oyuncunun yakınında, boş bir yere araç bırakır. */
-  spawnNear(pos, facing) {
+  spawnNear(pos, facing, map = null) {
     if (!this.ready) return null;
     const world = this.game.world;
     for (let i = 0; i < 24; i++) {
@@ -112,26 +76,23 @@ export class Vehicles {
         new THREE.Vector3(p.x, 1, p.z), new THREE.Vector3(6.6, 2, 6.6),
       );
       if (world.colliders.some((b) => b.max.y > 0.4 && b.intersectsBox(box))) continue;
-      return this.spawn(p, facing);
+      return this.spawn(p, facing, map);
     }
     return null;
   }
 
-  spawn(pos, yaw) {
-    const root = this.template.clone(true);
+  /** map: kamuflaj paleti alanın zeminine göre seçilir. */
+  spawn(pos, yaw, map = null) {
+    const root = buildAPC(camoFor(map));
     root.position.copy(pos);
     root.rotation.y = yaw;
     root.updateMatrixWorld(true);
 
     // Düğüm kökenleri araç merkezinde (FBX); dönen parçalar kendi
     // merkezlerindeki bir pivota alınır.
-    const pivotAt = (node, withChildren = true) => {
+    const pivotAt = (node) => {
       if (!node) return null;
-      const box = withChildren
-        ? new THREE.Box3().setFromObject(node)
-        : new THREE.Box3().setFromBufferAttribute(node.geometry.attributes.position)
-          .applyMatrix4(node.matrixWorld);
-      const c = box.getCenter(new THREE.Vector3());
+      const c = node.getWorldPosition(new THREE.Vector3());
       const pivot = new THREE.Group();
       node.parent.add(pivot);
       pivot.position.copy(node.parent.worldToLocal(c.clone()));
@@ -154,7 +115,7 @@ export class Vehicles {
     const turretNode = root.getObjectByName('turret');
     let turret = null;
     if (turretNode) {
-      const t = pivotAt(turretNode, false);
+      const t = pivotAt(turretNode);
       t.pivot.attach(turretNode);
       turret = t.pivot;
     }
@@ -167,6 +128,9 @@ export class Vehicles {
       wheels, turret, turretYaw: 0,
       muzzle: root.getObjectByName('weapon_muzzle'),
       gunnerSpot: root.getObjectByName('gunner_a'),
+      hull: root.getObjectByName('hull'),
+      door: root.getObjectByName('hatch6'),
+      exhaust: root.getObjectByName('exhaust'),
       exits: ['groundpoint', 'groundpoint4', 'groundpoint5', 'groundpoint2', 'groundpoint6']
         .map((n) => root.getObjectByName(n)).filter(Boolean),
       box: new THREE.Box3(),
@@ -442,11 +406,12 @@ export class Vehicles {
     v.dead = true;
     v.speed = 0;
     const center = v.pos.clone().setY(1.2);
-    // Yanık enkaz: malzemeler bu araca özel kopyalanıp karartılır
+    // Yanık enkaz: malzemeler bu araca özel kopyalanıp karartılır (ışıklar söner)
     v.root.traverse((o) => {
       if (!o.isMesh) return;
       o.material = o.material.clone();
       o.material.color?.multiplyScalar(0.18);
+      if (o.material.emissive) o.material.emissiveIntensity = 0;
     });
     for (let i = 0; i < 8; i++) {
       g.effects.hitBurst(center.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4, Math.random() * 1.5, (Math.random() - 0.5) * 2)), 0xff8a2a, 18);

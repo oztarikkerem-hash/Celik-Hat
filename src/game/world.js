@@ -24,7 +24,10 @@ const GRID = 9;            // 9×9 sektör = 252 m kare saha
 const WALL_H = 11;
 const VIEW_DIST = 85;      // sis sınırıyla uyumlu: ötesi hiç kurulmaz
 const KEEP_RING = 1;
-const TRENCH_H = 1.2;      // siper yüksekliği: çömelen göz (1.10) altında kalır
+const TRENCH_H = 1.2;
+// Varil, sandık ve sandık yığınlarından ancak bu oranı kurulur (kullanıcı
+// "etrafta çok fazla varil ve kutu var" dedi: %60 azaltıldı)
+const PROP_KEEP = 0.4;      // siper yüksekliği: çömelen göz (1.10) altında kalır
 
 /** Konumdan türeyen sabit rastgelelik (mulberry32). */
 function seeded(ix, iz) {
@@ -92,6 +95,7 @@ export class World {
     this.fixtures = [];
     // Bu dairenin içine sektör eşyası kurulmaz (görev yapısına yer açılır)
     this.clearZone = null;        // { x, z, r }
+    this.clearRects = [];         // [{ x0, x1, z0, z1 }] — sinematik yol şeridi
     this.theme = MAPS[0];         // seçili alan (setTheme)
     this._dirty = true;
     this._frustum = new THREE.Frustum();
@@ -304,9 +308,17 @@ export class World {
     const M = this.materials;
     const G = this.geo;
     const zone = this.clearZone;
-    /** Görev yapısının arsasına düşüyor mu? (sektöre göre yerel x/z) */
-    const inZone = (x, z, pad = 0) => Boolean(zone)
-      && Math.hypot(center.x + x - zone.x, center.z + z - zone.z) < zone.r + pad;
+    const rects = this.clearRects;
+    /** Boşaltılmış alana düşüyor mu? (görev arsası çemberi ya da sinematik
+        aracın geçeceği yol şeridi; x/z sektöre göre yerel) */
+    const inZone = (x, z, pad = 0) => {
+      const wx = center.x + x, wz = center.z + z;
+      if (zone && Math.hypot(wx - zone.x, wz - zone.z) < zone.r + pad) return true;
+      for (const r of rects) {
+        if (wx > r.x0 - pad && wx < r.x1 + pad && wz > r.z0 - pad && wz < r.z1 + pad) return true;
+      }
+      return false;
+    };
 
     /** Katı gövde yerleştirir (çarpışma + fizik + raycast). */
     const solid = (geo, mat, x, y, z, sx, sy, sz, rotY = 0) => {
@@ -348,6 +360,7 @@ export class World {
 
     /** Devrilebilen eşya (fizik gövdesi mesh'i sürer). */
     const prop = (geo, mat, x, y, z, sx, sy, sz, mass) => {
+      if (rand() >= PROP_KEEP) return null;
       if (inZone(x, z, 1)) return null;
       const mesh = new THREE.Mesh(geo, mat);
       mesh.scale.set(sx, sy, sz);
@@ -451,7 +464,10 @@ export class World {
     const roll = rand();
     // Görev arsasına değen sektörde boru hattı/depo binası kurulmaz: onlar
     // sektörü baştan başa geçiyor, evin çatısından geçerdi.
-    const nearZone = zone && Math.hypot(center.x - zone.x, center.z - zone.z) < zone.r + SECTOR * 0.75;
+    const half = SECTOR / 2;
+    const nearZone = (zone && Math.hypot(center.x - zone.x, center.z - zone.z) < zone.r + SECTOR * 0.75)
+      || rects.some((r) => r.x1 > center.x - half - 2 && r.x0 < center.x + half + 2
+        && r.z1 > center.z - half - 2 && r.z0 < center.z + half + 2);
     const T = this.theme;
     let archetype = weightedPick(onRoad ? T.yolArketip : T.arketipler, roll);
     if (nearZone) {
@@ -496,8 +512,9 @@ export class World {
         const sx = along ? len : 2.9;
         const sz = along ? 2.9 : len;
         const mat = rand() < 0.5 ? M.container : M.containerAlt;
-        solid(G.box, mat, x, 1.5, z, sx, 3, sz);
-        if (rand() < 0.55) {
+        const base = solid(G.box, mat, x, 1.5, z, sx, 3, sz);
+        // Alttaki kurulamadıysa (boşaltılmış alan) üstteki havada kalmasın
+        if (rand() < 0.55 && base) {
           solid(G.box, rand() < 0.5 ? M.container : M.containerAlt,
             x + (rand() - 0.5) * 1.5, 4.5, z + (rand() - 0.5) * 1.5, sx * 0.9, 3, sz * 0.9);
         }
@@ -511,13 +528,13 @@ export class World {
       const w = 11 + rand() * 5, d2 = 9 + rand() * 4, hh = 6 + rand() * 2.5;
       const bx = (rand() - 0.5) * (SECTOR - w - 5);
       const bz = (rand() - 0.5) * (SECTOR - d2 - 5);
-      solid(G.box, M.building, bx, hh / 2, bz, w, hh, d2);
+      const bina = solid(G.box, M.building, bx, hh / 2, bz, w, hh, d2);
       const roof = new THREE.Mesh(G.box, M.roof);
+      roof.visible = Boolean(bina);          // bina boşaltılmış alandaysa çatı da yok
       roof.scale.set(w + 0.8, 0.5, d2 + 0.8);
       roof.position.set(center.x + bx, hh + 0.25, center.z + bz);
       roof.castShadow = roof.receiveShadow = true;
-      group.add(roof);
-      solids.push(roof);
+      if (bina) { group.add(roof); solids.push(roof); }
       // Yükleme rampası
       solid(G.box, M.steel, bx, 0.55, bz + d2 / 2 + 1.6, w * 0.5, 1.1, 3, 0);
       for (let i = 0; i < 4; i++) {
@@ -667,6 +684,7 @@ export class World {
       for (let s = 0; s < stacks; s++) {
         const gx = (rand() - 0.5) * (SECTOR - 7);
         const gz = (rand() - 0.5) * (SECTOR - 7);
+        if (rand() >= PROP_KEEP) continue;
         if (inRoad(gx, gz)) continue;
         const n = 1 + Math.floor(rand() * 3);
         let y = 0;
@@ -801,7 +819,8 @@ export class World {
       }
     };
 
-    const count = 2 + Math.floor(rand() * 2);
+    // Sandık siper hattı: sektör başına ortalama 2.5 → 1 (%60 az kutu)
+    const count = 1;
     for (let k = 0; k < count; k++) {
       for (let attempt = 0; attempt < 10; attempt++) {
         const x = center.x + (rand() - 0.5) * (SECTOR - 8);
@@ -929,6 +948,14 @@ export class World {
   removeFixture(f) {
     const i = this.fixtures.indexOf(f);
     if (i >= 0) this.fixtures.splice(i, 1);
+    this._dirty = true;
+  }
+
+  /** Boşaltılmış dikdörtgenler (zırhlı aracın giriş yolu). Değişirse sektörler yeniden kurulur. */
+  setClearRects(rects) {
+    if (JSON.stringify(rects) === JSON.stringify(this.clearRects)) return;
+    this.clearRects = rects;
+    for (const key of [...this.sectors.keys()]) this._releaseSector(key);
     this._dirty = true;
   }
 

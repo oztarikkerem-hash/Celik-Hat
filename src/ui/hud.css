@@ -1633,3 +1633,81 @@ body.is-downed #viewport { filter: grayscale(0.7) brightness(0.8); transition: f
   height: 84px;
   border: 1px solid rgba(148, 163, 184, 0.18);
 }
+
+/* ─────────────────────── Görev girişi sinematiği ─────────────────────── */
+
+body.cinematic #hud,
+body.cinematic #crosshair,
+body.cinematic .nametags,
+body.cinematic #interact-hint { visibility: hidden; }
+.cine { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+.cine[hidden] { display: none; }
+.cine-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11vh;
+  background: #000;
+  transition: transform 900ms cubic-bezier(0.6, 0, 0.3, 1);
+}
+.cine-top { top: 0; transform: translateY(-100%); }
+.cine-bottom { bottom: 0; transform: translateY(100%); }
+body.cine-bars .cine-top,
+body.cine-bars .cine-bottom { transform: none; }
+.cine-card {
+  position: absolute;
+  left: 6vw;
+  bottom: calc(11vh + 4vh);
+  display: grid;
+  gap: 6px;
+  max-width: min(720px, 88vw);
+  transition: opacity 500ms;
+}
+.cine.cine-title-out .cine-card { opacity: 0; }
+.cine-eyebrow {
+  font: 12px/1 var(--mono);
+  letter-spacing: 0.24em;
+  color: var(--amber);
+  min-height: 1em;
+}
+.cine-title {
+  font: 700 clamp(30px, 5vw, 58px)/1 var(--disp);
+  letter-spacing: 0.08em;
+  color: #f2efe6;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.75);
+  min-height: 1em;
+}
+.cine-sub {
+  font: 13px/1.2 var(--mono);
+  letter-spacing: 0.12em;
+  color: #c9c4b6;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+  min-height: 1.2em;
+}
+.cine-skip {
+  position: absolute;
+  right: 3vw;
+  bottom: 3vh;
+  z-index: 2;
+  pointer-events: auto;
+  padding: 7px 12px;
+  font: 12px/1 var(--mono);
+  letter-spacing: 0.1em;
+  color: #d6d2c6;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(214, 210, 198, 0.35);
+  cursor: pointer;
+}
+.cine-skip kbd { margin-left: 6px; font: inherit; color: var(--amber); }
+.cine-skip:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.cine-fade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  transition: opacity 700ms;
+}
+.cine-fade.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .cine-bar, .cine-fade { transition-duration: 1ms; }
+}

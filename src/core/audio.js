@@ -253,6 +253,19 @@ export class AudioEngine {
     this._noise({ dur: 0.08, gain: 0.14, freq: 1800, q: 1.1 });
   }
 
+  /** Araç freni: hava basıncının boşalması (yumuşak tıslama). */
+  brakeHiss() {
+    if (!this.ctx) return;
+    this._noise({ dur: 0.9, gain: 0.07, freq: 3800, q: 0.6, type: 'highpass', decay: 1 });
+  }
+
+  /** Ağır çelik kapı: boğuk tok ses. */
+  doorClunk() {
+    if (!this.ctx) return;
+    this._tone({ f0: 90, f1: 45, dur: 0.22, gain: 0.22, type: 'triangle' });
+    this._noise({ dur: 0.12, gain: 0.12, freq: 700, q: 1.4, type: 'lowpass' });
+  }
+
   /** Bıçak savurma: havayı yaran kısa hışırtı. */
   swish() {
     if (!this.ctx) return;

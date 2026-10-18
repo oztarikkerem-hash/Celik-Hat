@@ -288,7 +288,9 @@ AYRI bir kopyadır, buradaki değişiklikler oraya gitmez.
 
 ## Siper savaşı
 
-- Her sektörde 2–3 sandık mevzisi (`world._buildTrenches`): düz, L, U.
+- Her sektörde 1 sandık mevzisi (`world._buildTrenches`): düz, L, U.
+  Varil/sandık/sandık yığınları `PROP_KEEP` (0.4) oranında kurulur
+  (kullanıcı isteğiyle %60 azaltıldı).
   Yükseklik 1.2 m — ayakta göz 1.66 m (üstünden ateş), çömelince 1.10 m
   (tam saklanır). Duvar başına tek birleşik geometri + tek çarpışma kutusu.
 - Düşmanlar siperde SAKLAN (çömelir, ateş etmez) ↔ DOĞRUL (seri atar)
@@ -325,28 +327,50 @@ döndürür, `hitAt`'te `onMelee` → `game._meleeAttack`: kısa ışın, tutmaz
 ters geliyordu → `flipForward: true`. Baskın'da bıçak seçim hakkından
 sayılmaz, hep yanında (`setLoadout`).
 
-## Zırhlı araç (`src/game/vehicle.js`)
+## Zırhlı araç (`src/game/vehicle.js`, model `apc.js`)
 
-M1200 Armored Knight, `~/Downloads/m1200-armored-knight` (FBX) →
-`tools/export_vehicle.py` (dokular adına göre bağlanır, eksik normal
-haritası düğümü silinir) → `assets/vehicles/m1200.glb`.
-**Bu dosya `.gitignore`'da**: doku yolları modelin ticari bir oyundan
-(Combat Mission Black Sea) çıkarıldığını gösteriyor; kullanıcı onaylamadan
-herkese açık depoya konmuyor. Dosya yoksa oyun araçsız açılır.
+Model **kodla kurulur** (`buildAPC`): 4×4, eğimli burunlu, açık kuleli,
+arka kapılı özgün bir tasarım; kamuflaj canvas'ta üretilir ve alanın
+zeminine göre orman / çöl / kış paletini alır (`camoFor`). Hazır M1200
+modeli (`~/Downloads/m1200-armored-knight`, ticari bir oyundan çıkarılmış
+görünüyor) KULLANILMIYOR ve depoya konmuyor (`.gitignore`); "küçük
+değişiklik" telif riskini kaldırmaz — yerine bu özgün model yapıldı.
 
-- Model +X'e bakar; düğüm kökenleri araç merkezinde olduğu için tekerlek
-  ve kule kendi merkezlerinde pivota alınır. Doku saydamlık kanalı gövdeyi
-  hayalet gösteriyordu → cam dışı her şey opak; kuledeki M2 boyanır.
-- E ile binilir/inilir (Baskın'da E makineli, araç yok). 30 m'deki
-  müttefikler biner (`ally.aboard`, AllyManager onları atlar); ilki kulede
-  görünür, kule hedefe döner ve ateş eder (`game.onTurretHit`).
+- Düğüm sözleşmesi: `wheel…wheel4`, `turret` (Mesh), `weapon_muzzle`,
+  `gunner_a`, `groundpoint*`, `hatch6` (arka kapı, menteşe), `exhaust`,
+  `hull` (yalpalama). Ön +X, sağ +Z. Tekerlek/kule pivotları düğüm konumunda.
+- F ile binilir/inilir. 30 m'deki müttefikler biner (`ally.aboard`,
+  AllyManager onları atlar); ilki kulede, kule hedefe döner ve ateş eder.
 - Sürüş: bisiklet modeli, hızla kısılan direksiyon, 3 çarpışma dairesi;
   eşyalar savrulur, 3.5 m/sn üstünde önüne çıkan düşman ezilir.
-- Araçtayken oyuncuya gelen hasar araca gider (`_onPlayerHit`); gövdeye
-  saplanan düşman mermisi `enemies.onBlocked` ile zırhı aşındırır. 2500
-  zırh bitince patlar: enkaz kalır, sürücü 35 hasar alır.
+- Araçtayken oyuncuya gelen hasar araca gider; gövdeye saplanan düşman
+  mermisi `enemies.onBlocked` ile zırhı aşındırır. 2500 zırh bitince patlar.
 
-## Ağır yaralı ve tedavi
+## Görev girişi sinematiği (`src/game/intro.js`)
+
+Her `start()` sonunda `state = 'cinematic'`: ekip zırhlı araçla gelir.
+`game._introPlan` aracın duracağı yeri, yönünü, oyuncunun iniş noktasını ve
+**boşaltılacak yol şeridini** verir (`world.setClearRects`: şeritte sektör
+eşyası kurulmaz, değen sektör güvenli arketip alır). Planlar: A alçak tele,
+B ön çapraz takip, C vinç, D arka çapraz (kapı açılır, askerler sırayla
+iner, nişancı en son), E birinci şahıs iniş. Baskın'da araç evin güneyinden
+geçip kapı yanında durur, ekip bahçe kapısına koşar, kararıp evin içinde
+açılır; araç kaldırılır. Boşluk/Enter/Esc ya da "Geç" atlar
+(`intro.skip`). Bitince `_afterIntro` dalgayı başlatır. Sinematikte HUD
+gizli (`body.cinematic`), elde silah gizli, fare bakışı yutulur.
+
+## Eğilme, çömelme, etkileşim tuşları
+
+- **Q / E**: basılı tutunca sola/sağa eğilme (`player.lean`): baş 0.48 m
+  kayar, kamera ~13° yatar; `eyePosition` da kayar (düşman başa nişan alır).
+  Baş engele girecekse eğilme kısılır (`_leanRoom`).
+- İsabet: çömelmişken düşman isabetlerinin %20'si ıskalar; eğilmişken
+  ayrıca %35 (`_onPlayerHit` başında).
+- **F**: etkileşim — M2'ye geç/bırak, araca bin/in, pencere camı
+  (`game._interact`, öncelik bu sırayla). Q'daki "önceki silah" kaldırıldı.
+  M2'den kalkınca o pencerenin camı kapanır.
+
+## Ağır yaralı ve tedavi## Ağır yaralı ve tedavi
 
 - Can 0 olunca `game._goDown()`: oyuncu yere düşer (`player.downed`, göz
   0.55 m), silah inik, hareket yok. Ekranda üstte "AĞIR YARALI", ortada
