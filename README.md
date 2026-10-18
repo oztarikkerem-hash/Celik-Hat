@@ -53,6 +53,7 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | X | Dürbün |
 | Q / E | Sola / sağa eğil (köşeden çıkmadan ateş) |
 | F | Etkileşim: zırhlı araca bin / in, M2'ye geç / bırak, pencere camı |
+| T | Zırhlı aracın kulesine çık / in — 1: silah arkadaşın sürsün, 2: araç dursun |
 | W/S, A/D, Space | Araçta: gaz-geri, direksiyon, fren |
 | H | Tedavi: önce sargı bezi, sonra ilk yardım kiti |
 | M | Sesi aç / kapat |

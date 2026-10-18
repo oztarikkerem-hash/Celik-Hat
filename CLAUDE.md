@@ -346,6 +346,20 @@ değişiklik" telif riskini kaldırmaz — yerine bu özgün model yapıldı.
 - Araçtayken oyuncuya gelen hasar araca gider; gövdeye saplanan düşman
   mermisi `enemies.onBlocked` ile zırhı aşındırır. 2500 zırh bitince patlar.
 
+### Kule (T) ve silah arkadaşının sürüşü
+
+- **T**: aracın kulesine çık / in (`vehicles.climb` / `climbDown`). Göz
+  3.05 m (kalkanın üstü), kule bakışı izler, M2 ile ateş (3000 mermi,
+  `fireTop`); kendi aracımız mermi hedeflerinden çıkarılır. Kuledeki
+  oyuncuya gelen isabetlerin %45'ini kalkan alır.
+- Çıkınca `#top-choice` sorar: **1** silah arkadaşın sürsün, **2** araç
+  dursun (kulede her an değiştirilir). Sürüş `_autoDrive`: en yakın
+  düşmana YOL üzerinden (x = 0 ve z = 0 yolları, kavşaktan geçiş) gider,
+  ~24 m kala durur; hedef arkadaysa ileri giderek tam kırıp döner,
+  sıkışırsa 1.3 sn geri manevra yapar. Fizik `_physics` (oyuncu sürüşüyle
+  ortak).
+- Araç camları siyah (gök yansıması maviye çalıyordu).
+
 ## Görev girişi sinematiği (`src/game/intro.js`)
 
 Her `start()` sonunda `state = 'cinematic'`: ekip zırhlı araçla gelir.

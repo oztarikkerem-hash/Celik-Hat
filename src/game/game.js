@@ -232,6 +232,10 @@ export class Game {
       else this.shop.kus(btn.dataset.id);
       this.showShop(this.shopBolum);
     });
+ document.getElementById('top-choice')?.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-auto]');
+      if (b) this._setAutoDrive(b.dataset.auto === '1');
+    });
     on('cine-skip', () => { if (this.state === 'cinematic') this.activeCine?.skip(); });
     on('home-free-btn', () => this._askMap(null, () => this.start(null)));
     on('home-help-btn', () => this.hud.toggleControls());
@@ -281,6 +285,13 @@ export class Game {
       // F: etkileşim — M2, zırhlı araç, pencere camı (yakında hangisi varsa).
       // Q / E artık yana eğilme (basılı tutulur, _step'te okunur).
       if (code === 'KeyF') this._interact();
+      if (code === 'KeyT') this._toggleTop();
+      // Kuledeyken 1 / 2: silah arkadaşı sürsün / araç dursun
+      if (this.vehicles.topside) {
+        if (code === 'Digit1') this._setAutoDrive(true);
+        if (code === 'Digit2') this._setAutoDrive(false);
+        return;                       // kulede silah değiştirme / bomba yok
+      }
       if (code === 'KeyH') this._treat();
       // M2'deyken ya da yerdeyken elde silah yok: değiştirme, doldurma,
       // bomba kapalı
@@ -612,10 +623,41 @@ export class Game {
   _interact() {
     if (this.player.downed) return;
     if (this.raid.mounted) { this._toggleMount(); return; }
+    if (this.vehicles.topside) return;                 // kuleden T ile inilir
     if (this.vehicles.driving) { this._toggleVehicle(); return; }
     if (this.raid.active && this.raid.nearbyMG(this.player.pos)) { this._toggleMount(); return; }
     if (this.vehicles.nearby(this.player.pos)) { this._toggleVehicle(); return; }
     if (this.raid.active) this._toggleGlass();
+  }
+
+  /** T: zırhlı aracın kulesine çık (M2 başına) ya da in. */
+  _toggleTop() {
+    if (this.player.downed || this.raid.mounted || this.vehicles.driving) return;
+    if (this.vehicles.topside) {
+      this.vehicles.climbDown();
+      document.getElementById('top-choice').hidden = true;
+      this.hud.setActiveWeapon(this.weaponry.current.def);
+      return;
+    }
+    const v = this.vehicles.nearby(this.player.pos);
+    if (!v) return;
+    this._setBinocular(false);
+    this.vehicles.climb(v);
+    this.hud.setActiveWeapon(M2_DEF);
+    document.getElementById('top-choice').hidden = false;
+    const n = v.riders.length;
+    this.hud.feed(n ? `KULEYE ÇIKTIN — ${n} silah arkadaşı araca bindi` : 'KULEYE ÇIKTIN', true);
+  }
+
+  /** Kuledeyken: silah arkadaşı sürsün (yol üzerinden düşmana) / dursun. */
+  _setAutoDrive(on) {
+    if (!this.vehicles.topside) return;
+    if (!this.vehicles.setAutoDrive(on)) {
+      this.hud.feed('Sürecek silah arkadaşı yok — araç duruyor', true);
+      return;
+    }
+    document.getElementById('top-choice').hidden = true;
+    this.hud.feed(on ? 'SİLAH ARKADAŞIN SÜRÜYOR — yol üzerinden düşmana' : 'ARAÇ DURUYOR', true);
   }
 
   /** Yakındaki zırhlı araca bin / araçtan in. */
@@ -936,7 +978,10 @@ export class Game {
     const camPos = this.camera.getWorldPosition(new THREE.Vector3());
     this.raycaster.set(camPos, dir);
 
-    const targets = [...this.enemies.hitTargets, ...this.world.solids];
+    // Kuledeyken kendi aracımızın gövdesi/kalkanı mermiyi durdurmasın
+    const own = this.vehicles.topside;
+    const solids = own ? this.world.solids.filter((o) => o.userData?.vehicle !== own) : this.world.solids;
+    const targets = [...this.enemies.hitTargets, ...solids];
     const hit = this.raycaster.intersectObjects(targets, false)[0];
 
     const end = hit ? hit.point.clone() : camPos.clone().addScaledVector(dir, 180);
@@ -1099,6 +1144,11 @@ export class Game {
     // Zırhlı araçtayken mermi araca gelir, sürücüye değil
     if (this.vehicles.driving) { this.vehicles.damage(this.vehicles.driving, damage); return; }
     if (this.player.downed) { this._downedHit(); return; }
+    // Kuledeki nişancıyı kalkan kısmen korur: isabetlerin %45'i kalkana
+    if (this.vehicles.topside && Math.random() < 0.45) {
+      this.effects.sparks(this.camera.position.clone().add(new THREE.Vector3(0, -0.3, 0)), new THREE.Vector3(0, 1, 0), 0xffc06a, 4);
+      return;
+    }
     // Çömelmiş hedef küçüktür: isabetlerin %20'si ıskalar. Köşeden eğilip
     // bakan daha da küçüktür (gövde siperde, yalnızca baş ve omuz açıkta).
     {
@@ -1134,6 +1184,10 @@ export class Game {
   /** Can bitti: ölmek yerine yere yığıl. Çember hasarsız dolarsa kalkarsın. */
   _goDown() {
     const p = this.player;
+    if (this.vehicles.topside) {
+      this.vehicles.climbDown();
+      document.getElementById('top-choice').hidden = true;
+    }
     p.alive = true;
     p.downed = true;
     p.health = 0;
@@ -1439,7 +1493,8 @@ export class Game {
     const mounted = this.raid.mounted;
     const downed = this.player.downed;
     const driving = this.vehicles.driving;
-    const busy = downed || Boolean(this._treating) || Boolean(driving);     // elde silah yok
+    const topside = this.vehicles.topside;
+    const busy = downed || Boolean(this._treating) || Boolean(driving) || Boolean(topside);     // elde silah yok
 
     const ads = this.input.mouse(2) && !this.binoc && !mounted && !busy;
     const moveInput = downed ? { forward: 0, right: 0, jump: false, sprint: false, crouch: true } : {
@@ -1455,6 +1510,7 @@ export class Game {
     // M2'deyken oyuncu sehpanın arkasında sabit; kamerayı tüfek sürer
     if (mounted) this.raid.updateMounted(dt, now, this.player, this.camera);
     else if (driving) this.vehicles.drive(dt, now, moveInput);
+    else if (topside) this.vehicles.updateTop(dt, now);
     else this.player.update(dt, moveInput, ads, this.weaponry.current.def.weight ?? 0);
     this.physics.moveKinematic(
       this.playerBody, this.player.pos.x, this.player.pos.y + 0.9, this.player.pos.z,
@@ -1468,6 +1524,12 @@ export class Game {
     if (mounted) {
       if (firing) {
         const shot = this.raid.fire(now, this.camera);
+        if (shot) this._resolveShot({ ...shot, weapon: M2_DEF, slot: null, noEject: true });
+      }
+    } else if (topside) {
+      // Kuledeki M2 (busy olsa da ateş edilir: elde silah yok, kule var)
+      if (this.input.mouse(0) && !this.binoc) {
+        const shot = this.vehicles.fireTop(now);
         if (shot) this._resolveShot({ ...shot, weapon: M2_DEF, slot: null, noEject: true });
       }
     } else if (firing) {
@@ -1568,7 +1630,9 @@ export class Game {
         ? { ad: TREAT[this._treating.item].ad, t: (now - this._treating.start) / (this._treating.end - this._treating.start) }
         : null,
     } : null);
-    if (mg) this.hud.setAmmo(mg.ammo, RAID.mgRounds, '—');
+    const top = this.vehicles.topside;
+    if (top) this.hud.setAmmo(top.topAmmo, 3000, '—');
+    else if (mg) this.hud.setAmmo(mg.ammo, RAID.mgRounds, '—');
     else if (s.def.melee) this.hud.setAmmo('—', 1, '—');
     else this.hud.setAmmo(s.ammo, s.def.mag, s.reserve);
     if (this.binoc) this._updateBinocular(now);
@@ -1583,11 +1647,13 @@ export class Game {
     } else if (this.raid.active) {
       const g = this.raid.nearbyGlass(this.player.pos);
       if (g) hint = ['F', `Kurşun geçirmez ${camYazi(g)}`];
+    } else if (top) {
+      hint = ['T', `kuleden in · 1 arkadaşın sürsün · 2 dursun${top.autoDrive ? ' (sürüyor)' : ' (duruyor)'} · zırh %${Math.ceil(top.hp / 25)}`];
     } else if (this.vehicles.driving) {
       const v = this.vehicles.driving;
       hint = ['F', `in · W/S gaz-geri · A/D direksiyon · Space fren · zırh %${Math.ceil(v.hp / 25)} · ${Math.round(Math.abs(v.speed) * 3.6)} km/s`];
     } else if (!this.player.downed && this.vehicles.nearby(this.player.pos)) {
-      hint = ['F', 'Zırhlı araca bin — yakındaki silah arkadaşların da biner'];
+      hint = ['F', 'araca bin (sür) · T kuleye çık — yakındaki silah arkadaşların da biner'];
     }
     this.hud.setHint(hint);
     this.hud.setHealth(this.player.health, this.player.maxHealth, this.player.healthCap);

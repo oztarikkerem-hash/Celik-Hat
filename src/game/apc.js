@@ -122,7 +122,8 @@ export function buildAPC(kind = 'orman') {
     gun: new THREE.MeshStandardMaterial({ color: 0x232627, roughness: 0.42, metalness: 0.8 }),
     rubber: new THREE.MeshStandardMaterial({ map: treadTexture(), roughness: 0.95, metalness: 0 }),
     rim: new THREE.MeshStandardMaterial({ map: camoBox, color: 0xa0a090, roughness: 0.7, metalness: 0.35 }),
-    glass: new THREE.MeshStandardMaterial({ color: 0x1b262b, roughness: 0.08, metalness: 0.65 }),
+    // Camlar siyah (koyu filmli zırhlı cam): gök yansıması maviye çalmasın
+    glass: new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 0.18, metalness: 0.1, envMapIntensity: 0.25 }),
     lamp: new THREE.MeshStandardMaterial({ color: 0xfff3d0, emissive: 0xffe9b0, emissiveIntensity: 1.6 }),
     tail: new THREE.MeshStandardMaterial({ color: 0x5a0d08, emissive: 0xa0140a, emissiveIntensity: 1.2 }),
     can: new THREE.MeshStandardMaterial({ color: 0x3f4a2c, roughness: 0.7, metalness: 0.3 }),

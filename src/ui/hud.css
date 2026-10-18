@@ -1711,3 +1711,44 @@ body.cine-bars .cine-bottom { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .cine-bar, .cine-fade { transition-duration: 1ms; }
 }
+
+/* Kule seçimi: araç sürsün mü, dursun mu */
+.top-choice {
+  position: fixed;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+  z-index: 22;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  background: rgba(11, 15, 13, 0.82);
+  border: 1px solid rgba(232, 163, 61, 0.45);
+  text-align: center;
+}
+.top-choice[hidden] { display: none; }
+.top-choice strong { font: 700 22px/1.1 var(--disp); letter-spacing: 0.06em; color: var(--bone); }
+.top-choice-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.top-choice button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  font: 13px/1.2 var(--mono);
+  color: var(--bone);
+  background: rgba(30, 38, 33, 0.9);
+  border: 1px solid rgba(221, 225, 215, 0.25);
+  cursor: pointer;
+  text-align: left;
+}
+.top-choice button:hover, .top-choice button:focus-visible { border-color: var(--amber); outline: none; }
+.top-choice kbd {
+  min-width: 1.6em;
+  padding: 2px 6px;
+  font: inherit;
+  text-align: center;
+  color: var(--ink);
+  background: var(--amber);
+}
+.top-choice small { display: block; margin-top: 2px; font-size: 11px; color: var(--olive); }

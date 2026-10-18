@@ -30,6 +30,9 @@ const BODY_R = 1.35;
 const BOARD_RANGE = 30;
 const ENTER_RANGE = 4.2;
 const TURRET = { range: 70, rate: 0.13, damage: 55, turn: 2.4 };
+const TOP_AMMO = 3000;           // oyuncu kuledeyken M2 mermisi
+const TOP_EYE = 3.05;            // kuledeki nişancının göz yüksekliği (kalkanın üstü)
+const AUTO = { vmax: 8.5, stopNear: 24, road: 4 };   // silah arkadaşının sürüşü
 
 const _v = new THREE.Vector3();
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -42,6 +45,7 @@ export class Vehicles {
     this.template = null;
     this.ready = false;
     this.driving = null;          // oyuncunun sürdüğü araç
+    this.topside = null;          // oyuncunun tepesinde (kulede) olduğu araç
     this._ray = new THREE.Raycaster();
   }
 
@@ -55,6 +59,8 @@ export class Vehicles {
   /** Bütün araçları kaldırır (yeni tur). Oyuncunun konumuna dokunmaz. */
   clear() {
     this.driving = null;
+    this.topside = null;
+    this.game.player.eye = 1.66;
     for (const v of this.list) {
       for (const a of v.riders) { a.aboard = null; a.root.visible = true; }
       this.scene.remove(v.root);
@@ -219,7 +225,29 @@ export class Vehicles {
     const v = this.driving;
     if (!v) return;
     const g = this.game;
+    this._physics(v, dt, now, input);
+    const fwd = this.forward(v);
 
+    // Oyuncu aracın içinde (dünya akışı ve düşman hedefi için)
+    g.player.pos.set(v.pos.x, 0, v.pos.z);
+    g.player.vel.set(fwd.x * v.speed, 0, fwd.z * v.speed);
+
+    // Takip kamerası: fareyle aracın çevresinde döner
+    g.player.pitch = THREE.MathUtils.clamp(g.player.pitch, -0.7, 0.25);
+    const yaw = g.player.yaw, pitch = g.player.pitch;
+    const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+    const focus = new THREE.Vector3(v.pos.x, 2.1, v.pos.z);
+    const cam = g.camera;
+    cam.position.copy(focus).addScaledVector(dir, -9.5);
+    cam.position.y = Math.max(0.8, cam.position.y + 1.2);
+    cam.rotation.set(0, 0, 0);
+    cam.rotateY(yaw);
+    cam.rotateX(pitch);
+  }
+
+  /** Sürüş fiziği (oyuncu ya da silah arkadaşı sürsün): girdi → hareket. */
+  _physics(v, dt, now, input) {
+    const g = this.game;
     const thr = input.forward;
     if (thr > 0) v.speed += (v.speed < 0 ? BRAKE : ACCEL) * dt;
     else if (thr < 0) v.speed -= (v.speed > 0 ? BRAKE : ACCEL * 0.7) * dt;
@@ -239,22 +267,164 @@ export class Vehicles {
     const lim = g.world.half - 3.5;
     v.pos.x = THREE.MathUtils.clamp(v.pos.x, -lim, lim);
     v.pos.z = THREE.MathUtils.clamp(v.pos.z, -lim, lim);
+  }
 
-    // Oyuncu aracın içinde (dünya akışı ve düşman hedefi için)
-    g.player.pos.set(v.pos.x, 0, v.pos.z);
-    g.player.vel.set(fwd.x * v.speed, 0, fwd.z * v.speed);
+  /* ── Kule: oyuncu tepede, M2 başında ─────────────────────────────── */
 
-    // Takip kamerası: fareyle aracın çevresinde döner
-    g.player.pitch = THREE.MathUtils.clamp(g.player.pitch, -0.7, 0.25);
-    const yaw = g.player.yaw, pitch = g.player.pitch;
-    const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
-    const focus = new THREE.Vector3(v.pos.x, 2.1, v.pos.z);
+  /** Oyuncu kuleye çıkar; çevredeki silah arkadaşları araca biner. */
+  climb(v) {
+    const g = this.game;
+    this.topside = v;
+    v.autoDrive = false;
+    v.topAmmo ??= TOP_AMMO;
+    v.nextTopShot = 0;
+    v.riders = [];
+    for (const a of g.allies.allies) {
+      if (!a.alive || a.downed) continue;
+      if (Math.hypot(a.pos.x - v.pos.x, a.pos.z - v.pos.z) > BOARD_RANGE) continue;
+      a.aboard = v;
+      a.root.visible = false;
+      if (a.cover) { a.cover.taken = null; a.cover = null; }
+      v.riders.push(a);
+    }
+    v.gunner = null;                       // kule artık oyuncunun
+    v.driverAlly = v.riders[0] ?? null;    // sürmesi istenirse direksiyondaki
+    g.player.eye = TOP_EYE;
+    g.player.yaw = v.yaw + v.turretYaw - Math.PI / 2;
+    g.player.pitch = 0;
+    g.audio.swap();
+  }
+
+  /** Kuleden in: araç durur, binenler de iner. */
+  climbDown() {
+    const v = this.topside;
+    if (!v) return;
+    this.topside = null;
+    v.autoDrive = false;
+    v.speed = 0;
+    this.driving = v;          // exit() iniş noktalarını kullanır
+    this.exit();
+    this.game.player.eye = 1.66;
+  }
+
+  /** 1: silah arkadaşı sürsün, 2: dursun. Sürecek kimse yoksa false. */
+  setAutoDrive(on) {
+    const v = this.topside;
+    if (!v) return false;
+    if (on && !v.driverAlly) return false;
+    v.autoDrive = on;
+    return true;
+  }
+
+  /** Kuledeyken her kare: kamera nişancının gözünde, kule bakışı izler. */
+  updateTop(dt, now) {
+    const v = this.topside;
+    if (!v) return;
+    const g = this.game;
+    const p = g.player;
+    p.pitch = THREE.MathUtils.clamp(p.pitch, -0.35, 0.45);
+    v.turretYaw = wrap(p.yaw + Math.PI / 2 - v.yaw);
+    if (v.turret) v.turret.rotation.y = v.turretYaw;
+    v.root.updateMatrixWorld(true);
+
+    // Göz: kulenin arkasında, kalkanın üstünden
+    const base = v.turret ? v.turret.getWorldPosition(new THREE.Vector3()) : v.pos.clone().setY(2.2);
+    const back = new THREE.Vector3(Math.sin(p.yaw), 0, Math.cos(p.yaw));
     const cam = g.camera;
-    cam.position.copy(focus).addScaledVector(dir, -9.5);
-    cam.position.y = Math.max(0.8, cam.position.y + 1.2);
+    p._shake *= Math.pow(0.02, dt);
+    p.recoilPitch *= Math.pow(0.002, dt);
+    const sh = p._shake * 0.05;
+    // Kalkanın üst kenarı ~2.9 m: göz onun üstünde, makineli görüşün altında
+    cam.position.copy(base).addScaledVector(back, 0.55).add(new THREE.Vector3(0, 0.86, 0));
+    cam.position.x += (Math.random() - 0.5) * sh;
+    cam.position.y += (Math.random() - 0.5) * sh + Math.sin(now * 9) * 0.01 * Math.min(1, Math.abs(v.speed) / 5);
     cam.rotation.set(0, 0, 0);
-    cam.rotateY(yaw);
-    cam.rotateX(pitch);
+    cam.rotateY(p.yaw);
+    cam.rotateX(p.pitch + p.recoilPitch);
+
+    p.pos.set(v.pos.x, 0, v.pos.z);
+    const fwd = this.forward(v);
+    p.vel.set(fwd.x * v.speed, 0, fwd.z * v.speed);
+  }
+
+  /** Kuledeki M2 ile atış: { origin, dir } ya da null. */
+  fireTop(now) {
+    const v = this.topside;
+    if (!v || !v.muzzle || v.topAmmo <= 0 || now < v.nextTopShot) return null;
+    v.nextTopShot = now + 60 / 550;
+    v.topAmmo--;
+    const g = this.game;
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(g.camera.getWorldQuaternion(new THREE.Quaternion()));
+    const spread = THREE.MathUtils.degToRad(0.55);
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * spread;
+    const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    const up = new THREE.Vector3().crossVectors(right, dir).normalize();
+    dir.addScaledVector(right, Math.sin(a) * r).addScaledVector(up, Math.cos(a) * r).normalize();
+    g.audio.shot({ body: 62, crack: 1500, length: 0.34, punch: 0.9 });
+    return { origin: v.muzzle.getWorldPosition(new THREE.Vector3()), dir };
+  }
+
+  /**
+   * Silah arkadaşının sürüşü: en yakın düşmana YOL üzerinden yaklaşır.
+   * Haritada iki ana yol var (x = 0 ve z = 0 boyunca). Yoldan çıkmışsa
+   * önce en yakın yola, düşmana yakın olan yol öbürüyse kavşaktan ona
+   * geçer; yol üzerinde düşmanın izdüşümüne gidip ~24 m kala durur.
+   */
+  _autoDrive(v, dt, now) {
+    const g = this.game;
+    let target = null, bd = Infinity;
+    for (const e of g.enemies.enemies) {
+      if (!e.alive) continue;
+      const d = Math.hypot(e.pos.x - v.pos.x, e.pos.z - v.pos.z);
+      if (d < bd) { bd = d; target = e; }
+    }
+    const input = { forward: 0, right: 0, jump: false };
+    if (!target || bd < AUTO.stopNear) {
+      input.jump = true;                                 // fren
+      this._physics(v, dt, now, input);
+      return;
+    }
+    const R = AUTO.road;
+    const onX = Math.abs(v.pos.x) < R;                   // x = 0 yolunda (z boyunca)
+    const onZ = Math.abs(v.pos.z) < R;                   // z = 0 yolunda (x boyunca)
+    const useX = Math.abs(target.pos.x) <= Math.abs(target.pos.z);
+    let wp;
+    if (!onX && !onZ) {
+      wp = Math.abs(v.pos.x) < Math.abs(v.pos.z) ? new THREE.Vector3(0, 0, v.pos.z) : new THREE.Vector3(v.pos.x, 0, 0);
+    } else if (useX) {
+      wp = onX ? new THREE.Vector3(0, 0, target.pos.z) : new THREE.Vector3(0, 0, 0);
+    } else {
+      wp = onZ ? new THREE.Vector3(target.pos.x, 0, 0) : new THREE.Vector3(0, 0, 0);
+    }
+    const dx = wp.x - v.pos.x, dz = wp.z - v.pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 3) {
+      input.jump = true;
+      this._physics(v, dt, now, input);
+      return;
+    }
+    const want = Math.atan2(-dz, dx);
+    const diff = wrap(want - v.yaw);
+    // Sıkıştıysa (gaz var, araç ilerlemiyor) kısa geri manevra: ters
+    // direksiyonla geri çekilip yeniden dener
+    if (now < (v.reverseUntil ?? 0)) {
+      input.forward = -1;
+      input.right = Math.sign(diff || 1);
+      this._physics(v, dt, now, input);
+      return;
+    }
+    input.right = THREE.MathUtils.clamp(-diff * 2.2, -1, 1);
+    // Hedef arkadaysa yavaşça ileri giderek tam kırıp döner
+    const vT = Math.min(AUTO.vmax, dist * 0.45) * (Math.abs(diff) > 1 ? 0.35 : 1);
+    input.forward = v.speed < vT ? 1 : 0;
+    if (v.speed > vT + 1.5) input.jump = true;
+    this._physics(v, dt, now, input);
+    if (input.forward > 0 && Math.abs(v.speed) < 0.3) {
+      v.stuckT = (v.stuckT ?? 0) + dt;
+      if (v.stuckT > 1.2) { v.reverseUntil = now + 1.3; v.stuckT = 0; }
+    } else {
+      v.stuckT = 0;
+    }
   }
 
   /** Gövde daireleri ↔ dünya kutuları; eşyalar itilir, düşman ezilir. */
@@ -314,6 +484,8 @@ export class Vehicles {
         w.steer.rotation.y = w.front ? v.steer : 0;
       }
       if (v.dead) continue;
+      if (v === this.topside && v.autoDrive) this._autoDrive(v, dt, now);
+      else if (v === this.topside) this._physics(v, dt, now, { forward: 0, right: 0, jump: true });
       v.root.updateMatrixWorld(true);
       // Binenler araçla taşınır (görünmez); nişancı kulede görünür
       for (const a of v.riders) a.pos.set(v.pos.x, 0, v.pos.z);
@@ -419,6 +591,11 @@ export class Vehicles {
     g.audio.explosion();
     g.physics.explosion(center, 9, 40);
     g.player.shake(1);
+    if (this.topside === v) {
+      this.topside = null;
+      this.driving = v;
+      this.game.player.eye = 1.66;
+    }
     const wasDriving = this.driving === v;
     if (wasDriving) this.exit();
     else for (const a of v.riders) { a.aboard = null; a.root.visible = true; }
