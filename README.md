@@ -51,6 +51,7 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | C / Ctrl | Çömel (siperin arkasında tamamen saklanırsın) |
 | G | El bombası |
 | X | Dürbün |
+| V | Görüş: gözden ⇄ omuz üstü (üçüncü şahıs) |
 | Q / E | Sola / sağa eğil (köşeden çıkmadan ateş) |
 | F | Etkileşim: zırhlı araca bin / in, M2'ye geç / bırak, pencere camı |
 | T | Zırhlı aracın kulesine çık / in — 1: silah arkadaşın sürsün, 2: araç dursun |

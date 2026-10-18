@@ -28,6 +28,7 @@ import { MAPS, mapById } from './maps.js';
 import { Vehicles } from './vehicle.js';
 import { Intro } from './intro.js';
 import { Outro } from './outro.js';
+import { ThirdPerson } from './thirdperson.js';
 import { Hud } from '../ui/hud.js';
 import { Minimap } from '../ui/minimap.js';
 import { NameTags } from '../ui/nametags.js';
@@ -113,6 +114,7 @@ export class Game {
     this.vehicles = new Vehicles(this);
     this.intro = new Intro(this);
     this.outro = new Outro(this);
+    this.tp = new ThirdPerson(this);    // V: göz ⇄ omuz üstü görüş
     this.activeCine = null;           // oynayan sinematik (giriş ya da tahliye)
     this.mapId = mapById(localStorage.getItem(MAP_KEY)).id;
     this.binoc = false;
@@ -282,6 +284,10 @@ export class Game {
       if (this.state !== 'playing' || this.mod !== 'piyade') return;
       if (code === 'KeyM') this._toggleSound();
       if (code === 'KeyX') this._setBinocular(!this.binoc);
+      if (code === 'KeyV') {
+        const on = this.tp.toggle();
+        this.hud.feed(on ? 'GÖRÜŞ: OMUZ ÜSTÜ' : 'GÖRÜŞ: GÖZDEN', true);
+      }
       // F: etkileşim — M2, zırhlı araç, pencere camı (yakında hangisi varsa).
       // Q / E artık yana eğilme (basılı tutulur, _step'te okunur).
       if (code === 'KeyF') this._interact();
@@ -914,13 +920,19 @@ export class Game {
   _fireRocket(slot, dir, weapon) {
     const pivot = slot.parts.mag?.pivot;
     if (!pivot) return;
-    const origin = pivot.getWorldPosition(new THREE.Vector3());
+    // Omuz üstünde roket karakterin omzundaki tüpten çıkar
+    const origin = this.tp.active ? this.tp.muzzle() : pivot.getWorldPosition(new THREE.Vector3());
     // Yakınsama: roket namludan (nişangâhın 20 cm altından) çıkıyor;
     // nişangâhın gösterdiği noktaya yöneltilmezse hedefin altından geçiyor
     const camPos = this.camera.getWorldPosition(new THREE.Vector3());
-    this.raycaster.set(camPos, dir);
-    const aimHit = this.raycaster.intersectObjects([...this.enemies.hitTargets, ...this.world.solids], false)[0];
-    const aimPoint = aimHit ? aimHit.point : camPos.clone().addScaledVector(dir, 120);
+    let aimPoint;
+    if (this.tp.active) {
+      aimPoint = this.tp.aimPoint(dir, [...this.enemies.hitTargets, ...this.world.solids]);
+    } else {
+      this.raycaster.set(camPos, dir);
+      const aimHit = this.raycaster.intersectObjects([...this.enemies.hitTargets, ...this.world.solids], false)[0];
+      aimPoint = aimHit ? aimHit.point : camPos.clone().addScaledVector(dir, 120);
+    }
     const rdir = aimPoint.clone().sub(origin).normalize();
     this.rockets.fire(pivot, origin, rdir, weapon);
 
@@ -961,6 +973,17 @@ export class Game {
       return;
     }
 
+    // Omuz üstü görüşte mermi karakterin göğsünden nişangâhın gösterdiği
+    // noktaya gider (kameradan çıksaydı karakterin arkası atışı keserdi)
+    let tpFrom = null;
+    if (this.tp.active && slot) {
+      const aim = this.tp.aimPoint(dir, [...this.enemies.hitTargets, ...this.world.solids]);
+      tpFrom = this.tp.chest();
+      dir = aim.sub(tpFrom).normalize();
+      origin = this.tp.muzzle();
+      this.tp.avatar?.kick();
+    }
+
     // Boş kovan (sürgülü tüfekte sürgü çekilince çıkar)
     if (!noEject) {
       const camQuat = this.camera.getWorldQuaternion(new THREE.Quaternion());
@@ -975,7 +998,7 @@ export class Game {
     this.player.shake(Math.min(0.35, weapon.recoil * 0.05));
     this.effects.muzzleSmoke(origin, dir);
 
-    const camPos = this.camera.getWorldPosition(new THREE.Vector3());
+    const camPos = tpFrom ?? this.camera.getWorldPosition(new THREE.Vector3());
     this.raycaster.set(camPos, dir);
 
     // Kuledeyken kendi aracımızın gövdesi/kalkanı mermiyi durdurmasın
@@ -1038,8 +1061,11 @@ export class Game {
   _meleeAttack(def) {
     const m = def.melee;
     const now = performance.now() / 1000;
-    const camPos = this.camera.getWorldPosition(new THREE.Vector3());
+    // Omuz üstünde menzil kameradan değil karakterden ölçülür
+    const camPos = this.tp.active ? this.tp.chest().setY(this.player.pos.y + this.player.eye)
+      : this.camera.getWorldPosition(new THREE.Vector3());
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.getWorldQuaternion(new THREE.Quaternion()));
+    if (this.tp.active) this.tp.avatar?.kick();
     this.raycaster.set(camPos, dir);
     this.raycaster.far = m.range;
     const hit = this.raycaster.intersectObjects([...this.enemies.hitTargets, ...this.world.solids], false)[0];
@@ -1472,6 +1498,7 @@ export class Game {
       else this._step(dt, now);
     } else if (this.state === 'cinematic') {
       this.input.consumeLook();                  // sinematikte fare bakışı yok
+      this.tp.hide();
       this.weaponry.rig.visible = false;
       this.world.update(this.camera, this.player.pos, now, 3);
       this.vehicles.update(dt, now);
@@ -1520,6 +1547,9 @@ export class Game {
     this.world.update(this.camera, this.player.pos, now);
 
     const def = this.weaponry.current.def;
+    // Omuz üstü görüş (V): araçta, makinelide, dürbünde ve keskin nişancı
+    // dürbünüyle nişan alırken gözden görüşe geçilir
+    this.tp.update(dt, ads, !mounted && !driving && !topside && !this.binoc && !(ads && def.scope));
     const firing = this.input.mouse(0) && !this.binoc && !busy;
     if (mounted) {
       if (firing) {
@@ -1540,7 +1570,7 @@ export class Game {
       this._triggerHeld = false;
     }
 
-    this.weaponry.rig.visible = !mounted && !this.binoc && !busy;
+    this.weaponry.rig.visible = !mounted && !this.binoc && !busy && !this.tp.active;
     if (!mounted) {
       if (this.weaponry.current.ammo === 0 && !this.weaponry.reloading) {
         this.weaponry.startReload();
@@ -1555,7 +1585,8 @@ export class Game {
 
     const zoom = this.binoc ? BINOC_ZOOM
       : mounted ? 1.12
-        : THREE.MathUtils.lerp(1, def.zoom, this.weaponry.adsBlend);
+        : this.tp.active ? THREE.MathUtils.lerp(1, 1.25, this.weaponry.adsBlend)
+          : THREE.MathUtils.lerp(1, def.zoom, this.weaponry.adsBlend);
     const targetFov = BASE_FOV / zoom;
     if (Math.abs(this.camera.fov - targetFov) > 0.01) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFov, Math.min(1, dt * 14));
