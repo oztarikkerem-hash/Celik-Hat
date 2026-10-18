@@ -865,6 +865,8 @@ export class Weaponry {
       s.ammo = s.def.mag;
       s.reserve = s.def.reserve;
       s.slideKick = 1;
+      s._magShots = 0;          // "Beceriksiz" başarımı: şarjör başına atış/isabet
+      s._magHits = 0;
     }
     this.reloading = false;
     this.action = null;
@@ -878,6 +880,16 @@ export class Weaponry {
     this.resetAmmo();
     // Bıçak her zaman yanında (seçim hakkından sayılmaz)
     this.allowed = ids ? new Set([...ids, 'bicak']) : null;
+  }
+
+  /** Mühimmat sandığı: bütün silahların şarjörü ve yedeği tam dolar. */
+  refillAll() {
+    for (const s of this.slots) {
+      s.ammo = Math.max(s.ammo, s.def.mag);
+      s.reserve = s.def.reserve;
+      s._magShots = 0;
+      s._magHits = 0;
+    }
   }
 
   /** Dalga sonu ikmali. */

@@ -332,6 +332,22 @@ export class AudioEngine {
     this._noise({ dur: 0.12, gain: 0.5, freq: 5200, q: 0.8, type: 'highpass' });
   }
 
+  /** Başarım: yükselen iki nota. */
+  achievement() {
+    if (!this.ctx) return;
+    this._tone({ f0: 660, f1: 660, dur: 0.16, gain: 0.16, type: 'triangle' });
+    this._tone({ f0: 990, f1: 990, dur: 0.32, gain: 0.16, type: 'triangle', at: 0.13 });
+  }
+
+  /** Mühimmat sandığı: kutu kapağı ve fişek şıkırtısı. */
+  ammoRefill() {
+    if (!this.ctx) return;
+    this._noise({ dur: 0.12, gain: 0.2, freq: 700, q: 0.8, type: 'lowpass' });
+    for (let i = 0; i < 4; i++) {
+      this._tone({ f0: 3200 + i * 400, f1: 1400, dur: 0.05, gain: 0.04, type: 'triangle', at: 0.1 + i * 0.07 });
+    }
+  }
+
   waveStart() {
     if (!this.ctx) return;
     this._tone({ f0: 180, f1: 180, dur: 0.5, gain: 0.3, type: 'sawtooth' });

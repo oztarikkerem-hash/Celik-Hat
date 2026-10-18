@@ -28,6 +28,15 @@ export const RAID = {
   vest: 0.8,                   // görev yeleği: hasarın %80'ini soğurur (oyuncu + takım)
 };
 
+/** Sandık yuvası: üç küçük cephane sandığının üstünde düşman M2'si. */
+export const NEST = {
+  rounds: 1500,
+  crate: { w: 0.54, h: 0.64, d: 0.95 },
+  hp: 160,                     // nişancının canı
+  damage: 16,                  // M2 mermisi (oyuncuya)
+  range: 75,
+};
+
 /** M2 Browning (.50 BMG): oyuncunun silah künyesiyle aynı alanlar. */
 export const M2_DEF = {
   id: 'm2', name: 'M2 Browning', auto: true,
@@ -177,6 +186,7 @@ export class Raid {
     // Kapalı camlar mermi durdurur: ayrı bir dünya yapısı olarak tutulur ki
     // açılıp kapandıkça yalnızca bu liste değişsin
     this.glassFixture = null;
+    this.nest = null;         // sandık yuvası (normal görevler)
   }
 
   /* ── Yükleme ──────────────────────────────────────────────────────── */
@@ -516,8 +526,18 @@ export class Raid {
     // Tüfek: sehpanın ön ucunda, ön ayakları denizlikte; namlunun yarısı
     // pencereden dışarı taşar, nişancının gözü pencereye yakın kalır
     const origin = new THREE.Vector3(wx, 0, face).addScaledVector(fwd, -0.3);
+    // Oyuncunun duracağı yer: sehpanın arkası
+    const seat = this._w(origin.x, origin.z).addScaledVector(fwd, -1.55);
+    this.mgs.push(this._makeMG(group, this._w(origin.x, origin.z, PLATFORM_H), yaw, seat, RAID.mgRounds));
+  }
+
+  /**
+   * Sehpalı M2: `base` dünya konumu (sehpa tepesi), `yaw` ileri yönü.
+   * Hem evin pencerelerinde hem sandık yuvasında kullanılır.
+   */
+  _makeMG(group, base, yaw, seat, rounds) {
     const mount = new THREE.Group();
-    mount.position.copy(this._w(origin.x, origin.z, PLATFORM_H));
+    mount.position.copy(base);
     mount.rotation.y = yaw;
     group.add(mount);
 
@@ -568,14 +588,95 @@ export class Raid {
     const light = new THREE.PointLight(0xffb060, 0, 7, 2);
     muzzle.add(light);
 
-    // Oyuncunun duracağı yer: sehpanın arkası
-    const seat = this._w(origin.x, origin.z).addScaledVector(fwd, -1.55);
-
-    this.mgs.push({
+    const mg = {
       mount, yawP, pitchP, muzzle, eye, eject, flash, light,
-      baseYaw: yaw, seat, ammo: RAID.mgRounds, nextShot: 0, flashUntil: 0,
+      baseYaw: yaw, seat, ammo: rounds, maxAmmo: rounds, nextShot: 0, flashUntil: 0,
       yaw: 0, pitch: 0, heat: 0,
-    });
+    };
+    // Düşman nişancı ateş ettiğinde de alev/ışık yansın
+    mg.fireFx = () => {
+      flash.visible = true;
+      flash.rotation.x = Math.random() * Math.PI;
+      flash.scale.setScalar(0.8 + Math.random() * 0.5);
+      light.intensity = 9;
+      mg.flashUntil = performance.now() / 1000 + 0.045;
+      mg.heat = Math.min(1, mg.heat + 0.035);
+    };
+    return mg;
+  }
+
+  /* ── Sandık yuvası (normal görevler) ──────────────────────────────── */
+
+  /**
+   * Üç küçük cephane sandığı yan yana, üstlerinde sehpalı M2; arkasında
+   * düşman nişancı durur (EnemyManager.addNestGunner). Nişancı ölünce
+   * oyuncu F ile tüfeğin başına geçebilir.
+   * @param at  sandık sırasının ortası (zemin), yaw: namlunun baktığı yön
+   */
+  setupNest(at, yaw) {
+    this.teardownNest();
+    if (!this.ready) return null;
+    const group = new THREE.Group();
+    this.scene.add(group);
+    const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const C = NEST.crate;
+    const fixture = { colliders: [], solids: [], cover: [] };
+    const geo = new THREE.BoxGeometry(C.w, C.h, C.d);
+    // Sandık kapağı ve kuşak çıtaları: düz kutu gibi durmasın
+    const lid = new THREE.BoxGeometry(C.w + 0.03, 0.05, C.d + 0.03);
+    const band = new THREE.BoxGeometry(C.w + 0.025, C.h * 0.9, 0.05);
+    const mat = this.world.materials.crate;
+    const dark = new THREE.MeshStandardMaterial({ color: 0x3b4430, roughness: 0.8, metalness: 0.1 });
+    for (let i = -1; i <= 1; i++) {
+      const c = new THREE.Group();
+      c.position.copy(at).addScaledVector(right, i * (C.w + 0.03));
+      c.rotation.y = yaw + (Math.random() - 0.5) * 0.06;
+      const body = new THREE.Mesh(geo, mat);
+      body.position.y = C.h / 2;
+      const l = new THREE.Mesh(lid, dark);
+      l.position.y = C.h - 0.02;
+      c.add(body, l);
+      for (const s of [-1, 1]) {
+        const b = new THREE.Mesh(band, dark);
+        b.position.set(0, C.h * 0.45, s * C.d * 0.3);
+        c.add(b);
+      }
+      c.traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+      group.add(c);
+      fixture.solids.push(body);
+    }
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    for (const m of fixture.solids) box.expandByObject(m);
+    fixture.colliders.push(box);
+    const size = box.getSize(new THREE.Vector3());
+    const body = this.physics.addStaticBox(box.getCenter(new THREE.Vector3()), { x: size.x, y: size.y, z: size.z });
+
+    const origin = at.clone().addScaledVector(fwd, 0.12);
+    const seat = origin.clone().addScaledVector(fwd, -1.55).setY(0);
+    const mg = this._makeMG(group, origin.clone().setY(C.h), yaw, seat, NEST.rounds);
+    mg.nest = true;
+    this.world.addFixture(fixture);
+    this.nest = { group, fixture, body, mg, seat, baseYaw: yaw, gunner: null };
+    return this.nest;
+  }
+
+  teardownNest() {
+    const n = this.nest;
+    if (!n) return;
+    if (this.mounted === n.mg) this.mounted = null;
+    this.scene.remove(n.group);
+    this.world.removeFixture(n.fixture);
+    this.physics.remove(n.body);
+    this.nest = null;
+  }
+
+  /** Kullanılabilir M2'ler: evdekiler + nişancısı ölmüş sandık yuvası. */
+  get usableMGs() {
+    const n = this.nest;
+    const free = n && !(n.gunner && n.gunner.alive) ? [n.mg] : [];
+    return this.active ? [...this.mgs, ...free] : free;
   }
 
   /* ── Kurşun geçirmez cam ──────────────────────────────────────────── */
@@ -732,7 +833,7 @@ export class Raid {
   /** Oyuncunun yanında duran (kullanılabilir) M2. */
   nearbyMG(playerPos) {
     let best = null, bestD = 1.6;
-    for (const g of this.mgs) {
+    for (const g of this.usableMGs) {
       const d = Math.hypot(g.seat.x - playerPos.x, g.seat.z - playerPos.z);
       if (d < bestD) { bestD = d; best = g; }
     }
@@ -815,8 +916,8 @@ export class Raid {
 
   /** Alev/ısı sönümü (bağlı olmasa da). */
   update(dt, now) {
-    this._updateGlass(dt, now);
-    for (const g of this.mgs) {
+    if (this.active) this._updateGlass(dt, now);
+    for (const g of this.nest ? [...this.mgs, this.nest.mg] : this.mgs) {
       if (g.flash.visible && now > g.flashUntil) {
         g.flash.visible = false;
         g.light.intensity = 0;

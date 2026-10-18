@@ -581,6 +581,54 @@ doğrudan başlatır).
 **Dürbün (X)**: her piyade görevinde çalışır; 8× büyütme, fare hassasiyeti
 de 1/8, telemetre (ışın) ve pusula yönü. Dürbündeyken ateş edilmez.
 
+## Makineli yuvası (normal görevler)
+
+`raid.setupNest(at, yaw)`: oyuncunun ~55 m önünde (müttefik menzili 42 m;
+daha yakında ilk saniyede onlar indiriyordu) üç küçük cephane sandığı ve
+üstünde sehpalı M2 (Baskın'ın `_makeMG`'si, ortak). Nişancı gerçek bir
+düşman (`enemies.addNestGunner`, `e.nest`): yerinden kıpırdamaz, M2'yi
+±46° yavaş çevirir, 7–13'lük seriler atar (hasar 16, saçılma 55 m'de
+~±1.2 m). Dalgaya SAYILMAZ (`aliveCount` onu atlar) — yoksa dalga
+bitmiyordu. Ölünce `raid.usableMGs` onu da verir, F ile geçilir (1.500
+mermi, HUD `mg.maxAmmo`). M2 modeli Baskın'la ortak yüklenir
+(`_startWithPick` gerekiyorsa yükleme ekranı gösterir). `raid.update`
+artık her karede çağrılır (cam yalnızca Baskın'da).
+
+## Baskın: cam kıranlar
+
+Saldırganların ~%45'i `breaker`: 1.5 sn'de bir görüş hattındaki ilk
+engelin camın kendisi olduğu, kapalı (`blocking`) ve 40 m içindeki camı
+seçer (`_pickGlass`); hedef sahte bir nesne (`{ pos, center, glass }`):
+asker camın 1 m dışına yürür, 38 m'den ateş eder (cama 2 kat hasar),
+dibindeyse dipçikle vurur (×3). Oyuncu/müttefik 9 m içindeyse onlara
+döner. Açık camdan geçen mermi kimseye işlemez.
+
+## Mühimmat sandığı (`src/game/ammocrate.js`)
+
+Model kodla kurulur (özgün; diskteki Sketchfab konteynerleri
+KULLANILMADI): zeytin yeşili ahşap, açık kapak, içinde dört metal kutu ve
+fişekler, canvas şablon yazısı. Haritada 2 tane: iniş noktasının yanında
+(araç yolunun dışında, x −8.5) ve yuvaya giden yolda; Baskın'da evin iki
+odasında. F → `weaponry.refillAll()` (bütün silahlar şarjör + yedek tam).
+Mini haritada amber kare. Müttefikler mini haritada mavi nokta.
+
+## Başarımlar (`src/game/achievements.js`)
+
+Her biri bir kez, `celikhat.basarimlar`'da saklanır; ödül o anki tura puan.
+Bildirim sağ üstte, puan sütununun solunda (`#achv`, `hud.achievement`,
+sıralı kuyruk, 4.5 sn).
+
+| id | Ad | Tetik | Ödül |
+|---|---|---|---|
+| yildiz | Kendi yıldızlarını parlat | hiçbir şeye değmeyen atış, `dir.y` > 0.57 (~35°) | 200 |
+| ilkkan | İlk kan | müttefik dışı ilk öldürme | 200 |
+| sarjor | Şarjör değiştirmeyi öğrenmişsin… | ilk `reload-end` | 200 |
+| beceriksiz | Beceriksiz | ≥8'lik şarjör tek isabetsiz boşalıp `reload-start` | 0 |
+| keskin | Nişan almayı biliyorsun hey keskin nişancı | ilk kafa isabeti | 200 |
+
+Şarjör sayaçları silah yuvasında: `_magShots` / `_magHits`
+(`resetAmmo`, `reload-end` ve sandık sıfırlar).
+
 ## Sırada ne var
 
 - MAR 556 için ekranın altında yakınlaştırmayan dürbün paneli.

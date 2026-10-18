@@ -257,8 +257,56 @@ export class Enemy {
     return this.hp <= 0;
   }
 
+  /**
+   * Sandık yuvasındaki nişancı: yerinden kıpırdamaz, M2'yi hedefe çevirir
+   * (yaylım ±46°, yavaş döner — yan taraftan sokulan kurtulabilir) ve
+   * uzun seriler atar.
+   */
+  _updateNest(dt, now, target, onAttack) {
+    const n = this.nest, mg = n.mg;
+    this.pos.copy(n.seat);
+    this.vel.set(0, 0, 0);
+    const base = mg.mount.getWorldPosition(new THREE.Vector3());
+    const dx = target.pos.x - base.x, dz = target.pos.z - base.z;
+    const dist = Math.hypot(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+    let rel = Math.atan2(-dx, -dz) - n.baseYaw;
+    rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+    const inArc = Math.abs(rel) <= 0.8;
+    rel = THREE.MathUtils.clamp(rel, -0.8, 0.8);
+    const k = Math.min(1, dt * 2.6);
+    mg.yaw += (rel - mg.yaw) * k;
+    const ty = (target.eyePosition?.y ?? target.center?.y ?? 1.3) - 0.25;
+    const pitch = THREE.MathUtils.clamp(Math.atan2(ty - (base.y + 0.45), Math.hypot(dx, dz)), -0.2, 0.24);
+    mg.pitch += (pitch - mg.pitch) * k;
+    mg.yawP.rotation.y = mg.yaw;
+    mg.pitchP.rotation.x = mg.pitch;
+    mg.mount.updateWorldMatrix(true, true);
+    this.facing = n.baseYaw + mg.yaw;
+
+    if (inArc && dist < n.range && Math.abs(rel - mg.yaw) < 0.07 && now >= this.nextShot) {
+      if (this.burstLeft > 0) {
+        this.burstLeft--;
+        this.nextShot = now + 0.11;
+        if (this.burstLeft === 0) this.nextShot = now + 1.4 + Math.random() * 1.2;
+        onAttack(this, dist, 'mg');
+      } else {
+        this.burstLeft = 7 + Math.floor(Math.random() * 7);
+        this.nextShot = now + 0.05;
+      }
+    }
+
+    if (this.soldier) {
+      this.soldier.setShadowDistance(dist);
+      this.soldier.update({ dt, speed: 0, crouching: false, downed: false, aimPitch: mg.pitch, aiming: true });
+    }
+    this.group.position.set(this.pos.x, this.pos.y, this.pos.z);
+    this.group.rotation.set(0, this.facing, 0);
+    return dist;
+  }
+
   /** raid: Baskın'da saldıran taraf — siperden sipere hızla eve yüklenir. */
   update(dt, now, player, arena, onAttack, world = null, raid = false) {
+    if (this.nest) return this._updateNest(dt, now, player, onAttack);
     const toPlayer = new THREE.Vector3(
       player.pos.x - this.pos.x, 0, player.pos.z - this.pos.z,
     );
@@ -354,13 +402,15 @@ export class Enemy {
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, -lim, lim);
     this.pos.z = THREE.MathUtils.clamp(this.pos.z, -lim, lim);
 
-    // Saldırı: menzilde ateş, dibinde darbe
+    // Saldırı: menzilde ateş, dibinde darbe. Cam hedefi (Baskın) büyük ve
+    // durağan: 38 m'den ateş açılır
+    const shootRange = player.glass ? 38 : this.def.shootRange;
     if (dist <= this.def.range && now >= this.nextAttack) {
       this.nextAttack = now + this.def.cooldown;
       this.lunge = 1;
       onAttack(this, dist, 'melee');
     } else if (
-      this.def.shootRange && dist <= this.def.shootRange && now >= this.nextShot
+      this.def.shootRange && dist <= shootRange && now >= this.nextShot
       && (!this.inCover || peeking)
     ) {
       // Taramalı ateş: oyuncu gibi kısa seriler. Seri bitince nefeslenir.
@@ -408,7 +458,7 @@ export class Enemy {
         downed: false,
         aimPitch: Math.atan2(toTarget.y, Math.hypot(toTarget.x, toTarget.z)),
         // Ateş menzilindeyken ve saklanmıyorken tüfek omuzda
-        aiming: Boolean(this.def.shootRange) && dist <= this.def.shootRange * 1.2
+        aiming: Boolean(this.def.shootRange) && dist <= shootRange * 1.2
           && (!this.inCover || peeking),
       });
     } else if (this.legs.length >= 4) {
@@ -528,8 +578,57 @@ export class EnemyManager {
     return out;
   }
 
+  /** Dalgaya sayılan canlılar (yuva nişancısı dalgadan sayılmaz). */
   get aliveCount() {
-    return this.enemies.filter((e) => e.alive).length;
+    return this.enemies.filter((e) => e.alive && !e.nest).length;
+  }
+
+  /**
+   * Sandık yuvasının nişancısı: dalgadan bağımsız, yerinde sabit düşman.
+   * Öldürülünce yuvanın M2'si oyuncuya kalır.
+   */
+  addNestGunner(nest, opts) {
+    const e = new Enemy('runner', 1, this.gear, this.soldierFactory);
+    e.nest = { ...opts, mg: nest.mg, seat: nest.seat, baseYaw: nest.baseYaw };
+    e.maxHp = e.hp = opts.hp;
+    e.scoreValue = 400;
+    e.nextShot = performance.now() / 1000 + 3;
+    e.pos.copy(nest.seat);
+    e.facing = nest.baseYaw;
+    e.group.position.copy(e.pos);
+    e.group.rotation.y = e.facing;
+    // Kendi tüfeği görünmez: elleri M2'nin tutamaklarında
+    if (e.soldier?.rifle) e.soldier.rifle.visible = false;
+    this.scene.add(e.group);
+    if (this.physics) {
+      e.body = this.physics.addKinematicCapsule(0.45, 2);
+      this.physics.moveKinematic(e.body, e.pos.x, e.pos.y + 1, e.pos.z);
+    }
+    this.enemies.push(e);
+    nest.gunner = e;
+    return e;
+  }
+
+  /**
+   * Baskın: cam kıran düşman için hedef cam. Görüş hattındaki ilk engel
+   * camın kendisiyse (arada duvar yoksa) ve 40 m içindeyse seçilir.
+   */
+  _pickGlass(e) {
+    let best = null, bd = 40;
+    const eye = new THREE.Vector3(e.pos.x, e.pos.y + 1.45, e.pos.z);
+    for (const g of this.glassList ?? []) {
+      if (g.broken || !g.blocking) continue;
+      const d = eye.distanceTo(g.center);
+      if (d >= bd) continue;
+      const dir = g.center.clone().sub(eye).normalize();
+      this._ray.set(eye, dir);
+      this._ray.far = d + 0.2;
+      const first = this._ray.intersectObjects(this.arena.solids, false)[0];
+      if (first?.object !== g.pane) continue;
+      bd = d;
+      best = g;
+    }
+    return best;
   }
 
   get remaining() {
@@ -584,6 +683,8 @@ export class EnemyManager {
 
   _spawnOne(type, player) {
     const e = new Enemy(type, this.wave, this.gear, this.soldierFactory);
+    // Baskında saldırganların ~%45'i camları kırmaya çalışır
+    if (this.raid) e.breaker = Math.random() < 0.45;
 
     // Oyuncudan belirli uzaklıkta, yüklü bir sektörde doğsun.
     const r = this.raid;
@@ -611,21 +712,29 @@ export class EnemyManager {
    * @param target oyuncu ya da müttefik asker
    */
   _fireProjectile(enemy, target) {
-    enemy.fireFlash();
-    this.audio.shot({ body: 140, crack: 2500, length: 0.15, punch: 0.4 });
+    const mg = enemy.nest?.mg;
+    if (mg) {
+      mg.fireFx?.();
+      this.audio.shot({ body: 62, crack: 1500, length: 0.34, punch: 1 });
+    } else {
+      enemy.fireFlash();
+      this.audio.shot({ body: 140, crack: 2500, length: 0.15, punch: 0.4 });
+    }
 
-    const from = enemy.muzzleWorld;
+    const from = mg ? mg.muzzle.getWorldPosition(new THREE.Vector3()) : enemy.muzzleWorld;
     const to = (target.eyePosition ?? target.center).clone();
 
-    // Nişan hatası: mesafeyle büyüyen sapma (her atış tutmasın)
+    // Nişan hatası: mesafeyle büyüyen sapma (her atış tutmasın); M2 sehpada
+    // daha isabetli ama uzun seride açılır
     const dist = from.distanceTo(to);
-    const spread = 0.035 + dist * 0.004;
+    const spread = mg ? 0.012 + dist * 0.0006 + mg.heat * 0.012 : 0.035 + dist * 0.004;
     to.x += (Math.random() - 0.5) * spread * dist;
     to.y += (Math.random() - 0.5) * spread * dist * 0.6;
     to.z += (Math.random() - 0.5) * spread * dist;
 
     const dir = to.clone().sub(from).normalize();
-    this.effects.tracer(from, from.clone().addScaledVector(dir, dist), 0xff9a5c);
+    this.effects.tracer(from, from.clone().addScaledVector(dir, dist), mg ? 0xffa040 : 0xff9a5c);
+    const damage = mg ? enemy.nest.damage : (enemy.def.shootDamage ?? enemy.damage);
 
     // Arada duvar/sandık varsa mermi oraya saplanır
     this._ray.set(from, dir);
@@ -634,18 +743,20 @@ export class EnemyManager {
     if (blocked) {
       // Kurşun geçirmez cam gibi hasar alan engeller
       if (blocked.object.userData?.glass || blocked.object.userData?.vehicle) {
-        this.onBlocked?.(blocked.object, enemy.def.shootDamage ?? enemy.damage, blocked.point);
+        // Cam kıranın mermisi cama iki kat işler (zırh delici)
+        const k = target.glass && blocked.object === target.glass.pane ? 2 : 1;
+        this.onBlocked?.(blocked.object, damage * k, blocked.point);
         return;
       }
       this.effects.sparks(blocked.point, new THREE.Vector3(0, 1, 0), 0xffc06a, 6);
       return;
     }
+    if (target.glass) return;          // cam hedefi: açık camdan geçen mermi boşa
 
     // İsabet yarıçapı: hedefin gövdesine yeterince yakınsa vurur
     const hedefMerkez = target.eyePosition ?? target.center;
     const sapma = hedefMerkez.distanceTo(to);
     if (sapma < 0.55) {
-      const damage = enemy.def.shootDamage ?? enemy.damage;
       if (target.eyePosition) {
         // Merminin geldiği yükseklik göz hizasına yakınsa KAFA sayılır:
         // kaskın bir işe yaraması için bölge bilgisi gerekiyor.
@@ -682,10 +793,27 @@ export class EnemyManager {
         const d = Math.hypot(ally.pos.x - e.pos.x, ally.pos.z - e.pos.z);
         if (d < hedefMesafe * 0.8) { hedefMesafe = d; hedef = ally; }
       }
+      // Baskın: cam kıranlar evin kapalı camlarını hedef alır (oyuncu
+      // dibindeyse yine oyuncuya döner). Hedef cam 1.5 sn'de bir yenilenir.
+      if (e.breaker && this.raid && !e.nest) {
+        if (now >= (e.nextGlassThink ?? 0)) {
+          e.nextGlassThink = now + 1.5;
+          e.glassTarget = this._pickGlass(e);
+        }
+        const g = e.glassTarget;
+        if (g && !g.broken && g.blocking && hedefMesafe > 9) {
+          // Camın 1 m dışına yürür; ateş edilecek nokta cam merkezi
+          const out = g.alongX ? new THREE.Vector3(0, 0, Math.sign(e.pos.z - g.center.z) || 1)
+            : new THREE.Vector3(Math.sign(e.pos.x - g.center.x) || 1, 0, 0);
+          hedef = { pos: g.center.clone().addScaledVector(out, 1).setY(0), center: g.center, glass: g };
+        }
+      }
       e.currentTarget = hedef;
 
       e.update(dt, now, hedef, this.arena, (enemy, dist, mode) => {
-        if (mode === 'shoot') this._fireProjectile(enemy, hedef);
+        if (mode === 'shoot' || mode === 'mg') this._fireProjectile(enemy, hedef);
+        // Camın dibine gelen dipçikle vurur
+        else if (hedef.glass) this.onBlocked?.(hedef.glass.pane, enemy.damage * 3, hedef.center.clone());
         else if (hedef === player) this.onPlayerHit?.(enemy.damage, 'body', enemy);
         else this.onAllyHit?.(hedef, enemy.damage, enemy);
       }, this.world, Boolean(this.raid));
@@ -698,7 +826,7 @@ export class EnemyManager {
       if (!a.alive) continue;
       for (let j = i + 1; j < this.enemies.length; j++) {
         const b = this.enemies[j];
-        if (!b.alive) continue;
+        if (!b.alive || a.nest || b.nest) continue;
         const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z;
         const minD = 0.75 * (a.def.scale + b.def.scale);
         const d2 = dx * dx + dz * dz;

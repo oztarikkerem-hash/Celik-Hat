@@ -18,12 +18,18 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
   her görev zırhlı araçla gelişin ve inişin sinematiğiyle başlar, görev
   bitince ekip araca binip uzaklaşır (tahliye sinematiği).
 - Köşeden **eğilme** (Q / E); çömelince daha az isabet alınır.
+- Görev başında **dört silah seçimi**; haritada **makineli yuvası** (üç
+  sandık üstünde M2 — nişancısını indirince başına sen geçersin) ve iki
+  **mühimmat sandığı** (F: bütün mermiler dolar).
+- **Başarımlar**: Kendi yıldızlarını parlat, İlk kan, Keskin nişancı,
+  Beceriksiz… — sağ üstte bildirim ve puan ödülü.
 - **Ağır yaralı**: can bitince ölmezsin, yere düşersin; hasar almadan
   beklersen kalkarsın ama canın 25'te kalır — sargı bezi ve ilk yardım
   kitiyle (mağaza) tedavi olursun.
 - **Baskın** (özel görev): dört silah arkadaşınla bir evi dört dalgaya karşı
   tut (20 · 25 · 30 · 25). Yanında seçtiğin iki silah (normal cephaneleriyle);
-  pencerelerde 10.000'er mermili iki M2 Browning.
+  pencerelerde 10.000'er mermili iki M2 Browning; düşmanların bir kısmı
+  kurşun geçirmez camları kırmaya çalışır.
 - **Bölümler:** tank oyunu (Death Star) — T-90 ya da M1 Abrams, müttefik ve
   düşman tanklar, yakıt, benzinlik ve market.
 
@@ -54,7 +60,7 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | X | Dürbün |
 | V | Görüş: gözden ⇄ omuz üstü (üçüncü şahıs) |
 | Q / E | Sola / sağa eğil (köşeden çıkmadan ateş) |
-| F | Etkileşim: zırhlı araca bin / in, M2'ye geç / bırak, pencere camı |
+| F | Etkileşim: zırhlı araca bin / in, M2'ye geç / bırak (yuvadaki nişancıyı öldürünce o M2'ye de), mühimmat sandığından mermi doldur, pencere camı |
 | T | Zırhlı aracın kulesine çık / in — 1: silah arkadaşın sürsün, 2: araç dursun |
 | W/S, A/D, Space | Araçta: gaz-geri, direksiyon, fren |
 | H | Tedavi: önce sargı bezi, sonra ilk yardım kiti |

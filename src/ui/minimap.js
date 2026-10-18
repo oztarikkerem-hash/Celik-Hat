@@ -1,7 +1,7 @@
 /* Sağ üst köşedeki taktik harita.
 
    Oyuncu her zaman merkezde ve yukarı bakar; dünya onun etrafında döner.
-   Yakındaki siperler soluk dikdörtgen, düşmanlar kırmızı nokta, menzil
+   Yakındaki siperler soluk dikdörtgen, düşmanlar kırmızı, müttefikler mavi nokta, menzil
    dışında kalan düşmanlar kenarda ok olarak gösterilir.                   */
 
 const RANGE = 55;          // haritanın kapsadığı yarıçap (m)
@@ -24,7 +24,7 @@ export class Minimap {
   }
 
   /** @param now saniye — çizim 20 Hz'e kısılır, oyun döngüsünü yormasın. */
-  draw(now, { player, enemies, world, grenades }) {
+  draw(now, { player, enemies, allies, crates, world, grenades }) {
     if (now - this._last < 0.05) return;
     this._last = now;
 
@@ -89,6 +89,16 @@ export class Minimap {
     g.closePath();
     g.stroke();
 
+    // ── Mühimmat sandıkları: amber kare ──────────────────────────────
+    for (const c of crates ?? []) {
+      const [mx, my] = toMap(c.pos.x, c.pos.z);
+      g.fillStyle = '#e8a33d';
+      g.fillRect(mx - 3, my - 3, 6, 6);
+      g.strokeStyle = 'rgba(11, 15, 13, 0.9)';
+      g.lineWidth = 1;
+      g.strokeRect(mx - 3, my - 3, 6, 6);
+    }
+
     // ── El bombaları ───────────────────────────────────────────────────
     g.fillStyle = '#6fae7a';
     for (const gr of grenades ?? []) {
@@ -126,6 +136,28 @@ export class Minimap {
       g.strokeStyle = 'rgba(255, 180, 160, 0.8)';
       g.lineWidth = 1;
       g.stroke();
+    }
+
+    // ── Müttefikler: mavi nokta (menzil dışındakiler kenarda soluk) ──────
+    for (const a of allies ?? []) {
+      if (!a.alive || a.aboard) continue;
+      let [mx, my] = toMap(a.pos.x, a.pos.z);
+      const far = Math.hypot(a.pos.x - player.pos.x, a.pos.z - player.pos.z) > RANGE;
+      if (far) {
+        const dx = mx - R, dy = my - R;
+        const k = (R - 7) / Math.hypot(dx, dy);
+        mx = R + dx * k;
+        my = R + dy * k;
+      }
+      g.fillStyle = far ? 'rgba(111, 183, 255, 0.5)' : '#6fb7ff';
+      g.beginPath();
+      g.arc(mx, my, far ? 2.5 : 3.2, 0, Math.PI * 2);
+      g.fill();
+      if (!far) {
+        g.strokeStyle = 'rgba(220, 238, 255, 0.85)';
+        g.lineWidth = 1;
+        g.stroke();
+      }
     }
 
     g.restore();

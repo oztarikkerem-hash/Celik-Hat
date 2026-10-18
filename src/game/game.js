@@ -23,7 +23,7 @@ import { TankPilot } from './tankpilot.js';
 import { BOLUMLER, gorevBul } from './chapters.js';
 import { TankArena } from './tankarena.js';
 import { AllyManager } from './allies.js';
-import { Raid, RAID, M2_DEF } from './raid.js';
+import { Raid, RAID, M2_DEF, NEST } from './raid.js';
 import { MAPS, mapById } from './maps.js';
 import { Vehicles } from './vehicle.js';
 import { Intro } from './intro.js';
@@ -32,6 +32,8 @@ import { ThirdPerson } from './thirdperson.js';
 import { Hud } from '../ui/hud.js';
 import { Minimap } from '../ui/minimap.js';
 import { NameTags } from '../ui/nametags.js';
+import { AmmoCrates } from './ammocrate.js';
+import { Achievements } from './achievements.js';
 import { Input } from '../core/input.js';
 import { AudioEngine } from '../core/audio.js';
 import { Music } from '../core/music.js';
@@ -113,6 +115,16 @@ export class Game {
     this.rockets = new Rockets(this.scene, this.effects, this.audio);
     this.missions = new MissionBook();
     this.raid = new Raid(this);
+    this.crates = new AmmoCrates(this);
+    // Başarım ödülü o anki tura puan olarak eklenir
+    this.achv = new Achievements((id, def) => {
+      if (def.odul) {
+        this.score += def.odul;
+        this.hud.setScore(this.score);
+      }
+      this.hud.achievement(def);
+      this.audio.achievement();
+    });
     this.vehicles = new Vehicles(this);
     this.intro = new Intro(this);
     this.outro = new Outro(this);
@@ -329,6 +341,14 @@ export class Game {
 
     this.weaponry.onEvent = (name, slot) => {
       if (name === 'equip') this.hud.setActiveWeapon(slot.def);
+      // Beceriksiz: koca bir şarjör tek isabet almadan boşaldı
+      if (name === 'reload-start' && slot.ammo === 0 && slot.def.mag >= 8
+        && (slot._magShots ?? 0) >= slot.def.mag && !slot._magHits) this.achv.award('beceriksiz');
+      if (name === 'reload-end') {
+        slot._magShots = 0;
+        slot._magHits = 0;
+        if (this.state === 'playing') this.achv.award('sarjor');
+      }
       if (name === 'drop') this._dropMag(slot);        // yük: { pivot, heavy }
       if (name === 'eject') this._ejectCasing(slot);
     };
@@ -448,9 +468,15 @@ export class Game {
     else this._showLoadout(id);
   }
 
-  _startWithPick(id) {
+  async _startWithPick(id) {
     const ids = [...this.pick4];
     try { localStorage.setItem(PICK4_KEY, JSON.stringify(ids)); } catch { /* gizli sekme */ }
+    // Sandık yuvasının M2 modeli (Baskın'la ortak) ilk kez yükleniyor
+    if (!this.raid.ready) {
+      this.hud.screen('loader');
+      this.hud.loading(0.1, 'Makineli yuvası hazırlanıyor');
+      await this.raid.load((p, label) => this.hud.loading(0.1 + p * 0.9, label));
+    }
     this.start(id, null, ids);
   }
 
@@ -539,7 +565,30 @@ export class Game {
     this.enemies.reset();
     // Giriş sinematiğinde aracın geleceği yol şeridi boşaltılır
     const plan = this._introPlan(raidIds);
-    this.world.setClearRects([plan.rect]);
+    // Sandık yuvası: oyuncunun ~55 m önünde (müttefik menzili 42 m — ilk
+    // saniyede onlar indirmesin), namlusu iniş noktasına dönük
+    this.raid.teardownNest();
+    const nestAt = raidIds ? null : this.player.pos.clone().add(new THREE.Vector3(6, 0, -55)).setY(0);
+    const rects = [plan.rect];
+    if (nestAt) rects.push({ x0: nestAt.x - 4, x1: nestAt.x + 4, z0: nestAt.z - 4, z1: nestAt.z + 4 });
+    this.world.setClearRects(rects);
+    if (nestAt) {
+      const nest = this.raid.setupNest(nestAt, Math.atan2(nestAt.x - this.player.pos.x, nestAt.z - this.player.pos.z));
+      if (nest) this.enemies.addNestGunner(nest, { hp: NEST.hp, damage: NEST.damage, range: NEST.range });
+    }
+    this.enemies.glassList = raidIds ? this.raid.glass : null;
+
+    // İki mühimmat sandığı: biri iniş noktasının yanında (araç yolunun
+    // dışında), biri makineli yuvasına giden yolda; Baskın'da evin iki odasında
+    const crateSpots = raidIds
+      ? [{ pos: this.raid._w(-2.4, 4.3), yaw: Math.PI }, { pos: this.raid._w(5.0, -2.0), yaw: -Math.PI / 2 }]
+      : [{ pos: this.player.pos.clone().add(new THREE.Vector3(-8.5, 0, -2)).setY(0), yaw: 0.5 },
+        { pos: nestAt.clone().add(new THREE.Vector3(-8, 0, 9)), yaw: -0.4 }];
+    if (!raidIds) {
+      for (const c of crateSpots) rects.push({ x0: c.pos.x - 1.5, x1: c.pos.x + 1.5, z0: c.pos.z - 1.5, z1: c.pos.z + 1.5 });
+      this.world.setClearRects(rects);
+    }
+    this.crates.place(crateSpots);
     if (raidIds) {
       const st = this.raid.playerStart;
       this.player.pos.copy(st.pos);
@@ -641,7 +690,6 @@ export class Game {
 
   /** E: yakındaki M2'ye geç ya da ondan ayrıl. */
   _toggleMount() {
-    if (!this.raid.active) return;
     if (this.raid.mounted) {
       // Nişancı kalkınca camı kapatır (kırık değilse)
       const glass = this.raid.mounted.glass;
@@ -665,9 +713,21 @@ export class Game {
     if (this.raid.mounted) { this._toggleMount(); return; }
     if (this.vehicles.topside) return;                 // kuleden T ile inilir
     if (this.vehicles.driving) { this._toggleVehicle(); return; }
-    if (this.raid.active && this.raid.nearbyMG(this.player.pos)) { this._toggleMount(); return; }
+    if (this.raid.nearbyMG(this.player.pos)) { this._toggleMount(); return; }
+    const sandik = this.crates.nearby(this.player.pos);
+    if (sandik) { this._useCrate(sandik); return; }
     if (this.vehicles.nearby(this.player.pos)) { this._toggleVehicle(); return; }
     if (this.raid.active) this._toggleGlass();
+  }
+
+  /** Mühimmat sandığı: bütün silahların mermisi dolar. */
+  _useCrate(c) {
+    const now = performance.now() / 1000;
+    if (now - c.usedAt < 0.8) return;
+    c.usedAt = now;
+    this.weaponry.refillAll();
+    this.audio.ammoRefill();
+    this.hud.feed('MÜHİMMAT SANDIĞI — bütün şarjörler ve yedek mermiler doldu', true);
   }
 
   /** T: zırhlı aracın kulesine çık (M2 başına) ya da in. */
@@ -1006,6 +1066,7 @@ export class Game {
       this._fireRocket(slot, dir, weapon);
       return;
     }
+    if (slot) slot._magShots = (slot._magShots ?? 0) + 1;
 
     // Omuz üstü görüşte mermi karakterin göğsünden nişangâhın gösterdiği
     // noktaya gider (kameradan çıksaydı karakterin arkası atışı keserdi)
@@ -1044,6 +1105,8 @@ export class Game {
 
     const end = hit ? hit.point.clone() : camPos.clone().addScaledVector(dir, 180);
     this.effects.tracer(origin, end, weapon.tracer);
+    // Gökyüzüne (~35°'den dik, hiçbir şeye değmeden) ateş
+    if (!hit && dir.y > 0.57) this.achv.award('yildiz');
 
     if (!hit) return;
 
@@ -1056,6 +1119,8 @@ export class Game {
       const head = part === 'head';
       const leg = part === 'leg';
       this.shotsHit++;
+      if (slot) slot._magHits = (slot._magHits ?? 0) + 1;
+      if (head) this.achv.award('keskin');
 
       // Bölgeye göre hasar: kafa > gövde > bacak
       const mult = head ? HEADSHOT_MULT : leg ? LEG_MULT : BODY_MULT;
@@ -1180,6 +1245,7 @@ export class Game {
     const mult = 1 + Math.min(2, (this.combo - 1) * 0.15);
 
     const by = enemy._killedBy ?? {};
+    if (!by.ally) this.achv.award('ilkkan');
     this.score += Math.round(enemy.scoreValue * mult * (by.headshot ? 1.5 : 1));
     this.hud.setScore(this.score);
     this.hud.setCombo(this.combo, mult);
@@ -1637,7 +1703,7 @@ export class Game {
     this.rockets.update(dt, this.world.solids, this.enemies.hitTargets, this.enemies.enemies);
     this.enemies.update(dt, now, this.player);
     this.allies.update(dt, now, this.player, this.enemies.enemies);
-    if (this.raid.active) this.raid.update(dt, now);
+    this.raid.update(dt, now);
     this.vehicles.update(dt, now);
 
     // Dalga geçişi
@@ -1700,7 +1766,7 @@ export class Game {
     } : null);
     const top = this.vehicles.topside;
     if (top) this.hud.setAmmo(top.topAmmo, 3000, '—');
-    else if (mg) this.hud.setAmmo(mg.ammo, RAID.mgRounds, '—');
+    else if (mg) this.hud.setAmmo(mg.ammo, mg.maxAmmo ?? RAID.mgRounds, '—');
     else if (s.def.melee) this.hud.setAmmo('—', 1, '—');
     else this.hud.setAmmo(s.ammo, s.def.mag, s.reserve);
     if (this.binoc) this._updateBinocular(now);
@@ -1708,10 +1774,15 @@ export class Game {
     // Etkileşim ipucu: M2'nin arkasına gelince / üstündeyken
     let hint = null;
     const camYazi = (g) => (g.open ? 'camı kapat' : 'camı aç') + ` (%${Math.ceil(g.hp / RAID.glassHp * 100)})`;
+    const yakinMG = !mg && !this.raid.finale ? this.raid.nearbyMG(this.player.pos) : null;
+    const yakinSandik = !mg && !top && !this.vehicles.driving && !this.player.downed
+      ? this.crates.nearby(this.player.pos) : null;
     if (mg) {
-      hint = ['F', `M2'yi bırak (cam kapanır) · sol tık ateş · X dürbün`];
-    } else if (this.raid.active && !this.raid.finale && this.raid.nearbyMG(this.player.pos)) {
-      hint = ['F', 'M2 Browning — 10.000 mermi'];
+      hint = ['F', mg.nest ? `M2'yi bırak · sol tık ateş · X dürbün` : `M2'yi bırak (cam kapanır) · sol tık ateş · X dürbün`];
+    } else if (yakinMG) {
+      hint = ['F', `M2 Browning — ${yakinMG.ammo.toLocaleString('tr')} mermi`];
+    } else if (yakinSandik) {
+      hint = ['F', 'Mühimmat sandığı — bütün silahların mermisi dolar'];
     } else if (this.raid.active) {
       const g = this.raid.nearbyGlass(this.player.pos);
       if (g) hint = ['F', `Kurşun geçirmez ${camYazi(g)}`];
@@ -1759,6 +1830,8 @@ export class Game {
     this.minimap.draw(now, {
       player: this.player,
       enemies: this.enemies.enemies,
+      allies: this.allies.allies,
+      crates: this.crates.list,
       world: this.world,
       grenades: this.grenades.live,
     });

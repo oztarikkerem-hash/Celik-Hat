@@ -346,6 +346,32 @@ export class Hud {
     this.el.combo.textContent = count > 1 ? `×${mult.toFixed(1)} seri · ${count}` : '';
   }
 
+  /** Başarım bildirimi (sırayla, her biri ~4.5 sn). */
+  achievement(def) {
+    (this._achvQueue ??= []).push(def);
+    if (!this._achvBusy) this._nextAchievement();
+  }
+
+  _nextAchievement() {
+    const el = $('achv');
+    const def = this._achvQueue.shift();
+    if (!def) { this._achvBusy = false; return; }
+    this._achvBusy = true;
+    $('achv-name').textContent = def.ad;
+    const r = $('achv-reward');
+    r.textContent = def.odul > 0 ? `ÖDÜL  +${def.odul} PUAN` : 'ÖDÜL YOK';
+    r.classList.toggle('none', !(def.odul > 0));
+    el.hidden = false;
+    el.classList.remove('in');
+    void el.offsetWidth;                 // animasyonu baştan başlat
+    el.classList.add('in');
+    clearTimeout(this._achvT);
+    this._achvT = setTimeout(() => {
+      el.classList.remove('in');
+      this._achvT = setTimeout(() => { el.hidden = true; this._nextAchievement(); }, 350);
+    }, 4500);
+  }
+
   feed(text, crit = false) {
     const li = document.createElement('li');
     li.textContent = text;
