@@ -15,7 +15,8 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
 - **Dört alan**: Sanayi Bölgesi, Çöl Kasabası, Orman, Karlı Dağ Üssü —
   görev seçilince hangi alanda savaşacağın sorulur.
 - **Bıçak** (0 tuşu) ve asker taşıyan **zırhlı araç** (F: bin / in) —
-  her görev zırhlı araçla gelişin ve inişin sinematiğiyle başlar.
+  her görev zırhlı araçla gelişin ve inişin sinematiğiyle başlar, görev
+  bitince ekip araca binip uzaklaşır (tahliye sinematiği).
 - Köşeden **eğilme** (Q / E); çömelince daha az isabet alınır.
 - **Ağır yaralı**: can bitince ölmezsin, yere düşersin; hasar almadan
   beklersen kalkarsın ama canın 25'te kalır — sargı bezi ve ilk yardım

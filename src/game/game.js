@@ -27,6 +27,7 @@ import { Raid, RAID, M2_DEF } from './raid.js';
 import { MAPS, mapById } from './maps.js';
 import { Vehicles } from './vehicle.js';
 import { Intro } from './intro.js';
+import { Outro } from './outro.js';
 import { Hud } from '../ui/hud.js';
 import { Minimap } from '../ui/minimap.js';
 import { NameTags } from '../ui/nametags.js';
@@ -40,7 +41,7 @@ const BEST_KEY = 'celik-hat-best';
 const RAID_PICK_KEY = 'celikhat.baskin.silahlar';
 const MAP_KEY = 'celikhat.alan';
 const BINOC_ZOOM = 8;
-const FINALE_TIME = 14;          // ufuktaki birlik görünür kaldıktan sonra kapanış
+const FINALE_TIME = 7;           // ufuktaki birlik belirdikten sonra tahliye sinematiği
 // Ağır yaralı: kalbin çevresindeki çember hasar almadan bu sürede dolar
 const REVIVE_TIME = 10;
 const DOWNED_HITS = 3;           // yerdeyken bu kadar isabet ölüm
@@ -111,6 +112,8 @@ export class Game {
     this.raid = new Raid(this);
     this.vehicles = new Vehicles(this);
     this.intro = new Intro(this);
+    this.outro = new Outro(this);
+    this.activeCine = null;           // oynayan sinematik (giriş ya da tahliye)
     this.mapId = mapById(localStorage.getItem(MAP_KEY)).id;
     this.binoc = false;
     this._binocRead = 0;
@@ -229,7 +232,7 @@ export class Game {
       else this.shop.kus(btn.dataset.id);
       this.showShop(this.shopBolum);
     });
-    on('cine-skip', () => { if (this.state === 'cinematic') this.intro.skip(); });
+    on('cine-skip', () => { if (this.state === 'cinematic') this.activeCine?.skip(); });
     on('home-free-btn', () => this._askMap(null, () => this.start(null)));
     on('home-help-btn', () => this.hud.toggleControls());
     // Ses aç/kapat: ana ekranda ve duraklatma menüsünde aynı düğme
@@ -257,7 +260,7 @@ export class Game {
       // Sinematik: Boşluk / Enter / Esc atlar
       if (this.state === 'cinematic' && ['Space', 'Enter', 'Escape'].includes(e.code)) {
         e.preventDefault();
-        this.intro.skip();
+        this.activeCine?.skip();
         return;
       }
       if (e.code === 'Escape' && this.state === 'playing') this.pause();
@@ -525,6 +528,7 @@ export class Game {
     this.input.requestLock();
     this.clock.getDelta();
     // Giriş sinematiği: araçla varış ve iniş; bitince dalga başlar
+    this.activeCine = this.intro;
     this.intro.begin({
       ...plan,
       map: mapById(this.mapId),
@@ -535,6 +539,7 @@ export class Game {
 
   /** Sinematik bitti (ya da atlandı): oyun başlar. */
   _afterIntro(raidIds) {
+    this.activeCine = null;
     this.state = 'playing';
     this.nametags.setVisible(true);
     this.camera.fov = BASE_FOV;
@@ -561,7 +566,8 @@ export class Game {
         finalPos: st.pos.clone(), finalYaw: st.yaw,
         spots: [[-0.7, 0], [0.7, 0], [-0.7, 1.3], [0.7, 1.3]]
           .map(([dx, dz]) => gate.clone().add(new THREE.Vector3(dx, 0, dz))),
-        rect: { x0: stop.x - 4, x1: stop.x + L, z0: stop.z - 6.5, z1: stop.z + 6.5 },
+        // Şerit batıya da uzar: görev sonunda tahliye aracı buradan çıkıp gider
+        rect: { x0: stop.x - 50, x1: stop.x + L, z0: stop.z - 6.5, z1: stop.z + 6.5 },
       };
     }
     // Yol boyunca kuzeye (−Z) gelir; oyuncu aracın arkasından iner
@@ -744,7 +750,47 @@ export class Game {
     return true;
   }
 
+  /** Görev tamam: önce tahliye sinematiği, sonra sonuç ekranı. */
   missionComplete() {
+    if (this.mod === 'piyade' && this.state === 'playing') {
+      this._beginOutro(false, () => this._showVictory());
+      return;
+    }
+    this._showVictory();
+  }
+
+  /**
+   * Tahliye sinematiği: araç gelir, ekip biner, uzaklaşır.
+   * raid: Baskın'da araç evin bahçe kapısına gelir.
+   */
+  _beginOutro(raid, done) {
+    this.state = 'cinematic';
+    this._setBinocular(false);
+    this.raid.dismount();
+    this.vehicles.exit();
+    this.hud.setHint(null);
+    this.hud.hideBanner();
+    this.hud.setDowned(false);
+    this.player.downed = false;
+    this._treating = null;
+    this.activeCine = this.outro;
+    const C = RAID.center;
+    this.outro.begin({
+      raid,
+      raidStop: new THREE.Vector3(C.x - 3, 0, C.z + 14),
+      raidGate: new THREE.Vector3(C.x, 0, C.z + 10.8),
+      map: mapById(this.mapId),
+      missionName: MISSIONS.find((m) => m.id === this.selectedMission)?.name ?? null,
+      onDone: () => {
+        this.activeCine = null;
+        this.camera.fov = BASE_FOV;
+        this.camera.updateProjectionMatrix();
+        done();
+      },
+    });
+  }
+
+  _showVictory() {
     this.state = 'victory';
     this.input.releaseLock();
     this.music.setLevel(0.5, 1.2);
@@ -1375,7 +1421,8 @@ export class Game {
       this.weaponry.rig.visible = false;
       this.world.update(this.camera, this.player.pos, now, 3);
       this.vehicles.update(dt, now);
-      this.intro.update(dt, now);
+      if (this.raid.active) this.raid.update(dt, now);       // ufuktaki birlik yürür
+      this.activeCine?.update(dt, now);
     } else {
       this.world.update(this.camera, this.player.pos, now, 1);
     }
@@ -1489,7 +1536,8 @@ export class Game {
 
     // Baskın kapanışı: birlik bir süre görünür, sonra görev biter
     if (this.raid.finale && now > this._finaleEndAt) {
-      this._raidVictory();
+      // Baskın püskürtüldü: ekip araçla tahliye edilir, sonra kahraman ekranı
+      this._beginOutro(true, () => this._raidVictory());
       return;
     }
 

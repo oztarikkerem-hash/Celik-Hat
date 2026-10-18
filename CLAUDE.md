@@ -362,6 +362,25 @@ açılır; araç kaldırılır. Boşluk/Enter/Esc ya da "Geç" atlar
 (`intro.skip`). Bitince `_afterIntro` dalgayı başlatır. Sinematikte HUD
 gizli (`body.cinematic`), elde silah gizli, fare bakışı yutulur.
 
+## Görev sonu sinematiği — tahliye (`src/game/outro.js`)
+
+`missionComplete()` piyadede önce `_beginOutro` çağırır, sonuç ekranı
+(`_showVictory`) sinematik bitince açılır. Baskın'da son dalgadan
+`FINALE_TIME` (7 sn) sonra aynı tahliye oynar, ardından `_raidVictory`
+(Kahraman asker + bayrak). Oynayan sinematik `game.activeCine` (giriş ya
+da tahliye); atlama tuşları ona gider.
+
+- Araç yolu: oyuncunun çevresindeki 16 yön × 2 yan içinden ENGELİ EN AZ
+  şerit (`_lane`; görev ortasında dünya yeniden kurulmaz). Araç oyuncunun
+  4.2 m yanından geçip durur, arka kapısı oyuncuya yakın kalır.
+- Oyuncu bu sahnede bir SWAT asker modeliyle (turuncu kol bandı) temsil
+  edilir. Müttefikler (yerdekiler de) sırayla kapıya koşar, eşikte kaybolur;
+  oyuncu en son biner. Kapı kapanır, araç hızlanır (3.4 m/sn²), vinç geri
+  çekilir, kararma.
+- Kalan düşmanlar sahneden gizlenir. Baskın'da kararmayla ekip bahçe
+  kapısında belirir; ufuktaki birlik (`raid.update`) yürümeye devam eder.
+  Baskın şeridi batıya da uzatıldı (araç oradan çıkar).
+
 ## Eğilme, çömelme, etkileşim tuşları
 
 - **Q / E**: basılı tutunca sola/sağa eğilme (`player.lean`): baş 0.48 m
