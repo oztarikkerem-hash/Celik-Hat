@@ -209,16 +209,18 @@ export function buildAPC(kind = 'orman') {
   for (const s of [-1, 1]) add(hull, cyl(0.04, 0.04, 0.18, 8), M.steel, 3.32, 0.62, s * 0.7, 0, 0, Math.PI / 2);
 
   // Arka: arka kapı (menteşede), stop lambaları, egzoz, çekme kancası
-  // Kapı boşluğu: kapı açılınca karanlık iç görünür (kapalıyken kapının ardında)
-  add(hull, box(0.004, 1.0, 1.0), M.dark, -3.124, 1.05, 0);
+  // Kapı boşluğu: kapı açılınca karanlık iç görünür (kapalıyken kapının
+  // ardında). İnsan boyuna yakın: 1.25 m geniş, 1.25 m yüksek (taban 0.55)
+  add(hull, box(0.004, 1.25, 1.25), M.dark, -3.124, 1.18, 0);
+  add(hull, box(0.3, 0.06, 1.3), M.steel, -3.25, 0.5, 0);                 // basamak
   const door = new THREE.Group();
   door.name = 'hatch6';
-  door.position.set(-3.16, 1.05, -0.5);
+  door.position.set(-3.16, 1.18, -0.625);
   hull.add(door);
-  add(door, box(0.07, 1.0, 1.0), M.panel, 0, 0, 0.5);
-  add(door, box(0.04, 0.28, 0.32), M.glass, -0.03, 0.25, 0.5, 0, 0, 0, 'glass_door');
-  add(door, box(0.06, 0.06, 0.22), M.steel, -0.05, -0.05, 0.85);
-  for (const y of [-0.35, 0.35]) add(door, box(0.08, 0.1, 0.1), M.steel, -0.02, y, 0.02);
+  add(door, box(0.07, 1.25, 1.25), M.panel, 0, 0, 0.625);
+  add(door, box(0.04, 0.3, 0.36), M.glass, -0.03, 0.3, 0.625, 0, 0, 0, 'glass_door');
+  add(door, box(0.06, 0.06, 0.22), M.steel, -0.05, -0.05, 1.05);
+  for (const y of [-0.45, 0.45]) add(door, box(0.08, 0.1, 0.1), M.steel, -0.02, y, 0.02);
   for (const s of [-1, 1]) {
     add(hull, box(0.05, 0.14, 0.1), M.tail, -3.1, 1.3, s * 1.05);
     add(hull, box(0.06, 0.08, 0.08), M.lamp, -3.1, 1.12, s * 1.05);

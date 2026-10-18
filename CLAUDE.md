@@ -353,7 +353,10 @@ Her `start()` sonunda `state = 'cinematic'`: ekip zırhlı araçla gelir.
 **boşaltılacak yol şeridini** verir (`world.setClearRects`: şeritte sektör
 eşyası kurulmaz, değen sektör güvenli arketip alır). Planlar: A alçak tele,
 B ön çapraz takip, C vinç, D arka çapraz (kapı açılır, askerler sırayla
-iner, nişancı en son), E birinci şahıs iniş. Baskın'da araç evin güneyinden
+iner, nişancı en son), E birinci şahıs iniş. Gövde kapalı bir ağ olduğu
+için askerler içeride HİÇ görünmez: açık kapının eşiğinde (gövdenin
+dışında) belirip basamaktan iner — içeriden yürütülünce arka duvardan
+geçiyor gibi görünüyordu. Kapı boşluğu 1.25 × 1.25 m. Baskın'da araç evin güneyinden
 geçip kapı yanında durur, ekip bahçe kapısına koşar, kararıp evin içinde
 açılır; araç kaldırılır. Boşluk/Enter/Esc ya da "Geç" atlar
 (`intro.skip`). Bitince `_afterIntro` dalgayı başlatır. Sinematikte HUD

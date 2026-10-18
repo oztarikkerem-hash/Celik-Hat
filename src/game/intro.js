@@ -185,21 +185,26 @@ export class Intro {
     }
 
     // ── İnen askerler ─────────────────────────────────────────────────
-    const inside = S.clone().addScaledVector(f, -2.2);
-    const door = S.clone().addScaledVector(f, -4.4);
+    // Gövdenin içinde hiç görünmezler (kapalı gövde içinden yürüyen asker
+    // arka duvardan geçiyor gibi görünüyordu): açık kapının EŞİĞİNDE eğilmiş
+    // belirir, basamaktan iner, sonra mevziye koşar.
+    const inside = S.clone().addScaledVector(f, -3.35);
+    const door = S.clone().addScaledVector(f, -4.7);
     for (const e of this.exits) {
       if (t < e.t0 || e.done) continue;
       const a = e.a;
       a.root.visible = true;
       const k = t - e.t0;
-      let pos, speed, look;
+      let pos, speed, look, duck = false;
       const d1 = inside.distanceTo(door);
-      const walk = 2.4, jog = 4.2;
+      const walk = 1.9, jog = 4.2;
       if (k < d1 / walk) {
-        // Gövde içinden kapıya, zemine iniş (taban 0.5 m)
-        pos = inside.clone().lerp(door, (k * walk) / d1);
-        pos.y = 0.5 * (1 - clamp01((k * walk) / d1 * 1.15));
+        // Eşikten basamağa ve zemine (taban 0.5 m); ilk adımda başı eğik
+        const q = (k * walk) / d1;
+        pos = inside.clone().lerp(door, q);
+        pos.y = 0.5 * (1 - clamp01(q * 1.6));
         speed = walk;
+        duck = q < 0.35;
         look = f.clone().negate();
       } else {
         const k2 = k - d1 / walk;
@@ -214,7 +219,7 @@ export class Intro {
       a.root.position.copy(pos);
       a.facing = Math.atan2(-look.x, -look.z);
       a.root.rotation.y = a.facing;
-      a.soldier.update({ dt, speed, crouching: false, downed: false, aimPitch: 0 });
+      a.soldier.update({ dt, speed, crouching: duck, downed: false, aimPitch: 0 });
     }
     for (const e of this.exits) {
       if (!e.done) continue;
@@ -264,7 +269,7 @@ export class Intro {
       // E: birinci şahıs iniş — kapıdan çık, alana dön
       const k = ease(clamp01((t - T_PLAYER) / 1.5));
       const P = this.opts.finalPos;
-      const from = S.clone().addScaledVector(f, -2.3);
+      const from = S.clone().addScaledVector(f, -3.4);     // kapı eşiği (gövdenin dışı)
       pos = from.lerp(P, k).setY(1.45 + 0.2 * k + Math.sin(t * 9) * 0.02 * (1 - k));
       const turn = ease(clamp01((t - T_PLAYER - 0.9) / 1.3));
       const dir = f.clone().negate().lerp(f, turn);
