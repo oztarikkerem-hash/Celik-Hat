@@ -336,6 +336,18 @@ Ağaçlar sektör başına TEK geometriye kaynaşır (`trees` kapanışı); göv
 mermi durdurur ve çarpışır, taç yalnızca görünüm. Baskın arsasına değen
 sektörde yalnızca "güvenli" arketip (boru/atölye/depo değil) kurulur.
 
+## M4A1 Kırmızı Nokta (yuva **B**)
+
+`assets/weapons/m4classic.glb` — `~/Downloads/classic_m4.glb` (Sketchfab
+"Classic M4", **Mateusz Woliński, CC BY 4.0** — künye ana ekranda),
+`shrink_glb.py ... 2048 1 keep` ile (parçalar AYRI kalır: Magazine,
+ChargingHandle, BoltCarrier, Scope, Sling…). Rakam tuşları dolu olduğu için
+yuvası `'B'` (KeyB). Renk: `def.tint` (doku rengi 0x3c3c3c ile çarpılır,
+metallik 0.25 — yüksek metallikte gökyüzünü yansıtıp maviye çalıyordu).
+Tutuş ölçüleri modelden ölçüldü (kabza −0.32, el kundağı −0.63, tüp
+merkezi bore'un 10.5 cm üstü); `rot` yaw 0 (3° iken nişanda tüp solda
+kalıyordu). Şarjör değişimi `ar` koreografisi.
+
 ## Bıçak
 
 `assets/weapons/knife.glb` (`~/Downloads/combat-knife`, `shrink_glb.py` ile

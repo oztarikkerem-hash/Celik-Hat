@@ -196,6 +196,17 @@ export class Weaponry {
       // yerine gövde/metal/kabza rolleri).
       if (def.finish) applyFinish(model, def.finish);
 
+      // Renk ayarı: dokunun rengi verilen tonla çarpılır (ör. siyah M4A1)
+      if (def.tint) {
+        model.traverse((o) => {
+          if (!o.isMesh || !def.tint.materials.includes(o.material?.name)) return;
+          o.material = o.material.clone();
+          o.material.color.setHex(def.tint.color);
+          if (def.tint.roughness != null) o.material.roughness = def.tint.roughness;
+          if (def.tint.metalness != null) o.material.metalness = def.tint.metalness;
+        });
+      }
+
       // Prosedürel malzemesi glTF'e geçmeyen modeller: ada göre boya
       if (def.paint) {
         model.traverse((o) => {

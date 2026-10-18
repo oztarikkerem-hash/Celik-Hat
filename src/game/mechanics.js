@@ -123,6 +123,26 @@ export const RIGS = {
     },
   },
 
+  // M4A1 kırmızı noktalı (classic_m4): parça adları Magazine_m4_0 …
+  m4a1: {
+    reload: 'ar',
+    parts: { mag: /^Magazine/ },
+    // Ölçüm (tutucu uzayı): kabza ortası (0, −0.11, −0.34), el kundağı
+    // alt yüzü y ≈ −0.02 z −0.56…−0.78, kırmızı nokta merkezi y 0.125
+    anchors: {
+      grip: a([0.02, -0.078, -0.318], R_GRIP, 'trigger'),
+      support: a([0.003, -0.026, -0.63], L_UNDER, 'support'),
+      mag: a([-0.03, -0.065, 0.02], L_MAG, 'mag', { on: 'mag' }),
+      boltCatch: a([-0.035, 0.004, -0.43], { k: [0.3, 0.2, -0.93], n: [0.97, 0, 0.2] }, 'flat'),
+    },
+    magPoses: {
+      out: { p: [0, -0.05, 0], r: [0.03, 0, 0] },
+      below: { p: [0, -0.18, 0.03], r: [0.16, 0, 0.06] },
+      start: { p: [0, -0.06, 0.006], r: [0.05, 0, 0] },
+      tug: { p: [0, -0.005, 0], r: [0, 0, 0] },
+    },
+  },
+
   mg43: {
     reload: 'belt',
     parts: {

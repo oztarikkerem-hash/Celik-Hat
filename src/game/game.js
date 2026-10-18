@@ -304,6 +304,7 @@ export class Game {
       if (this.raid.mounted || this.player.downed) return;
       if (code === 'KeyR') this.weaponry.startReload();
       if (code === 'KeyG') this._throwGrenade();
+      if (code === 'KeyB') this.weaponry.equipSlot('B');      // M4A1 (rakamlar dolu)
       if (code.startsWith('Digit')) {
         const n = Number(code.slice(5));
         if (n >= 0 && n <= 9) this.weaponry.equipSlot(n);       // 0: bıçak

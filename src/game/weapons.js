@@ -270,6 +270,37 @@ export const WEAPONS = [
       flipUp: false,
     },
   },
+  {
+    id: 'm4a1',
+    // Sketchfab "Classic M4" (Mateusz Woliński, CC BY 4.0): kırmızı noktalı
+    // nişangâh, kayış. Kendi dokuları siyah; renk ayarı siyahı koyulaştırır.
+    name: 'M4A1 Kırmızı Nokta',
+    file: 'assets/weapons/m4classic.glb',
+    kind: 'Piyade Tüfeği',
+    slot: 'B',
+    damage: 31,
+    rpm: 760,
+    auto: true,
+    mag: 30,
+    reserve: 270,
+    reloadTime: 2.1,
+    spread: 1.05,
+    adsSpread: 0.14,
+    recoil: 0.8,
+    kickback: 0.032,
+    zoom: 1.45,
+    tracer: 0xffd9a0,
+    flash: 0.9,
+    sound: { body: 145, crack: 2850, length: 0.16, punch: 0.6 },
+    // Siyah: dokunun rengi bu tonla çarpılır (kayış ve nişangâh dahil)
+    // (metallik değer düşük: yüksekken gökyüzünü yansıtıp maviye çalıyordu)
+    tint: { color: 0x3c3c3c, roughness: 0.62, metalness: 0.25, materials: ['material', 'scope', 'sling'] },
+    view: {
+      // Nişanda kırmızı nokta tüpü (namlunun ~10.5 cm üstü) göz hizasına
+      // gelir; yan açı 0 — 3° iken tüp ekran merkezinin solunda kalıyordu
+      length: 0.84, pos: [0.13, -0.18, 0.11], rot: [0, 0, 0], adsPos: [0, -0.105, 0.05],
+    },
+  },
 ];
 
 // Bıçak: listenin SONUNDA (yuva sırası WEAPONS[1] = AK-47 varsayımını bozmasın).

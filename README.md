@@ -6,8 +6,8 @@
 Tarayıcıda çalışan birinci şahıs nişancı oyunu. Three.js (görüntü) ve
 cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
 
-- Dokuz silah (Desert Eagle, AK-47, MAR 556, MG 43, Barrett M82, M98B,
-  Minigun, M4 Karabina, Bazuka) — gerçek ellerle tutuluyor, her birinin
+- On silah (Desert Eagle, AK-47, MAR 556, MG 43, Barrett M82, M98B,
+  Minigun, M4 Karabina, Bazuka, M4A1 Kırmızı Nokta) ve bıçak — gerçek ellerle tutuluyor, her birinin
   kendine özgü şarjör değiştirme animasyonu var.
 - Sandıklardan siper hatları; düşmanlar siperde saklanıp doğrularak ateş
   ediyor, siperden sipere ilerliyor.
@@ -48,6 +48,7 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | R | Şarjör değiştir |
 | 1–9, fare tekerleği | Silah seç |
 | 0 | Bıçak (sol tık savurur; arkadan üç kat hasar) |
+| B | M4A1 kırmızı noktalı tüfek |
 | C / Ctrl | Çömel (siperin arkasında tamamen saklanırsın) |
 | G | El bombası |
 | X | Dürbün |
@@ -76,6 +77,8 @@ Ayrıntılı geliştirici notları: [CLAUDE.md](CLAUDE.md).
 
 - Asker modelleri: **SpatialNeglect** — S.W.A.T. Operator ve FSB Operator
   (Sketchfab, CC BY 4.0).
+- M4A1 (Classic M4): **Mateusz Woliński** — Sketchfab, CC BY 4.0;
+  dokular 2048'e küçültüldü.
 - M2 Browning makineli tüfek: **Ajay Kumar** — "M2 Browning Machine Gun"
   (Sketchfab, CC BY 4.0); dokular küçültüldü, üçgen sayısı yarıya indirildi.
 - Diğer silah, araç ve yapı modelleri Sketchfab ve kişisel Blender
