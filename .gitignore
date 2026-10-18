@@ -8,3 +8,7 @@
 *.blend1
 *.tmp
 __pycache__/
+
+# Araç modeli (M1200): ticari bir oyundan çıkarılmış görünüyor; kullanıcı
+# onaylayana kadar herkese açık depoya konmuyor
+assets/vehicles/m1200.glb

@@ -70,6 +70,7 @@ export class Hud {
       raidBannerEyebrow: $('raid-banner-eyebrow'),
       raidBannerTitle: $('raid-banner-title'),
       raidLoadout: $('raidLoadout'),
+      mapPick: $('mapPick'),
       raidFinale: $('raidFinale'),
     };
     this._lastScore = 0;
@@ -84,7 +85,7 @@ export class Hud {
   }
 
   screen(name) {
-    for (const key of ['loader', 'home', 'missionsScreen', 'shopScreen', 'chapterScreen', 'tankPickScreen', 'raidLoadout', 'raidFinale', 'victory', 'pause', 'gameover']) {
+    for (const key of ['loader', 'home', 'missionsScreen', 'shopScreen', 'chapterScreen', 'tankPickScreen', 'mapPick', 'raidLoadout', 'raidFinale', 'victory', 'pause', 'gameover']) {
       this.el[key].hidden = key !== name;
     }
     this.el.hud.hidden = name !== null;
@@ -424,7 +425,7 @@ export class Hud {
       li.classList.toggle('active', li.dataset.id === def.id);
     }
     this.el.weaponName.textContent = def.name;
-    this.el.fireMode.textContent = def.auto ? 'OTO' : 'TEK';
+    this.el.fireMode.textContent = def.melee ? 'YAKIN' : def.auto ? 'OTO' : 'TEK';
   }
 
   setAmmo(mag, magSize, reserve) {
@@ -552,6 +553,33 @@ export class Hud {
   hideBanner() {
     clearTimeout(this._bannerTimer);
     this.el.raidBanner.hidden = true;
+  }
+
+  /**
+   * Alan kartları. maps: maps.js listesi, onPick(id): seçilince.
+   * Önizleme şeridi alanın gök → ufuk → zemin renklerinden çizilir.
+   */
+  buildMapPick(maps, selectedId, missionName, onPick) {
+    $('mappick-mission').textContent = missionName ? `ALAN SEÇİMİ · ${missionName}` : 'ALAN SEÇİMİ · SERBEST HAT';
+    const grid = $('map-grid');
+    grid.innerHTML = '';
+    for (const m of maps) {
+      const [gok, ufuk, zemin, koyu] = m.onizleme;
+      const card = document.createElement('article');
+      card.className = `shop-card map-card${m.id === selectedId ? ' equipped' : ''}`;
+      card.innerHTML = `
+        <div class="map-preview" style="background:
+          linear-gradient(180deg, ${gok} 0%, ${ufuk} 52%, ${zemin} 53%, ${koyu} 100%)"></div>
+        <header><h3>${m.ad}</h3>${m.id === selectedId ? '<span class="shop-price">SON SEÇİLEN</span>' : ''}</header>
+        <p>${m.aciklama}</p>`;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'shop-btn';
+      btn.textContent = 'Bu alanda başla';
+      btn.addEventListener('click', () => onPick(m.id));
+      card.append(btn);
+      grid.append(card);
+    }
   }
 
   /**

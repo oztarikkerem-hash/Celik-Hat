@@ -32,6 +32,18 @@ export const POUCH = { p: [-0.2, -0.62, -0.12], r: [0.25, 0.4, 0.35] };
 const a = (p, dir, pose, extra = {}) => ({ p, ...dir, pose, ...extra });
 
 export const RIGS = {
+  // Bıçak: tek elle çekiç tutuşu (sap tutucu uzayında -Z boyunca). Sol el
+  // ekran dışında, göğüs hizasında yumruk — iki elle tutulan silah yok.
+  bicak: {
+    reload: null,
+    stance: { yaw: 0.1, mid: [0, -0.27, 0.1] },
+    parts: {},
+    anchors: {
+      grip: a([0.0, -0.012, -0.055], { k: [-0.15, 0.55, -0.82], n: [-0.97, 0.05, 0.2] }, 'fist'),
+      support: a([-0.36, -0.2, 0.2], { k: [0.3, 0.6, -0.75], n: [0.9, 0.2, 0.3] }, 'fist'),
+    },
+  },
+
   deagle: {
     reload: 'pistol',
     stance: { yaw: 0.12, mid: [0, -0.27, 0.1] },     // tabanca: omuzlar karşıya

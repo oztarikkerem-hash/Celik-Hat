@@ -272,6 +272,38 @@ export const WEAPONS = [
   },
 ];
 
+// Bıçak: listenin SONUNDA (yuva sırası WEAPONS[1] = AK-47 varsayımını bozmasın).
+// Yakın dövüş — mermi yok; sol tık savurur, 0 tuşuyla kuşanılır.
+WEAPONS.push({
+  id: 'bicak',
+  name: 'Muharebe Bıçağı',
+  file: 'assets/weapons/knife.glb',
+  kind: 'Bıçak',
+  slot: 0,
+  melee: { damage: 75, range: 2.4, backstab: 3, swing: 0.42, hitAt: 0.16 },
+  damage: 75,
+  rpm: 110,
+  auto: true,           // basılı tutunca art arda savurur
+  mag: 1,
+  reserve: 0,
+  reloadTime: 0,
+  spread: 0,
+  adsSpread: 0,
+  recoil: 0,
+  kickback: 0,
+  zoom: 1,
+  noAds: true,
+  tracer: 0xffffff,
+  flash: 0,
+  sound: { body: 0, crack: 0, length: 0, punch: 0 },
+  view: {
+    // Ucu ileri, keskin ağzı aşağı; sağ alt köşede
+    length: 0.31, pos: [0.17, -0.2, -0.2], rot: [8, -6, -12],
+    // Otomatik tespit sapı ileri koyuyordu (sap kalın, ağız ince)
+    flipForward: true,
+  },
+});
+
 export const byId = Object.fromEntries(WEAPONS.map((w) => [w.id, w]));
 
 /* Vuruş bölgesi çarpanları: ayaktan en az, gövdeden orta, kafadan en çok

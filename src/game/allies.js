@@ -192,6 +192,8 @@ export class AllyManager {
 
   update(dt, now, player, enemies) {
     for (const ally of this.allies) {
+      // Araca binenleri araç taşır ve oynatır (vehicle.js)
+      if (ally.aboard) continue;
       // ── Yeniden ayağa kalkma ────────────────────────────────────────
       if (ally.downed) {
         if (now >= ally.reviveAt) {

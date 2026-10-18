@@ -296,6 +296,56 @@ AYRI bir kopyadır, buradaki değişiklikler oraya gitmez.
 - Sipere son yaklaşmada engelden kaçınma zayıflatılır: tam kuvvetle itme
   askeri siper noktasına (duvardan 0.55 m) hiç ulaştırmıyordu.
 
+## Alanlar (`src/game/maps.js`)
+
+Görev seçilip "başla" denince alan sorulur (`game._askMap`, `#mapPick`);
+seçim `celikhat.alan`'da kalır. Dört alan aynı sektörlü akış dünyasını
+kullanır, `world.setTheme(map)` gökyüzü/sis/ışık/zemin/yol/çevre duvarını
+değiştirir ve sektörleri söker (yeni arketiplerle yeniden kurulur).
+
+| Alan | Zemin | Arketipler |
+|---|---|---|
+| Sanayi Bölgesi | beton, asfalt | depo, atölye, avlu, boru (+ yolda kontrol) |
+| Çöl Kasabası | kum, toprak yol | kerpiç ev (+hurma), kamp (çadır, torba çemberi) |
+| Orman | çimen | koru, kayalık, kulübe |
+| Karlı Dağ Üssü | kar | depo, çamlık (karlı çam), avlu |
+
+Ağaçlar sektör başına TEK geometriye kaynaşır (`trees` kapanışı); gövde
+mermi durdurur ve çarpışır, taç yalnızca görünüm. Baskın arsasına değen
+sektörde yalnızca "güvenli" arketip (boru/atölye/depo değil) kurulur.
+
+## Bıçak
+
+`assets/weapons/knife.glb` (`~/Downloads/combat-knife`, `shrink_glb.py` ile
+dokular 1024). `weapons.js`'te listenin SONUNDA (`WEAPONS[1]` AK-47
+varsayımı bozulmasın), yuva **0**, `melee` alanı. `weaponry.tryFire`
+savurmayı başlatır, `update` `swingPose` ile tutucuyu sap çevresinde
+döndürür, `hitAt`'te `onMelee` → `game._meleeAttack`: kısa ışın, tutmazsa
+±35° koni; kafaya ×2, arkadan (`backstab`) ×3. Model otomatik hizalamada
+ters geliyordu → `flipForward: true`. Baskın'da bıçak seçim hakkından
+sayılmaz, hep yanında (`setLoadout`).
+
+## Zırhlı araç (`src/game/vehicle.js`)
+
+M1200 Armored Knight, `~/Downloads/m1200-armored-knight` (FBX) →
+`tools/export_vehicle.py` (dokular adına göre bağlanır, eksik normal
+haritası düğümü silinir) → `assets/vehicles/m1200.glb`.
+**Bu dosya `.gitignore`'da**: doku yolları modelin ticari bir oyundan
+(Combat Mission Black Sea) çıkarıldığını gösteriyor; kullanıcı onaylamadan
+herkese açık depoya konmuyor. Dosya yoksa oyun araçsız açılır.
+
+- Model +X'e bakar; düğüm kökenleri araç merkezinde olduğu için tekerlek
+  ve kule kendi merkezlerinde pivota alınır. Doku saydamlık kanalı gövdeyi
+  hayalet gösteriyordu → cam dışı her şey opak; kuledeki M2 boyanır.
+- E ile binilir/inilir (Baskın'da E makineli, araç yok). 30 m'deki
+  müttefikler biner (`ally.aboard`, AllyManager onları atlar); ilki kulede
+  görünür, kule hedefe döner ve ateş eder (`game.onTurretHit`).
+- Sürüş: bisiklet modeli, hızla kısılan direksiyon, 3 çarpışma dairesi;
+  eşyalar savrulur, 3.5 m/sn üstünde önüne çıkan düşman ezilir.
+- Araçtayken oyuncuya gelen hasar araca gider (`_onPlayerHit`); gövdeye
+  saplanan düşman mermisi `enemies.onBlocked` ile zırhı aşındırır. 2500
+  zırh bitince patlar: enkaz kalır, sürücü 35 hasar alır.
+
 ## Ağır yaralı ve tedavi
 
 - Can 0 olunca `game._goDown()`: oyuncu yere düşer (`player.downed`, göz

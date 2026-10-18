@@ -6,15 +6,18 @@
    çarpışma kutuları ve fizik gövdeleri serbest bırakılır).
 
    Her sektör konumundan türeyen sabit bir tohumla üretilir — aynı sektör her
-   yüklendiğinde birebir aynı görünür — ve dört arketipten birini alır:
-   depo, avlu, atölye, boru hattı.                                          */
+   yüklendiğinde birebir aynı görünür — ve seçili ALANIN (maps.js) arketip
+   listesinden birini alır: sanayide depo/avlu/atölye/boru hattı, çölde
+   kerpiç ev/kamp, ormanda koru/kayalık/kulübe, karda çamlık…            */
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   concreteTexture, roadTexture, containerTexture, crateTexture,
   barrelTexture, wallTexture, buildingTexture, skyTexture, sunTexture, asphaltTexture,
+  sandTexture, grassTexture, snowTexture, dirtTexture, mudTexture, themedSkyTexture, plankTexture,
 } from './textures.js';
+import { MAPS, weightedPick } from './maps.js';
 
 const SECTOR = 28;
 const GRID = 9;            // 9×9 sektör = 252 m kare saha
@@ -32,6 +35,34 @@ function seeded(ix, iz) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/** Birim kaya: kenarları rastgele itilmiş düşük çokgenli küre (1×1×1). */
+function rockGeometry() {
+  const g = new THREE.IcosahedronGeometry(0.5, 1);
+  const p = g.attributes.position;
+  const seen = new Map();
+  for (let i = 0; i < p.count; i++) {
+    const key = `${p.getX(i).toFixed(3)},${p.getY(i).toFixed(3)},${p.getZ(i).toFixed(3)}`;
+    if (!seen.has(key)) seen.set(key, 0.82 + Math.random() * 0.3);
+    const k = seen.get(key);
+    p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.9, p.getZ(i) * k);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Birim üçgen prizma (çadır / beşik çatı): taban 1×1, yükseklik 1, x boyunca. */
+function prismGeometry() {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.5, -0.5);
+  shape.lineTo(0.5, -0.5);
+  shape.lineTo(0, 0.5);
+  shape.closePath();
+  const g = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false });
+  g.translate(0, 0, -0.5);
+  g.rotateY(Math.PI / 2);          // mahya x ekseni boyunca
+  return g;
 }
 
 export class World {
@@ -61,6 +92,7 @@ export class World {
     this.fixtures = [];
     // Bu dairenin içine sektör eşyası kurulmaz (görev yapısına yer açılır)
     this.clearZone = null;        // { x, z, r }
+    this.theme = MAPS[0];         // seçili alan (setTheme)
     this._dirty = true;
     this._frustum = new THREE.Frustum();
     this._projScreen = new THREE.Matrix4();
@@ -82,7 +114,8 @@ export class World {
     // Sis gök rengiyle aynı tonda: uzak sektörler ufukta eriyerek belirir
     scene.fog = new THREE.Fog(0xaccbe4, 60, 210);
 
-    scene.add(new THREE.HemisphereLight(0x9ec4ea, 0x6b6a4e, 1.5));
+    this.hemi = new THREE.HemisphereLight(0x9ec4ea, 0x6b6a4e, 1.5);
+    scene.add(this.hemi);
 
     // Güneş yönü: ışık ve gökteki disk aynı vektörü kullanır
     this.sunDir = new THREE.Vector3(-0.55, 0.52, 0.65).normalize();
@@ -103,6 +136,7 @@ export class World {
 
     // Dolgu: gökyüzünün karşı tarafından soğuk ışık — gölgeler mavi olsun
     const fill = new THREE.DirectionalLight(0xaecbe8, 0.85);
+    this.fill = fill;
     fill.position.set(48, 26, -34);
     scene.add(fill);
 
@@ -144,6 +178,17 @@ export class World {
       lamp: new THREE.MeshStandardMaterial({
         color: 0x2a2114, emissive: 0xffb257, emissiveIntensity: 3.4, roughness: 0.5,
       }),
+      // Alanlara özel malzemeler
+      mud: new THREE.MeshStandardMaterial({ map: mudTexture(3), roughness: 0.95, metalness: 0 }),
+      mudDark: new THREE.MeshStandardMaterial({ map: mudTexture(3), color: 0x8f7a5e, roughness: 0.95 }),
+      woodWall: new THREE.MeshStandardMaterial({ map: plankTexture(), color: 0x9a8a72, roughness: 0.9 }),
+      bark: new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 0.95, flatShading: true }),
+      leaf: new THREE.MeshStandardMaterial({ color: 0x3f5a2a, roughness: 0.9, flatShading: true }),
+      pine: new THREE.MeshStandardMaterial({ color: 0x2c4a2e, roughness: 0.9, flatShading: true }),
+      palm: new THREE.MeshStandardMaterial({ color: 0x5f7a34, roughness: 0.85, flatShading: true, side: THREE.DoubleSide }),
+      snowCap: new THREE.MeshStandardMaterial({ color: 0xf2f6fa, roughness: 0.8, flatShading: true }),
+      rock: new THREE.MeshStandardMaterial({ color: 0x6f6d66, roughness: 0.92, flatShading: true }),
+      tent: new THREE.MeshStandardMaterial({ color: 0x8d7f5a, roughness: 0.95, side: THREE.DoubleSide }),
     };
 
     this.geo = {
@@ -151,6 +196,9 @@ export class World {
       cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 16),
       pole: new THREE.CylinderGeometry(0.11, 0.13, 1, 8),
       sphere: new THREE.SphereGeometry(0.5, 10, 8),
+      rock: rockGeometry(),
+      prism: prismGeometry(),
+      logX: new THREE.CylinderGeometry(0.5, 0.5, 1, 10).rotateZ(Math.PI / 2),
     };
 
     // ── Zemin ──────────────────────────────────────────────────────────
@@ -158,6 +206,9 @@ export class World {
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     this._statik(floor);
+    this.floor = floor;
+    this.roads = [];
+    this.perimeter = [];
     this.solids.push(floor);
     this.physics.addGroundPlane(0);
 
@@ -176,6 +227,7 @@ export class World {
       road.position.y = 0.015;
       road.receiveShadow = true;
       this._statik(road);
+      this.roads.push(road);
     }
 
     // İki yol ortada üst üste biniyor ve şeritler birbirine karışıyordu:
@@ -188,6 +240,8 @@ export class World {
     kavsak.position.y = 0.022;
     kavsak.receiveShadow = true;
     this._statik(kavsak);
+    this.roads.push(kavsak);
+    this._roadMats = this.roads.map((r) => r.material);
 
     // ── Çevre duvarı ───────────────────────────────────────────────────
     const h = this.half;
@@ -199,6 +253,7 @@ export class World {
       mesh.position.set(x, WALL_H / 2, z);
       mesh.castShadow = mesh.receiveShadow = true;
       this._statik(mesh);
+      this.perimeter.push(mesh);
       this.solids.push(mesh);
       this.colliders.push(new THREE.Box3().setFromCenterAndSize(
         new THREE.Vector3(x, WALL_H / 2, z), new THREE.Vector3(sx, WALL_H, sz),
@@ -317,20 +372,99 @@ export class World {
     const inRoad = (x, z) => Math.abs(center.x + x) < 6 || Math.abs(center.z + z) < 6
       || inZone(x, z, 4);
 
+    /**
+     * Ağaçlar: gövdeler ve taçlar sektör başına TEK geometriye kaynaşır
+     * (yüzlerce ayrı ağaç çizim çağrısı olmasın). Gövde mermi durdurur ve
+     * çarpışır, taç yalnızca görünüm. style: palm | pine | pineSnow | leaf
+     */
+    const trees = (count, style) => {
+      const trunks = [], crowns = [], caps = [];
+      for (let i = 0; i < count; i++) {
+        const x = (rand() - 0.5) * (SECTOR - 3), z = (rand() - 0.5) * (SECTOR - 3);
+        const s = 0.8 + rand() * 0.5;
+        const turn = rand() * Math.PI * 2;
+        if (inRoad(x, z) || inZone(x, z, 2)) continue;
+        const wx = center.x + x, wz = center.z + z;
+        if (colliders.some((b) => wx > b.min.x - 1.2 && wx < b.max.x + 1.2
+          && wz > b.min.z - 1.2 && wz < b.max.z + 1.2)) continue;
+        let h;
+        if (style === 'palm') {
+          h = 6.2 * s;
+          trunks.push(new THREE.CylinderGeometry(0.13 * s, 0.21 * s, h, 7).translate(wx, h / 2, wz));
+          for (let k = 0; k < 8; k++) {
+            crowns.push(new THREE.BoxGeometry(2.7 * s, 0.05, 0.55 * s)
+              .translate(1.35 * s, 0, 0).rotateZ(-0.38 - (k % 2) * 0.25)
+              .rotateY(turn + (k / 8) * Math.PI * 2).translate(wx, h, wz));
+          }
+        } else if (style === 'pine' || style === 'pineSnow') {
+          h = 7.5 * s;
+          trunks.push(new THREE.CylinderGeometry(0.16 * s, 0.28 * s, h, 7).translate(wx, h / 2, wz));
+          for (let k = 0; k < 3; k++) {
+            const r = (2.1 - k * 0.55) * s, ch = (2.8 - k * 0.4) * s, y = (2.4 + k * 1.75) * s;
+            crowns.push(new THREE.ConeGeometry(r, ch, 7).rotateY(turn).translate(wx, y + ch / 2, wz));
+            if (style === 'pineSnow') {
+              caps.push(new THREE.ConeGeometry(r * 0.62, ch * 0.42, 7).rotateY(turn)
+                .translate(wx, y + ch * 0.8, wz));
+            }
+          }
+        } else {
+          h = 4.6 * s;
+          trunks.push(new THREE.CylinderGeometry(0.2 * s, 0.32 * s, h, 7).translate(wx, h / 2, wz));
+          crowns.push(new THREE.IcosahedronGeometry(2.1 * s, 0).scale(1, 0.85, 1)
+            .rotateY(turn).translate(wx, h + 0.9 * s, wz));
+          crowns.push(new THREE.IcosahedronGeometry(1.4 * s, 0)
+            .translate(wx + 0.9 * s, h + 0.2 * s, wz - 0.5 * s));
+        }
+        const box = new THREE.Box3().setFromCenterAndSize(
+          new THREE.Vector3(wx, h / 2, wz), new THREE.Vector3(0.6 * s, h, 0.6 * s),
+        );
+        colliders.push(box);
+        bodies.push(this.physics.addStaticBox(box.getCenter(new THREE.Vector3()), { x: 0.6 * s, y: h, z: 0.6 * s }));
+      }
+      const add = (list, mat, solidMesh) => {
+        if (!list.length) return;
+        const geo = mergeGeometries(list.map((g) => g.toNonIndexed()), false);
+        for (const g of list) g.dispose();
+        geo.computeVertexNormals();
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = mesh.receiveShadow = true;
+        group.add(mesh);
+        if (solidMesh) solids.push(mesh);
+      };
+      add(trunks, M.bark, true);
+      add(crowns, style === 'palm' ? M.palm : style === 'leaf' ? M.leaf : M.pine, false);
+      add(caps, M.snowCap, false);
+    };
+
+    /** Yerde yatan kütük (siper): x ekseni boyunca silindir. */
+    const log = (x, z, len, rotY) => solid(G.logX, M.bark, x, 0.42, z, len, 0.84, 0.84, rotY);
+
+    /** Kaya kümesi: biri büyük (siper), çevresinde küçükler. */
+    const rocks = (x, z, big) => {
+      const sx = big ? 2.2 + rand() * 1.4 : 1 + rand() * 0.8;
+      const sy = big ? 1.2 + rand() * 0.9 : 0.6 + rand() * 0.5;
+      solid(G.rock, M.rock, x, sy * 0.42, z, sx, sy, sx * (0.8 + rand() * 0.4), rand() * Math.PI);
+    };
+
     /* Arketip seçimi — yol üstündeki sektörler açık kalır. */
     const onRoad = Math.abs(center.x) < 7 || Math.abs(center.z) < 7;
     const roll = rand();
     // Görev arsasına değen sektörde boru hattı/depo binası kurulmaz: onlar
     // sektörü baştan başa geçiyor, evin çatısından geçerdi.
     const nearZone = zone && Math.hypot(center.x - zone.x, center.z - zone.z) < zone.r + SECTOR * 0.75;
-    const archetype = nearZone ? 'avlu' : onRoad ? (roll < 0.5 ? 'avlu' : 'kontrol')
-      : roll < 0.3 ? 'depo' : roll < 0.55 ? 'atolye' : roll < 0.78 ? 'avlu' : 'boru';
+    const T = this.theme;
+    let archetype = weightedPick(onRoad ? T.yolArketip : T.arketipler, roll);
+    if (nearZone) {
+      const guvenli = Object.fromEntries(Object.entries(T.arketipler)
+        .filter(([k]) => !['boru', 'atolye', 'depo'].includes(k)));
+      archetype = Object.keys(guvenli).length ? weightedPick(guvenli, roll) : 'avlu';
+    }
 
     // ── Ortak: aydınlatma direği ───────────────────────────────────────
     {
       const lx = (rand() - 0.5) * (SECTOR - 8);
       const lz = (rand() - 0.5) * (SECTOR - 8);
-      if (!inZone(lx, lz, 1)) {
+      if (!inZone(lx, lz, 1) && T.lamba) {
       const pole = new THREE.Mesh(G.pole, M.darkSteel);
       pole.scale.set(1, 7.5, 1);
       pole.position.set(center.x + lx, 3.75, center.z + lz);
@@ -435,6 +569,98 @@ export class World {
       for (let i = 0; i < 3; i++) {
         prop(G.box, M.crate, (rand() - 0.5) * 10, 0.75, (rand() - 0.5) * 10, 1.5, 1.5, 1.5, 32);
       }
+    } else if (archetype === 'kerpic') {
+      // Kerpiç evler: düz damlı, kapı/pencere boşlukları koyu levha;
+      // aralarında göğüs hizasında avlu duvarları (siper)
+      const n = 2 + Math.floor(rand() * 2);
+      for (let i = 0; i < n; i++) {
+        const w = 5 + rand() * 3, d = 4.5 + rand() * 3, h = 2.8 + rand() * 1.3;
+        const x = (rand() - 0.5) * (SECTOR - w - 4), z = (rand() - 0.5) * (SECTOR - d - 4);
+        const doorAt = (rand() - 0.5) * (w - 2);
+        if (inRoad(x, z)) continue;
+        if (!solid(G.box, M.mud, x, h / 2, z, w, h, d)) continue;
+        const roof = new THREE.Mesh(G.box, M.mudDark);
+        roof.scale.set(w + 0.3, 0.25, d + 0.3);
+        roof.position.set(center.x + x, h + 0.12, center.z + z);
+        roof.castShadow = roof.receiveShadow = true;
+        group.add(roof);
+        const door = new THREE.Mesh(G.box, M.darkSteel);
+        door.scale.set(1.0, 1.95, 0.06);
+        door.position.set(center.x + x + doorAt, 0.98, center.z + z + d / 2 + 0.03);
+        group.add(door);
+        for (const side of [-1, 1]) {
+          const win = new THREE.Mesh(G.box, M.darkSteel);
+          win.scale.set(0.8, 0.7, 0.06);
+          win.position.set(center.x + x + side * w / 4, h * 0.62, center.z + z - d / 2 - 0.03);
+          group.add(win);
+        }
+      }
+      for (let i = 0; i < 3; i++) {
+        const len = 4 + rand() * 5, along = rand() < 0.5;
+        const x = (rand() - 0.5) * (SECTOR - 6), z = (rand() - 0.5) * (SECTOR - 6);
+        if (!inRoad(x, z)) solid(G.box, M.mud, x, 0.6, z, along ? len : 0.45, 1.2, along ? 0.45 : len);
+      }
+      trees(3 + Math.floor(rand() * 3), 'palm');
+    } else if (archetype === 'kamp') {
+      // Askeri kamp: çadırlar, kum torbası çemberi, konteyner, variller
+      for (let i = 0; i < 2 + Math.floor(rand() * 2); i++) {
+        const x = (rand() - 0.5) * (SECTOR - 8), z = (rand() - 0.5) * (SECTOR - 8);
+        const rot = rand() < 0.5 ? 0 : Math.PI / 2;
+        if (!inRoad(x, z)) solid(G.prism, M.tent, x, 1.3, z, 5.5, 2.6, 3.8, rot);
+      }
+      {
+        const cx = (rand() - 0.5) * (SECTOR - 10), cz = (rand() - 0.5) * (SECTOR - 10);
+        if (!inRoad(cx, cz)) {
+          for (let k = 0; k < 11; k++) {
+            if (k === 0 || k === 1) continue;                  // giriş boşluğu
+            const a = (k / 11) * Math.PI * 2;
+            solid(G.sphere, M.sandbag, cx + Math.cos(a) * 3, 0.3, cz + Math.sin(a) * 3, 1.1, 0.62, 0.9);
+            solid(G.sphere, M.sandbag, cx + Math.cos(a) * 3, 0.85, cz + Math.sin(a) * 3, 1.05, 0.6, 0.86);
+          }
+        }
+      }
+      if (rand() < 0.7) {
+        const x = (rand() - 0.5) * (SECTOR - 10), z = (rand() - 0.5) * (SECTOR - 10);
+        if (!inRoad(x, z)) solid(G.box, M.containerAlt, x, 1.5, z, rand() < 0.5 ? 7 : 2.9, 3, rand() < 0.5 ? 2.9 : 7);
+      }
+      for (let i = 0; i < 4; i++) {
+        const x = (rand() - 0.5) * (SECTOR - 4), z = (rand() - 0.5) * (SECTOR - 4);
+        if (!inRoad(x, z)) prop(G.cyl, M.barrel, x, 0.56, z, 0.84, 1.12, 0.84, 34);
+      }
+    } else if (archetype === 'koru' || archetype === 'camlik') {
+      // Sık ağaçlık; aralarda devrik kütükler ve kayalar siper olur
+      for (let i = 0; i < 3; i++) {
+        const x = (rand() - 0.5) * (SECTOR - 6), z = (rand() - 0.5) * (SECTOR - 6);
+        const len = 3 + rand() * 2.5, rot = rand() * Math.PI;
+        if (inRoad(x, z)) continue;
+        if (i < 2) log(x, z, len, rot); else rocks(x, z, true);
+      }
+      trees(16 + Math.floor(rand() * 8), archetype === 'camlik' ? 'pineSnow' : rand() < 0.5 ? 'pine' : 'leaf');
+    } else if (archetype === 'kaya') {
+      // Kayalık: büyük kaya kümeleri (siper) ve seyrek ağaç
+      for (let i = 0; i < 6; i++) {
+        const x = (rand() - 0.5) * (SECTOR - 5), z = (rand() - 0.5) * (SECTOR - 5);
+        if (inRoad(x, z)) continue;
+        rocks(x, z, i < 4);
+        if (i < 3) rocks(x + 1.6, z + (rand() - 0.5) * 2, false);
+      }
+      trees(6 + Math.floor(rand() * 4), this.theme.zemin === 'kar' ? 'pineSnow' : 'pine');
+    } else if (archetype === 'kulube') {
+      // Ahşap kulübe: beşik çatılı; yanında odun yığını (devrilebilir)
+      const w = 5 + rand() * 2, d = 4 + rand() * 1.5, h = 2.6;
+      const x = (rand() - 0.5) * (SECTOR - 10), z = (rand() - 0.5) * (SECTOR - 10);
+      if (!inRoad(x, z) && solid(G.box, M.woodWall, x, h / 2, z, w, h, d)) {
+        const roof = new THREE.Mesh(G.prism, M.bark);
+        roof.scale.set(w + 0.7, 1.5, d + 0.7);
+        roof.position.set(center.x + x, h + 0.75, center.z + z);
+        roof.castShadow = roof.receiveShadow = true;
+        group.add(roof);
+        for (let k = 0; k < 3; k++) {
+          prop(G.cyl, M.bark, x + w / 2 + 1.2, 0.3 + k * 0.01, z - 1 + k * 0.7, 0.5, 0.6, 0.5, 18);
+        }
+      }
+      log((rand() - 0.5) * (SECTOR - 8), (rand() - 0.5) * (SECTOR - 8), 4, rand() * Math.PI);
+      trees(9 + Math.floor(rand() * 5), 'leaf');
     } else {
       // avlu: dağınık sandık yığınları, paletler, çit
       const stacks = 2 + Math.floor(rand() * 3);
@@ -639,6 +865,59 @@ export class World {
     this.statikler.push(obj);
     this.scene.add(obj);
     return obj;
+  }
+
+  /**
+   * Alanı değiştirir (maps.js): gökyüzü, sis, ışık, zemin, yollar ve çevre
+   * duvarı hemen değişir; sektörler sökülür, akış onları yeni alanın
+   * arketipleriyle yeniden kurar.
+   */
+  setTheme(map) {
+    if (!map) return;
+    const changed = map.id !== this.theme?.id;
+    this.theme = map;
+    const scene = this.scene;
+    const sky = themedSkyTexture(map.gok);
+    scene.background = sky;
+    scene.environment = sky;
+    scene.fog.color.setHex(map.sis.renk);
+    scene.fog.near = map.sis.yakin;
+    scene.fog.far = map.sis.uzak;
+    this.hemi.color.setHex(map.hemi[0]);
+    this.hemi.groundColor.setHex(map.hemi[1]);
+    this.hemi.intensity = map.hemi[2];
+    this.sun.color.setHex(map.gunes[0]);
+    this.sun.intensity = map.gunes[1];
+    this.fill.intensity = map.dolgu;
+    this.renderer.toneMappingExposure = map.pozlama;
+
+    const M = this.materials;
+    const zemin = { beton: () => concreteTexture(26), kum: () => sandTexture(26),
+      cimen: () => grassTexture(26), kar: () => snowTexture(26) }[map.zemin] ?? (() => concreteTexture(26));
+    M.floor.map = zemin();
+    M.floor.needsUpdate = true;
+
+    // Yollar: sanayide asfalt, diğer alanlarda toprak (kar alanında karlı)
+    if (map.yol === 'asfalt') {
+      this.roads.forEach((r, i) => { r.material = this._roadMats[i]; });
+    } else {
+      const tint = map.yol === 'toprak-kar' ? '#8b8780' : map.zemin === 'cimen' ? '#6b5a3e' : '#9c7f55';
+      this._dirtMat ??= {};
+      if (!this._dirtMat[tint]) {
+        const tex = dirtTexture(1, tint).clone();
+        tex.repeat.set((GRID * SECTOR) / 10, 1);
+        tex.needsUpdate = true;
+        this._dirtMat[tint] = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0 });
+      }
+      for (const r of this.roads) r.material = this._dirtMat[tint];
+    }
+    const duvar = { beton: M.wall, kerpic: M.mud, tahta: M.woodWall }[map.duvar] ?? M.wall;
+    for (const w of this.perimeter) w.material = duvar;
+
+    if (changed) {
+      for (const key of [...this.sectors.keys()]) this._releaseSector(key);
+      this._dirty = true;
+    }
   }
 
   /** Görev yapısı ekler: { colliders, solids, cover } akışla sökülmez. */

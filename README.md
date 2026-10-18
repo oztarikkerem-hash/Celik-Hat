@@ -12,6 +12,9 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
 - Sandıklardan siper hatları; düşmanlar siperde saklanıp doğrularak ateş
   ediyor, siperden sipere ilerliyor.
 - Görevler, müttefik askerler, mağaza (yelek, kask, silah, sağlık).
+- **Dört alan**: Sanayi Bölgesi, Çöl Kasabası, Orman, Karlı Dağ Üssü —
+  görev seçilince hangi alanda savaşacağın sorulur.
+- **Bıçak** (0 tuşu) ve asker taşıyan **zırhlı araç** (E: bin / in).
 - **Ağır yaralı**: can bitince ölmezsin, yere düşersin; hasar almadan
   beklersen kalkarsın ama canın 25'te kalır — sargı bezi ve ilk yardım
   kitiyle (mağaza) tedavi olursun.
@@ -41,10 +44,12 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | Sol tık / Sağ tık | Ateş / nişan al |
 | R | Şarjör değiştir |
 | 1–9, fare tekerleği | Silah seç |
+| 0 | Bıçak (sol tık savurur; arkadan üç kat hasar) |
 | C / Ctrl | Çömel (siperin arkasında tamamen saklanırsın) |
 | G | El bombası |
 | X | Dürbün |
-| E | M2 makineliye geç / bırak (Baskın) |
+| E | Zırhlı araca bin / in · Baskın'da M2 makineliye geç / bırak |
+| W/S, A/D, Space | Araçta: gaz-geri, direksiyon, fren |
 | F | Pencere camını aç / kapat (Baskın) |
 | H | Tedavi: önce sargı bezi, sonra ilk yardım kiti |
 | M | Sesi aç / kapat |

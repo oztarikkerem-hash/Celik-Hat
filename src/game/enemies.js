@@ -630,7 +630,7 @@ export class EnemyManager {
     const blocked = this._ray.intersectObjects(this.arena.solids, false)[0];
     if (blocked) {
       // Kurşun geçirmez cam gibi hasar alan engeller
-      if (blocked.object.userData?.glass) {
+      if (blocked.object.userData?.glass || blocked.object.userData?.vehicle) {
         this.onBlocked?.(blocked.object, enemy.def.shootDamage ?? enemy.damage, blocked.point);
         return;
       }
@@ -675,7 +675,7 @@ export class EnemyManager {
       // Yerdeki ağır yaralı oyuncu öncelikli hedef değil (yine de vurulabilir)
       if (player.downed) hedefMesafe *= 2.5;
       for (const ally of this.allies ?? []) {
-        if (!ally.alive) continue;
+        if (!ally.alive || ally.aboard) continue;
         const d = Math.hypot(ally.pos.x - e.pos.x, ally.pos.z - e.pos.z);
         if (d < hedefMesafe * 0.8) { hedefMesafe = d; hedef = ally; }
       }

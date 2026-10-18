@@ -94,6 +94,25 @@ function makeFlash(scale) {
   return group;
 }
 
+/* Bıçak savurma anahtar kareleri: [u, dx, dy, dz, rx, ry, rz] (tutucuya
+   eklenir; dönme sap çevresinde). Kurulma → kesik → toparlanma. */
+const SWING = [
+  [0.00, 0, 0, 0, 0, 0, 0],
+  [0.24, 0.06, 0.07, 0.05, 0.45, -0.55, 0.35],
+  [0.50, -0.2, -0.07, -0.14, -0.3, 0.85, -0.55],
+  [0.62, -0.22, -0.09, -0.1, -0.35, 0.9, -0.6],
+  [1.00, 0, 0, 0, 0, 0, 0],
+];
+
+function swingPose(u) {
+  let i = 0;
+  while (i < SWING.length - 2 && u > SWING[i + 1][0]) i++;
+  const A = SWING[i], B = SWING[i + 1];
+  let k = (u - A[0]) / (B[0] - A[0]);
+  k = k * k * (3 - 2 * k);
+  return [1, 2, 3, 4, 5, 6].map((j) => A[j] + (B[j] - A[j]) * k);
+}
+
 export class Weaponry {
   constructor(camera, audio) {
     this.camera = camera;
@@ -342,6 +361,7 @@ export class Weaponry {
     next.holder.visible = true;
     this.reloading = false;
     this.action = null;
+    this._swing = null;
     this.spin = 0;
     this.nextShot = performance.now() / 1000 + 0.25;  // kuşanma gecikmesi
     this._kick = 0.18;                                 // yukarı kalkma hissi
@@ -389,6 +409,7 @@ export class Weaponry {
 
   startReload() {
     const s = this.current;
+    if (s.def.melee) return false;                   // bıçak doldurulmaz
     if (this.reloading || this.action || s.reserve <= 0) return false;
     const empty = s.ammo === 0;
     if (s.ammo >= this._capacity(s, empty)) return false;
@@ -420,6 +441,16 @@ export class Weaponry {
     const s = this.current;
     if (!s || this.reloading || this.action) return false;
     if (now < this.nextShot) return false;
+
+    // Bıçak: mermi yok — savurma başlar, isabet savurmanın ortasında
+    // (`onMelee`) çözülür
+    if (s.def.melee) {
+      if (this._swing) return false;
+      this._swing = { start: now, hit: false };
+      this.nextShot = now + 60 / s.def.rpm;
+      this.audio.swish?.();
+      return true;
+    }
 
     if (s.ammo <= 0) {
       this.audio.dryFire();
@@ -552,7 +583,20 @@ export class Weaponry {
     const pz = THREE.MathUtils.lerp(hip[2], aim[2], this.adsBlend);
 
     // Koreografinin silah duruşu: [dx,dy,dz, yunuslama, sapma, yatırma]
-    const G = chor?.gun ? sampleArr(chor.gun, t) : null;
+    let G = chor?.gun ? sampleArr(chor.gun, t) : null;
+    // Bıçak savurma: sağ-yukarıdan sola-aşağı kesik, sonra toparlanma
+    if (def.melee && this._swing) {
+      const el = now - this._swing.start;
+      const u = el / def.melee.swing;
+      if (u >= 1) this._swing = null;
+      else {
+        G = swingPose(u);
+        if (!this._swing.hit && el >= def.melee.hitAt) {
+          this._swing.hit = true;
+          this.onMelee?.(s);
+        }
+      }
+    }
     const g = G ?? [0, 0, 0, 0, 0, 0];
 
     const h = s.holder;
@@ -775,7 +819,8 @@ export class Weaponry {
    */
   setLoadout(ids) {
     this.resetAmmo();
-    this.allowed = ids ? new Set(ids) : null;
+    // Bıçak her zaman yanında (seçim hakkından sayılmaz)
+    this.allowed = ids ? new Set([...ids, 'bicak']) : null;
   }
 
   /** Dalga sonu ikmali. */

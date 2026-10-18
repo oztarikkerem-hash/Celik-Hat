@@ -470,3 +470,136 @@ export function tileTexture() {
     return finish(c, 1);
   });
 }
+
+/* ── Alan (harita) dokuları ─────────────────────────────────────────── */
+
+/** Zemin: düz renk + iri/ince lekeler + birkaç geniş ton bölgesi. */
+function groundTexture(name, repeat, base, specks, blots, extra) {
+  return make(`${name}${repeat}`, () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+    g.fillStyle = base;
+    g.fillRect(0, 0, S, S);
+    for (const [color, alpha] of blots) {
+      for (let i = 0; i < 18; i++) {
+        const x = Math.random() * S, y = Math.random() * S, r = 30 + Math.random() * 90;
+        const gr = g.createRadialGradient(x, y, 0, x, y, r);
+        gr.addColorStop(0, color.replace('A', alpha));
+        gr.addColorStop(1, color.replace('A', 0));
+        g.fillStyle = gr;
+        g.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+    }
+    speckle(g, S, 12000, specks, 1, 3);
+    extra?.(g, S);
+    return finish(c, repeat);
+  });
+}
+
+export function sandTexture(repeat = 26) {
+  return groundTexture('sand', repeat, '#b99a68',
+    ['#c4a674', '#a98a5a', '#cfb283', '#9c7f52'],
+    [['rgba(140,104,60,A)', 0.25], ['rgba(222,196,150,A)', 0.3]],
+    (g, S) => {
+      // Rüzgâr dalgacıkları
+      g.strokeStyle = 'rgba(120,92,52,0.18)';
+      g.lineWidth = 2;
+      for (let y = 8; y < S; y += 22) {
+        g.beginPath();
+        for (let x = 0; x <= S; x += 16) g.lineTo(x, y + Math.sin(x * 0.04 + y) * 4);
+        g.stroke();
+      }
+    });
+}
+
+export function grassTexture(repeat = 26) {
+  return groundTexture('grass', repeat, '#4c5e32',
+    ['#56693a', '#41522a', '#5f7340', '#3a4825', '#6b6a3c'],
+    [['rgba(92,78,44,A)', 0.35], ['rgba(88,112,52,A)', 0.3]],
+    (g, S) => {
+      // Ot çizgileri
+      for (let i = 0; i < 2600; i++) {
+        const x = Math.random() * S, y = Math.random() * S;
+        g.strokeStyle = Math.random() < 0.5 ? 'rgba(110,140,70,0.35)' : 'rgba(40,52,22,0.35)';
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + (Math.random() - 0.5) * 3, y - 3 - Math.random() * 4);
+        g.stroke();
+      }
+    });
+}
+
+export function snowTexture(repeat = 26) {
+  return groundTexture('snow', repeat, '#dfe6ec',
+    ['#e9eff4', '#d3dbe3', '#f4f7fa', '#c8d2dc'],
+    [['rgba(170,186,204,A)', 0.3], ['rgba(255,255,255,A)', 0.4]]);
+}
+
+/** Toprak yol (çöl/orman/kar alanında asfaltın yerine). */
+export function dirtTexture(repeat = 6, tint = '#7a6446') {
+  return groundTexture(`dirt${tint}`, repeat, tint,
+    ['rgba(0,0,0,0.12)', 'rgba(255,255,255,0.08)', 'rgba(60,44,28,0.2)'],
+    [['rgba(50,38,24,A)', 0.25]],
+    (g, S) => {
+      // Tekerlek izleri
+      g.fillStyle = 'rgba(40,30,18,0.22)';
+      g.fillRect(0, S * 0.28, S, S * 0.08);
+      g.fillRect(0, S * 0.64, S, S * 0.08);
+    });
+}
+
+/** Kerpiç sıva (çöl evleri). */
+export function mudTexture(repeat = 1) {
+  return groundTexture('mud', repeat, '#a5845c',
+    ['#b08f66', '#97774f', '#bc9b70'],
+    [['rgba(120,90,56,A)', 0.35], ['rgba(196,166,124,A)', 0.3]],
+    (g, S) => {
+      g.strokeStyle = 'rgba(90,64,38,0.35)';
+      g.lineWidth = 1.2;
+      for (let i = 0; i < 6; i++) {
+        let x = Math.random() * S, y = Math.random() * S;
+        g.beginPath();
+        g.moveTo(x, y);
+        for (let k = 0; k < 5; k++) { x += (Math.random() - 0.5) * 50; y += Math.random() * 30; g.lineTo(x, y); }
+        g.stroke();
+      }
+    });
+}
+
+/** Gökyüzü renk paletleri: [zenit, orta, ufuk, ufuk pusu, yer] + bulut. */
+const SKIES = {
+  gunduz: [['#1b4fa8', 0], ['#2f72c8', 0.28], ['#5ea0e0', 0.5], ['#9cc8ee', 0.68], ['#cfe4f4', 0.8], ['#b9cdbd', 0.84], ['#7d8a77', 1], 0.07],
+  col: [['#3a6fb0', 0], ['#5c8fc4', 0.3], ['#9fbfd6', 0.55], ['#dccfae', 0.74], ['#efdcb4', 0.82], ['#c9ae7f', 0.86], ['#9c845c', 1], 0.03],
+  orman: [['#4f6680', 0], ['#6c8096', 0.3], ['#8e9ea8', 0.55], ['#aeb8b4', 0.72], ['#c2c9c0', 0.8], ['#7f8c72', 0.85], ['#4f5c40', 1], 0.12],
+  kar: [['#7f93ab', 0], ['#98aabf', 0.3], ['#b8c6d4', 0.55], ['#d6dfe8', 0.72], ['#e7edf2', 0.8], ['#d5dde5', 0.85], ['#b4bfca', 1], 0.14],
+};
+
+export function themedSkyTexture(kind = 'gunduz') {
+  if (kind === 'gunduz') return skyTexture();
+  return make(`sky-${kind}`, () => {
+    const S = 512;
+    const { c, g } = canvas(S);
+    const pal = SKIES[kind] ?? SKIES.gunduz;
+    const grad = g.createLinearGradient(0, 0, 0, S);
+    for (const [col, at] of pal.slice(0, 7)) grad.addColorStop(at, col);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, S, S);
+    const cloud = pal[7];
+    for (let i = 0; i < 70; i++) {
+      const x = Math.random() * S;
+      const y = S * 0.1 + Math.random() * (S * 0.34);
+      const r = 14 + Math.random() * 56;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, `rgba(255,255,255,${cloud * (0.6 + Math.random() * 0.8)})`);
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.ellipse(x, y, r, r * 0.45, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    return tex;
+  });
+}

@@ -253,6 +253,20 @@ export class AudioEngine {
     this._noise({ dur: 0.08, gain: 0.14, freq: 1800, q: 1.1 });
   }
 
+  /** Bıçak savurma: havayı yaran kısa hışırtı. */
+  swish() {
+    if (!this.ctx) return;
+    this._noise({ dur: 0.16, gain: 0.12, freq: 2400, q: 1.6 });
+    this._noise({ dur: 0.1, gain: 0.06, freq: 5200, q: 2.5, at: 0.04 });
+  }
+
+  /** Bıçak isabeti: boğuk darbe. */
+  stab() {
+    if (!this.ctx) return;
+    this._noise({ dur: 0.09, gain: 0.22, freq: 600, q: 1.2, type: 'lowpass' });
+    this._tone({ f0: 140, f1: 70, dur: 0.08, gain: 0.18, type: 'triangle' });
+  }
+
   /** Kurşun geçirmez camda isabet: kuru, tiz bir çatırtı. */
   glassHit() {
     if (!this.ctx) return;
