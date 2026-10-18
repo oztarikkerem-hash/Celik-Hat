@@ -1806,3 +1806,26 @@ body.cine-bars .cine-bottom { transform: none; }
   .achv { right: 16px; top: calc(200px + env(safe-area-inset-top, 0px)); width: calc(100vw - 32px); }
 }
 @media (prefers-reduced-motion: reduce) { .achv { transition: opacity 0.2s; transform: none; } }
+
+/* Ana ekranın sağ alt köşesindeki küçük Lisanslar bağlantısı: menü
+   düğmelerinin (15px) dörtte biri. Tıklama alanı dolgu ile geniş tutulur;
+   üzerine gelince ya da klavyeyle odaklanınca okunur boya büyür. */
+.home-licenses-link {
+  position: fixed;
+  right: 10px;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  z-index: 2;
+  padding: 6px 8px;
+  background: none;
+  border: 0;
+  font-family: var(--mono);
+  font-size: calc(15px / 4);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.4);
+  cursor: pointer;
+  transition: font-size 0.15s ease, color 0.15s ease;
+}
+.home-licenses-link:hover,
+.home-licenses-link:focus-visible { font-size: 11px; color: var(--bone); }
+.home-licenses-link:focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }

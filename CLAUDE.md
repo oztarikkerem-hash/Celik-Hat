@@ -90,7 +90,9 @@ Eski `soldier.glb` ve `tex/T_*.png` SİLİNDİ (kullanıcının rigsiz
 | `assets/characters/fsb.glb` | düşmanlar | 46.411 | FSB Operator |
 
 İkisi de **SpatialNeglect** (Sketchfab, CC BY 4.0) — künye ana ekranda
-(`.home-credit`) ve **Lisanslar** ekranında (`#licensesScreen`), kaldırma.
+(`.home-credit`) ve **Lisanslar** ekranında (`#licensesScreen`; ana ekranın
+sağ alt köşesindeki küçük bağlantıdan açılır — menü yazısının dörtte biri,
+kullanıcı göze batmasın istedi), kaldırma.
 Yeni hazır model eklenince Lisanslar ekranına da satır ekle.
 Kaynak `.blend`'ler `~/Downloads/` altında.
 İkisi de **Mixamo iskeletli**: kemik adları `mixamorig:` öneki atılarak
@@ -379,7 +381,8 @@ alan ekranındaki "geri" silah seçimine döner.
 ## Bıçak
 
 `assets/weapons/knife.glb` (`~/Downloads/combat-knife`, `shrink_glb.py` ile
-dokular 1024). `weapons.js`'te listenin SONUNDA (`WEAPONS[1]` AK-47
+dokular 1024). Boyu `view.length` 0.42 (0.31 küçük görünüyordu); boy
+değişince `mechanics.js`'teki kabza çapası da orantılı kaydırılır. `weapons.js`'te listenin SONUNDA (`WEAPONS[1]` AK-47
 varsayımı bozulmasın), yuva **0**, `melee` alanı. `weaponry.tryFire`
 savurmayı başlatır, `update` `swingPose` ile tutucuyu sap çevresinde
 döndürür, `hitAt`'te `onMelee` → `game._meleeAttack`: kısa ışın, tutmazsa

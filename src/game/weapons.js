@@ -343,8 +343,9 @@ WEAPONS.push({
   flash: 0,
   sound: { body: 0, crack: 0, length: 0, punch: 0 },
   view: {
-    // Ucu ileri, keskin ağzı aşağı; sağ alt köşede
-    length: 0.31, pos: [0.17, -0.2, -0.2], rot: [8, -6, -12],
+    // Ucu ileri, keskin ağzı aşağı; sağ alt köşede. 31 cm küçük
+    // görünüyordu, 42'ye büyütüldü (kabza çapası mechanics.js'te orantılı)
+    length: 0.42, pos: [0.17, -0.2, -0.2], rot: [8, -6, -12],
     // Otomatik tespit sapı ileri koyuyordu (sap kalın, ağız ince)
     flipForward: true,
   },
