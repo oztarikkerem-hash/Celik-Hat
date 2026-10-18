@@ -407,6 +407,9 @@ export class Enemy {
         crouching: this.inCover && !peeking,
         downed: false,
         aimPitch: Math.atan2(toTarget.y, Math.hypot(toTarget.x, toTarget.z)),
+        // Ateş menzilindeyken ve saklanmıyorken tüfek omuzda
+        aiming: Boolean(this.def.shootRange) && dist <= this.def.shootRange * 1.2
+          && (!this.inCover || peeking),
       });
     } else if (this.legs.length >= 4) {
       this.legs[0].rotation.x = swing;

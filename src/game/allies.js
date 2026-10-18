@@ -345,6 +345,8 @@ export class AllyManager {
         crouching: ally.state === 'cover' && dist < 1.4,
         downed: false,
         aimPitch,
+        // Hedef varken tüfek omuzda ve hedefe dönük (koşarken değil)
+        aiming: Boolean(ally.target) && canFire,
       });
     }
   }

@@ -201,6 +201,18 @@ yedek olarak duruyor. Klibin üstüne yalnızca nişan açısı bindiriliyor
 (ağırlık gövdede; boyna büyük pay verilince asker kafasını eğiyor gibi
 görünüyor).
 
+**Nişan katmanı**: bekleme/yürüme/koşma kliplerinde tüfek göğüste, çapraz
+duruyor; asker ateş ederken de öyle kalıyordu. `fire` klibinin
+(`AIM_AT` = %12) üst gövde kemikleri bir kez örneklenir (`AIMPOSE`) ve
+`ctx.aiming` iken (`aimW` ile yumuşak) üstüne yazılır; bacaklar alttaki
+klipte kalır. Ateş klibi yan duruşlu (~60°): tüfek yönü (sağ el → sol el)
+ölçülüp omurga `-yawFix` kadar döndürülür. `aiming`: müttefikte hedef
+varken, düşmanda atış menzilinde ve saklanmıyorken, kule nişancısında
+hedef varken, omuz üstü karakterde nişan/ateşte.
+
+Takım kol bandı hafif ışır (`emissiveIntensity` 0.18; 0.9 iken omuzda
+fener gibi parlıyordu).
+
 Silah **sağ ele** bağlı ama her karede **iki elin arasına** hizalanıyor
 (`_fitRifleToHand`): kabza sağ avuçta, namlu ekseni sol ele bakıyor.
 Yalnızca sağ ele sabitlemek sol eli boşlukta bırakıyordu. Ölünce silah
@@ -395,6 +407,17 @@ da tahliye); atlama tuşları ona gider.
   kapısında belirir; ufuktaki birlik (`raid.update`) yürümeye devam eder.
   Baskın şeridi batıya da uzatıldı (araç oradan çıkar).
 
+## Omuz üstü görüş (`src/game/thirdperson.js`)
+
+**V**: gözden ⇄ omuz üstü (`celikhat.gorus`'ta saklanır). Kamera sağ
+omzun 2.35 m arkasında, nişanda 1.25 m'ye yaklaşır; kamera–baş arasında
+engel varsa öne çekilir. Karakter SWAT modeli (kol bandı yok), gövde nişan
+yönünde. Atış: nişan noktası kameradan (`aimPoint`, kamera–karakter arası
+atlanır), mermi karakter göğsünden oraya; roket ve bıçak da karakterden.
+Araçta, kulede, M2'de, dürbünde ve keskin nişancı dürbünüyle nişanda gözden
+görüşe geçilir. Birinci şahıs silah/eller gizlenir (şarjör animasyonu
+karakterde yok).
+
 ## Eğilme, çömelme, etkileşim tuşları
 
 - **Q / E**: basılı tutunca sola/sağa eğilme (`player.lean`): baş 0.48 m
@@ -504,8 +527,8 @@ de 1/8, telemetre (ışın) ve pusula yönü. Dürbündeyken ateş edilmez.
 ## Sırada ne var
 
 - MAR 556 için ekranın altında yakınlaştırmayan dürbün paneli.
-- `fire` ve `reload` klipleri GLB'de var ama henüz oynatılmıyor (üst gövde
-  katmanı gerekiyor).
+- `reload` klibi GLB'de var ama oynatılmıyor (`fire` nişan pozu olarak
+  kullanılıyor).
 - Baskın 2. bölüm ("yakında" yazıyor): ufukta görünen birlik.
 - M4'te kurma kolu ve sürgü durdurucu ayrı parça değil (tek parça FBX);
   el hareketi var ama parça kımıldamıyor.

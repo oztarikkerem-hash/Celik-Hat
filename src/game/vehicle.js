@@ -538,7 +538,7 @@ export class Vehicles {
     a.pos.copy(spot).setY(0);
     a.root.position.copy(spot);
     a.root.rotation.y = facing;
-    a.soldier.update({ dt, speed: 0, crouching: false, downed: false, aimPitch: 0 });
+    a.soldier.update({ dt, speed: 0, crouching: false, downed: false, aimPitch: 0, aiming: Boolean(v.target) });
 
     // Ateş: hizalanınca seri halinde
     if (v.target?.alive && err < 0.09 && now >= v.nextShot && v.muzzle) {

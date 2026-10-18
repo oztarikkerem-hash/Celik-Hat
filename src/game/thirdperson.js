@@ -45,7 +45,8 @@ export class ThirdPerson {
     const g = this.game;
     if (!g.soldiers?.template) return null;
     const rig = g.soldiers.create();
-    const soldier = new Soldier(rig, { team: 'ally', rifle: g.gear?.makeRifle('mar556') ?? null, tint: 0xe8a33d });
+    // Kol bandı yok: kamera hep arkasında, ışıyan bant omuzda leke gibi duruyordu
+    const soldier = new Soldier(rig, { team: 'ally', rifle: g.gear?.makeRifle('mar556') ?? null, tint: null });
     g.scene.add(soldier.root);
     this.avatar = soldier;
     return soldier;
@@ -67,7 +68,8 @@ export class ThirdPerson {
    * player.update'ten SONRA çağrılır: kamerayı omuz üstüne taşır.
    * use: bu karede omuz üstü kullanılabilir mi (araç, makineli, dürbün yok)
    */
-  update(dt, ads, use) {
+  /** aiming: nişan alıyor ya da ateş ediyor (tüfek omza kalkar) */
+  update(dt, ads, use, aiming = false) {
     if (!this.enabled || !use) { this.hide(); return; }
     const av = this._ensureAvatar();
     if (!av) return;
@@ -86,6 +88,7 @@ export class ThirdPerson {
       crouching: p.crouching,
       downed: p.downed,
       aimPitch: p.pitch,
+      aiming: aiming && !p.sprinting,
     });
 
     // Kamera: sağ omzun arkası; nişanda yaklaşır

@@ -43,6 +43,11 @@ const _v2 = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _bodyQ = new THREE.Quaternion();
 const PLANTED = new WeakMap();   // klip → { t: ayakların yerde olduğu an, yaw: gövde sapması }
+// Nişan pozu: "fire" klibinin (Mixamo Firing Rifle) üst gövde kemik dönüşleri.
+// Klip başına bir kez örneklenir, aynı modeli paylaşan askerler ortak kullanır.
+const AIMPOSE = new WeakMap();   // klip → { pose: Map(kemik adı → quaternion), yawFix }
+const UPPER = /^(Spine\d?|Neck|Head|(Left|Right)(Shoulder|Arm|ForeArm|Hand.*))$/;
+const AIM_AT = 0.12;             // klipte nişanın oturduğu an (süre oranı)
 
 /** Açıyı (-π, π] aralığına getirir. */
 function wrapAngle(a) {
@@ -295,6 +300,8 @@ export class Soldier {
         if (a) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
       }
       this._crouchDurus = this._plantedTime(this.actions.crouch);
+      this._aimBones = this._sampleAimPose(this.actions.fire);
+      this.aimW = 0;
       this.clipName = null;
       this._setClip('idle', 0);
       // Her asker döngünün farklı yerinden başlasın
@@ -345,6 +352,21 @@ export class Soldier {
     if (crouch && this._crouchDurus.yaw) {
       const w = crouch.enabled ? crouch.getEffectiveWeight() : 0;
       this.body.rotation.y = Math.PI + this._crouchDurus.yaw * w;
+    }
+
+    // Nişan katmanı: ateş eden / hedef gözeten askerde tüfek omza kalkar
+    const nisan = ctx.aiming && !dying && !ctx.downed ? 1 : 0;
+    this.aimW += (nisan - this.aimW) * Math.min(1, dt * 8);
+    if (this._aimBones && this.aimW > 0.01) {
+      for (const [bone, q] of this._aimBones) bone.quaternion.slerp(q, this.aimW);
+      // Yan duruşu düzelt: omurga dikey eksende döner, tüfek ileri bakar
+      const spine = this.bones.Spine;
+      if (spine && this._aimYawFix) {
+        const parentQ = spine.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+        const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(this.root.getWorldQuaternion(new THREE.Quaternion()))
+          .applyQuaternion(parentQ).normalize();
+        spine.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, -this._aimYawFix * this.aimW));
+      }
     }
     if (!dying) {
       this._fitRifleToHand();
@@ -416,6 +438,58 @@ export class Soldier {
     return PLANTED.get(clip);
   }
 
+  /**
+   * Nişan pozu: ateş klibinin AIM_AT anındaki üst gövde dönüşleri.
+   * Bekleme/yürüme/koşma kliplerinde tüfek göğüste, aşağıda duruyor; asker
+   * ateş ederken de öyle kalıyor, öne değil çapraza ateş ediyor gibi
+   * görünüyordu. Ateş eden/hedef gözeten askerin üst gövdesi bu poza
+   * geçer (bacaklar yürüme/koşma klibinde kalır).
+   * @returns [[kemik, quaternion], …] ya da null
+   */
+  _sampleAimPose(action) {
+    if (!action) return null;
+    const clip = action.getClip();
+    if (!AIMPOSE.has(clip)) {
+      for (const a of Object.values(this.actions)) if (a !== action) a.stop();
+      action.reset();
+      action.play();
+      action.time = clip.duration * AIM_AT;
+      this.mixer.update(0);
+      const pose = new Map();
+      this.body.traverse((o) => { if (o.isBone && UPPER.test(o.name)) pose.set(o.name, o.quaternion.clone()); });
+      action.stop();
+
+      // Ateş klibi yan duruşlu (gövde ~60° çapraz): bekleme klibinin
+      // kalçası üstüne bu üst gövde konunca tüfek sola bakıyordu. Tüfek
+      // yönü (sağ el → sol el) ölçülür, omurga o kadar geri döndürülür.
+      let yawFix = 0;
+      const idle = this.actions.idle;
+      const L = this.bones.LeftHand, R = this.bones.RightHand;
+      if (idle && L && R) {
+        idle.reset();
+        idle.play();
+        idle.time = 0;
+        this.mixer.update(0);
+        for (const [name, q] of pose) this.body.getObjectByName(name)?.quaternion.copy(q);
+        this.root.updateMatrixWorld(true);
+        const l = this.root.worldToLocal(new THREE.Vector3().setFromMatrixPosition(L.matrixWorld));
+        const r = this.root.worldToLocal(new THREE.Vector3().setFromMatrixPosition(R.matrixWorld));
+        const d = l.sub(r);
+        yawFix = Math.atan2(-d.x, -d.z);         // 0 = tam ileri (−Z)
+        idle.stop();
+      }
+      AIMPOSE.set(clip, { pose, yawFix });
+    }
+    const { pose, yawFix } = AIMPOSE.get(clip);
+    this._aimYawFix = yawFix;
+    const out = [];
+    for (const [name, q] of pose) {
+      const bone = this.body.getObjectByName(name);
+      if (bone) out.push([bone, q]);
+    }
+    return out.length ? out : null;
+  }
+
   /** Klip yalnız oynarken, t anında kalça çizgisinin gövde düzlemindeki açısı. */
   _hipAngle(action, t) {
     const L = this.bones.LeftUpLeg, R = this.bones.RightUpLeg;
@@ -450,7 +524,8 @@ export class Soldier {
     const band = new THREE.Mesh(
       new THREE.CylinderGeometry(0.075, 0.075, 0.09, 10, 1, true),
       new THREE.MeshStandardMaterial({
-        color, emissive: color, emissiveIntensity: 0.9, roughness: 0.6, side: THREE.DoubleSide,
+        // Hafif ışıma: takım rengi seçilsin ama omuzda fener gibi parlamasın
+        color, emissive: color, emissiveIntensity: 0.18, roughness: 0.6, side: THREE.DoubleSide,
       }),
     );
     band.position.set(0, -0.02, 0);

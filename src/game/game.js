@@ -1549,7 +1549,9 @@ export class Game {
     const def = this.weaponry.current.def;
     // Omuz üstü görüş (V): araçta, makinelide, dürbünde ve keskin nişancı
     // dürbünüyle nişan alırken gözden görüşe geçilir
-    this.tp.update(dt, ads, !mounted && !driving && !topside && !this.binoc && !(ads && def.scope));
+    this.tp.update(dt, ads, !mounted && !driving && !topside && !this.binoc && !(ads && def.scope),
+      ads || this.input.mouse(0) || now < (this._tpAimUntil ?? 0));
+    if (this.input.mouse(0)) this._tpAimUntil = now + 0.8;      // atıştan sonra kısa süre omuzda
     const firing = this.input.mouse(0) && !this.binoc && !busy;
     if (mounted) {
       if (firing) {
