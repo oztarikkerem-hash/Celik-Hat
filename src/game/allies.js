@@ -217,7 +217,19 @@ export class AllyManager {
       // ── Hedef seçimi (saniyede ~3 kez) ──────────────────────────────
       if (now >= ally.nextThink) {
         ally.nextThink = now + 0.3;
-        ally.target = this._pickTarget(ally, enemies);
+        // Hedefe bağlılık: yeni aday belirgin biçimde (%30) yakın değilse
+        // eskisi kalır — eşit uzaklıktaki iki düşman arasında gidip gelip
+        // asker sürekli dönüyor, tüfeği titriyordu
+        const next = this._pickTarget(ally, enemies);
+        const old = ally.target;
+        const dist = (e) => Math.hypot(e.pos.x - ally.pos.x, e.pos.z - ally.pos.z);
+        // (pencere mevziindeki asker hariç: eski hedef penceresinden çıkmış olabilir)
+        if (!ally.post && old?.alive && next && next !== old && dist(old) < this.engageRange
+          && dist(old) < dist(next) * 1.3) {
+          ally.target = old;
+        } else {
+          ally.target = next;
+        }
 
         if (ally.post) {
           ally.state = 'post';

@@ -210,6 +210,14 @@ klipte kalır. Ateş klibi yan duruşlu (~60°): tüfek yönü (sağ el → sol 
 varken, düşmanda atış menzilinde ve saklanmıyorken, kule nişancısında
 hedef varken, omuz üstü karakterde nişan/ateşte.
 
+**Tüfek yönü kararlılığı** (`_fitRifleToHand`): yön sağ el → sol el, ama
+(1) ters çevirme yalnızca namlu AÇIKÇA geriye bakarsa (dot < −0.35; eşik 0
+iken çapraz tutuşta kare kare 180° dönüyordu), (2) eller 20 cm'den yakınsa
+önceki yön kalır, (3) yumuşatma gövdeye göre ve açısal hız ~140°/sn ile
+sınırlı (bekleme klibi tüfeği ani oynatıyordu). Nişan son hedef görüşünden
+1.2 sn sonra biter (kalkıp inme titremesi). Müttefik hedefine bağlı kalır:
+yeni aday %30 yakın değilse değiştirmez (mevzideki asker hariç).
+
 Takım kol bandı hafif ışır (`emissiveIntensity` 0.18; 0.9 iken omuzda
 fener gibi parlıyordu).
 

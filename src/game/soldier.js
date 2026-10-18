@@ -354,9 +354,13 @@ export class Soldier {
       this.body.rotation.y = Math.PI + this._crouchDurus.yaw * w;
     }
 
-    // Nişan katmanı: ateş eden / hedef gözeten askerde tüfek omza kalkar
-    const nisan = ctx.aiming && !dying && !ctx.downed ? 1 : 0;
-    this.aimW += (nisan - this.aimW) * Math.min(1, dt * 8);
+    // Nişan katmanı: ateş eden / hedef gözeten askerde tüfek omza kalkar.
+    // Hedef bir an kaybolup gelince (siperden doğrulma, hedef değişimi)
+    // tüfek kalkıp inip titremesin: nişan son görüşten 1.2 sn sonra biter.
+    if (ctx.aiming) this._aimHold = 1.2;
+    else this._aimHold = Math.max(0, (this._aimHold ?? 0) - dt);
+    const nisan = this._aimHold > 0 && !dying && !ctx.downed ? 1 : 0;
+    this.aimW += (nisan - this.aimW) * Math.min(1, dt * 5);
     if (this._aimBones && this.aimW > 0.01) {
       for (const [bone, q] of this._aimBones) bone.quaternion.slerp(q, this.aimW);
       // Yan duruşu düzelt: omurga dikey eksende döner, tüfek ileri bakar
@@ -369,7 +373,7 @@ export class Soldier {
       }
     }
     if (!dying) {
-      this._fitRifleToHand();
+      this._fitRifleToHand(dt);
     } else if (!this._dropped && this.death > 0.5 && this.rifle) {
       // Silah YERE DÜŞER. Elde bırakmak namluyu zemine sokuyordu; gövdeye
       // bağlamak ise havada asılı bırakıyordu (gövde grubu klip ile
@@ -625,7 +629,7 @@ export class Soldier {
      olduğu için sol el boşluğu kavrıyor görünüyordu. Burada kabza sağ
      avuca oturuyor, namlu ekseni sol ele doğru bakıyor — iki el de
      silahın üstünde kalıyor. Her karede yapılır (ucuz: iki matris okuma).  */
-  _fitRifleToHand() {
+  _fitRifleToHand(dt = 0) {
     const rifle = this.rifle;
     const sag = this.bones.RightHand, sol = this.bones.LeftHand;
     if (!rifle || !sag) return;
@@ -637,15 +641,33 @@ export class Soldier {
     const rootQ = this.root.getWorldQuaternion(_q2);
     const ileri = new THREE.Vector3(0, 0, -1).applyQuaternion(rootQ);
     let yon = ileri.clone();
+    let guvenilir = !sol;
     if (sol) {
       sol.updateWorldMatrix(true, false);
       const solPos = _v2.setFromMatrixPosition(sol.matrixWorld);
       const fark = solPos.clone().sub(sagPos);
-      // Eller üst üste gelirse yön güvenilmez olur
-      if (fark.lengthSq() > 0.0025) yon = fark.normalize();
+      // Eller birbirine çok yaklaşınca (bekleme klibinde tutuş değişirken)
+      // iki el arası yön güvenilmez: 20–60° savruluyordu — önceki yön kalır
+      if (fark.lengthSq() > 0.04) { yon = fark.normalize(); guvenilir = true; }
     }
-    // Namlu ileriye bakmalı: eller terse dönükse yönü çevir
-    if (yon.dot(ileri) < 0) yon.negate();
+    // Namlu ileriye bakmalı: eller AÇIKÇA terse dönükse yönü çevir. Eşik 0
+    // iken göğüste çapraz tutulan tüfek (ileriyle ~dik) kare kare 180°
+    // dönüp duruyordu — askerlerin silahı titriyordu.
+    if (yon.dot(ileri) < -0.35) yon.negate();
+
+    // Yön yumuşatma GÖVDEYE GÖRE yapılır (asker dönerken tüfek geride
+    // kalmasın); klibin el titreşimi namluyu sallamasın
+    const tersQ = rootQ.clone().invert();
+    const yerel = yon.clone().applyQuaternion(tersQ);
+    if (!this._rifleDirL) this._rifleDirL = yerel.clone();
+    else if (guvenilir && dt > 0) {
+      // Yumuşatma + açısal hız sınırı (~140°/sn): bekleme klibi tüfeği bir
+      // anda büyük açıyla oynatıyor, kare başına 20°'yi aşan sıçrama oluyordu
+      const aci = this._rifleDirL.angleTo(yerel);
+      const k = Math.min(Math.min(1, dt * 9), aci > 1e-4 ? (dt * 2.5) / aci : 1);
+      this._rifleDirL.lerp(yerel, k).normalize();
+    } else if (guvenilir) this._rifleDirL.copy(yerel);
+    yon = this._rifleDirL.clone().applyQuaternion(rootQ);
 
     const yukari = new THREE.Vector3(0, 1, 0).applyQuaternion(rootQ);
     const bakis = new THREE.Matrix4().lookAt(
