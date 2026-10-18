@@ -11,7 +11,10 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
   kendine özgü şarjör değiştirme animasyonu var.
 - Sandıklardan siper hatları; düşmanlar siperde saklanıp doğrularak ateş
   ediyor, siperden sipere ilerliyor.
-- Görevler, müttefik askerler, mağaza (yelek ve kask).
+- Görevler, müttefik askerler, mağaza (yelek, kask, silah, sağlık).
+- **Ağır yaralı**: can bitince ölmezsin, yere düşersin; hasar almadan
+  beklersen kalkarsın ama canın 25'te kalır — sargı bezi ve ilk yardım
+  kitiyle (mağaza) tedavi olursun.
 - **Baskın** (özel görev): dört silah arkadaşınla bir evi dört dalgaya karşı
   tut (20 · 25 · 30 · 25). Yanında seçtiğin iki silah (normal cephaneleriyle);
   pencerelerde 10.000'er mermili iki M2 Browning.
@@ -43,6 +46,7 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | X | Dürbün |
 | E | M2 makineliye geç / bırak (Baskın) |
 | F | Pencere camını aç / kapat (Baskın) |
+| H | Tedavi: önce sargı bezi, sonra ilk yardım kiti |
 | M | Sesi aç / kapat |
 
 Tank bölümünde: W/S sür, A/D dön, E (basılı) tepe makinelisi ya da

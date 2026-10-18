@@ -296,6 +296,19 @@ AYRI bir kopyadır, buradaki değişiklikler oraya gitmez.
 - Sipere son yaklaşmada engelden kaçınma zayıflatılır: tam kuvvetle itme
   askeri siper noktasına (duvardan 0.55 m) hiç ulaştırmıyordu.
 
+## Ağır yaralı ve tedavi
+
+- Can 0 olunca `game._goDown()`: oyuncu yere düşer (`player.downed`, göz
+  0.55 m), silah inik, hareket yok. Ekranda üstte "AĞIR YARALI", ortada
+  nabızlı kalp ve çember (`#downed`, `hud.setDowned`).
+- Çember `REVIVE_TIME` (10 sn) hasar almadan dolar; yerdeyken her isabet
+  çemberi sıfırlar, `DOWNED_HITS` (3). isabet ölümdür (gameOver). Düşman
+  yerdeki oyuncuyu daha az önceler (mesafe ×2.5).
+- Kalkınca `player.healthCap` = 25: yenilenme ve dalga ikmali bunu aşmaz.
+  H tuşu tedavinin sıradaki adımı: önce sargı bezi (2.5 sn), sonra ilk
+  yardım kiti (4 sn) → sınır kalkar, can 100. Malzemeler mağazanın
+  "Sağlık" bölümünden alınır, `shop.durum.stok`'ta adetle tutulur.
+
 ## Mağaza (`src/game/shop.js`)
 
 İki bölüm: **6 yelek**, **5 kask** (biri korumasız varsayılan bere).

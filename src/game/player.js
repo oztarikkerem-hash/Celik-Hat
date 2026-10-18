@@ -7,6 +7,7 @@ const RADIUS = 0.38;
 const HEIGHT = 1.8;
 const EYE = 1.66;
 const EYE_CROUCH = 1.1;
+const EYE_DOWNED = 0.55;         // ağır yaralı: yerde yarı uzanmış
 const GRAVITY = 24;
 const JUMP_V = 8.2;
 
@@ -54,7 +55,16 @@ export class Player {
 
     this.alive = true;
     this.distanceWalked = 0;
+
+    // Ağır yaralı: can bitince yere düşülür (game.js yönetir). Ayağa
+    // kalkınca can `healthCap`'te (25) sınırlı kalır; sargı bezi + ilk
+    // yardım kitiyle sınır kalkar. treatStage: 0 sargı bekliyor, 1 kit.
+    this.downed = false;
+    this.healthCap = this.maxHealth;
+    this.treatStage = 0;
   }
+
+  get wounded() { return this.healthCap < this.maxHealth; }
 
   reset() {
     this.pos.set(0, 0, 14);
@@ -62,6 +72,9 @@ export class Player {
     this.yaw = Math.PI;
     this.pitch = 0;
     this.health = this.maxHealth;
+    this.downed = false;
+    this.healthCap = this.maxHealth;
+    this.treatStage = 0;
     this.stamina = 1;
     this.exhausted = false;
     this.lastSprint = -99;
@@ -100,7 +113,7 @@ export class Player {
   }
 
   heal(amount) {
-    this.health = Math.min(this.maxHealth, this.health + amount);
+    this.health = Math.min(this.healthCap, this.health + amount);
   }
 
   get eyePosition() {
@@ -199,8 +212,9 @@ export class Player {
     this.distanceWalked += before.distanceTo(this.pos);
 
     // ── Kamera ─────────────────────────────────────────────────────────
-    const targetEye = this.crouching ? EYE_CROUCH : EYE;
-    this.eye = THREE.MathUtils.lerp(this.eye, targetEye, Math.min(1, dt * 11));
+    const targetEye = this.downed ? EYE_DOWNED : this.crouching ? EYE_CROUCH : EYE;
+    // Yere yığılma yavaş, doğrulma ve çömelme hızlı
+    this.eye = THREE.MathUtils.lerp(this.eye, targetEye, Math.min(1, dt * (this.downed ? 3.5 : 11)));
 
     // Geri tepme toparlanması
     this.recoilPitch *= Math.pow(0.0025, dt);
@@ -228,7 +242,7 @@ export class Player {
     this.camera.rotateZ(Math.cos(this._bobPhase) * bobAmp * 0.5);
 
     // Hasar sonrası yavaş yenilenme
-    if (this.alive && now - this.lastHurt > 6 && this.health < this.maxHealth) {
+    if (this.alive && !this.downed && now - this.lastHurt > 6 && this.health < this.healthCap) {
       this.heal(dt * 6);
     }
   }

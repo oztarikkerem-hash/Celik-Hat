@@ -16,7 +16,7 @@ import { MissionBook, MISSIONS } from './missions.js';
 import { HEADSHOT_MULT, BODY_MULT, LEG_MULT } from './weapons.js';
 import { EnemyGear } from './enemyGear.js';
 import { SoldierFactory } from './soldier.js';
-import { Shop, YELEKLER, KASKLAR, SILAHLAR } from './shop.js';
+import { Shop, YELEKLER, KASKLAR, SILAHLAR, SAGLIK } from './shop.js';
 import { TankFactory, TANK_TIPLERI } from './tanks.js';
 import { TankBattle } from './tankbattle.js';
 import { TankPilot } from './tankpilot.js';
@@ -37,6 +37,14 @@ const BEST_KEY = 'celik-hat-best';
 const RAID_PICK_KEY = 'celikhat.baskin.silahlar';
 const BINOC_ZOOM = 8;
 const FINALE_TIME = 14;          // ufuktaki birlik görünür kaldıktan sonra kapanış
+// Ağır yaralı: kalbin çevresindeki çember hasar almadan bu sürede dolar
+const REVIVE_TIME = 10;
+const DOWNED_HITS = 3;           // yerdeyken bu kadar isabet ölüm
+const WOUND_CAP = 25;            // ayağa kalkınca can bu sınırda kalır
+const TREAT = {
+  sargi: { sure: 2.5, ad: 'Sargı bezi' },
+  kit: { sure: 4, ad: 'İlk yardım kiti' },
+};
 
 export class Game {
   constructor(canvas) {
@@ -200,6 +208,7 @@ export class Game {
     on('shop-tab-vest', () => this.showShop('vest'));
     on('shop-tab-helm', () => this.showShop('helm'));
     on('shop-tab-weapons', () => this.showShop('weapons'));
+    on('shop-tab-health', () => this.showShop('health'));
     on('shop-back-btn', () => this.toHome());
     document.getElementById('shop-grid')?.addEventListener('click', (e) => {
       const btn = e.target.closest('.shop-btn');
@@ -248,8 +257,10 @@ export class Game {
       if (code === 'KeyX') this._setBinocular(!this.binoc);
       if (code === 'KeyE') this._toggleMount();
       if (code === 'KeyF') this._toggleGlass();
-      // M2'deyken elde silah yok: değiştirme, doldurma ve bomba kapalı
-      if (this.raid.mounted) return;
+      if (code === 'KeyH') this._treat();
+      // M2'deyken ya da yerdeyken elde silah yok: değiştirme, doldurma,
+      // bomba kapalı
+      if (this.raid.mounted || this.player.downed) return;
       if (code === 'KeyR') this.weaponry.startReload();
       if (code === 'KeyQ') this.weaponry.swapPrevious();
       if (code === 'KeyG') this._throwGrenade();
@@ -375,6 +386,8 @@ export class Game {
 
   start(missionId = null, raidIds = null) {
     this._kaskKalkaniKullanildi = false;
+    this._treating = null;
+    this.hud.setDowned(false);
     this._setBinocular(false);
     this.raid.dismount();
     this.hud.setHint(null);
@@ -547,6 +560,7 @@ export class Game {
 
   toHome() {
     this.state = 'home';
+    this.hud.setDowned(false);
     this.input.releaseLock();
     this.music.setLevel(0.5, 0.8);
     this.hud.buildHome({
@@ -841,6 +855,7 @@ export class Game {
   _onPlayerHit(damage, bolge = 'body') {
     if (this.state !== 'playing') return;
     if (typeof bolge !== 'string') bolge = 'body';
+    if (this.player.downed) { this._downedHit(); return; }
 
     // Teçhizat: yelek gövdeyi, kask kafayı azaltır. Ham hasar büyükse
     // "keskin nişancı", küçükse "seri atış" sayılır (shop.js).
@@ -860,7 +875,85 @@ export class Game {
     this.hud.damageFlash();
     this.hud.setHealth(this.player.health, this.player.maxHealth);
     this.audio.playerHurt();
-    if (!this.player.alive) this.gameOver();
+    if (!this.player.alive) this._goDown();
+  }
+
+  /* ── Ağır yaralı ve tedavi ─────────────────────────────────────────── */
+
+  /** Can bitti: ölmek yerine yere yığıl. Çember hasarsız dolarsa kalkarsın. */
+  _goDown() {
+    const p = this.player;
+    p.alive = true;
+    p.downed = true;
+    p.health = 0;
+    this._downProgress = 0;
+    this._downHits = 0;
+    this._treating = null;
+    this._setBinocular(false);
+    this.raid.dismount();
+    this.weaponry.ads = false;
+    this.hud.setDowned(true, 0, DOWNED_HITS);
+    this.hud.feed('AĞIR YARALISIN — hasar almadan bekle', true);
+  }
+
+  /** Yerdeyken isabet: çember sıfırlanır; çok isabet ölümdür. */
+  _downedHit() {
+    this._downHits++;
+    this._downProgress = 0;
+    this.hud.damageFlash();
+    this.audio.playerHurt();
+    if (this._downHits >= DOWNED_HITS) {
+      this.player.downed = false;
+      this.player.alive = false;
+      this.hud.setDowned(false);
+      this.gameOver();
+      return;
+    }
+    this.hud.setDowned(true, 0, DOWNED_HITS - this._downHits);
+  }
+
+  _revive() {
+    const p = this.player;
+    p.downed = false;
+    p.healthCap = WOUND_CAP;
+    p.health = WOUND_CAP;
+    p.treatStage = 0;
+    p.lastHurt = performance.now() / 1000;
+    this.hud.setDowned(false);
+    this.hud.feed(`AYAĞA KALKTIN — canın ${WOUND_CAP}'te kalacak: H ile önce sargı bezi, sonra ilk yardım kiti`, true);
+  }
+
+  /** H: tedavinin sıradaki adımı (önce sargı bezi, sonra ilk yardım kiti). */
+  _treat() {
+    const p = this.player;
+    if (p.downed || this._treating) return;
+    if (!p.wounded) { this.hud.feed('Ağır yaralı değilsin — tedaviye gerek yok'); return; }
+    const item = p.treatStage === 0 ? 'sargi' : 'kit';
+    if (this.shop.adet(item) <= 0) {
+      this.hud.feed(`${TREAT[item].ad} yok — mağazanın Sağlık bölümünden al`, true);
+      return;
+    }
+    const now = performance.now() / 1000;
+    this._treating = { item, start: now, end: now + TREAT[item].sure };
+    this.raid.dismount();
+    this.audio.swap();
+  }
+
+  _updateTreatment(now) {
+    const t = this._treating;
+    if (!t || now < t.end) return;
+    this._treating = null;
+    const p = this.player;
+    if (!this.shop.kullan(t.item)) return;
+    if (t.item === 'sargi') {
+      p.treatStage = 1;
+      this.hud.feed('Sargı bezi sarıldı — şimdi ilk yardım kiti (H)', true);
+    } else {
+      p.treatStage = 0;
+      p.healthCap = p.maxHealth;
+      p.health = p.maxHealth;
+      this.hud.feed('TEDAVİ TAMAM — canın yeniden dolu', true);
+    }
   }
 
   /* ── Mağaza ────────────────────────────────────────────────────────── */
@@ -869,10 +962,12 @@ export class Game {
     this.shopBolum = bolum;
     this.state = 'home';
     this.shop.yukle();      // tank bölümünün kazandırdığı kredi görünsün
-    const urunler = bolum === 'vest' ? YELEKLER : bolum === 'helm' ? KASKLAR : SILAHLAR;
+    const urunler = bolum === 'vest' ? YELEKLER : bolum === 'helm' ? KASKLAR
+      : bolum === 'health' ? SAGLIK : SILAHLAR;
     this.hud.buildShop(bolum, urunler, {
       kredi: this.shop.kredi,
       sahipMi: (id) => this.shop.sahipMi(id),
+      adet: (id) => this.shop.adet(id),
       takili: bolum === 'vest' ? this.shop.yelek.id : bolum === 'helm' ? this.shop.kask.id : null,
     });
     this.hud.screen('shopScreen');
@@ -1083,9 +1178,11 @@ export class Game {
     const lookK = this.binoc ? 1 / BINOC_ZOOM : 1;
     this.player.look(look.dx * lookK, look.dy * lookK);
     const mounted = this.raid.mounted;
+    const downed = this.player.downed;
+    const busy = downed || Boolean(this._treating);     // elde silah yok
 
-    const ads = this.input.mouse(2) && !this.binoc && !mounted;
-    const moveInput = {
+    const ads = this.input.mouse(2) && !this.binoc && !mounted && !busy;
+    const moveInput = downed ? { forward: 0, right: 0, jump: false, sprint: false, crouch: true } : {
       forward: (this.input.down('KeyW') ? 1 : 0) - (this.input.down('KeyS') ? 1 : 0),
       right: (this.input.down('KeyD') ? 1 : 0) - (this.input.down('KeyA') ? 1 : 0),
       jump: this.input.down('Space'),
@@ -1104,7 +1201,7 @@ export class Game {
     this.world.update(this.camera, this.player.pos, now);
 
     const def = this.weaponry.current.def;
-    const firing = this.input.mouse(0) && !this.binoc;
+    const firing = this.input.mouse(0) && !this.binoc && !busy;
     if (mounted) {
       if (firing) {
         const shot = this.raid.fire(now, this.camera);
@@ -1118,7 +1215,7 @@ export class Game {
       this._triggerHeld = false;
     }
 
-    this.weaponry.rig.visible = !mounted && !this.binoc;
+    this.weaponry.rig.visible = !mounted && !this.binoc && !busy;
     if (!mounted) {
       if (this.weaponry.current.ammo === 0 && !this.weaponry.reloading) {
         this.weaponry.startReload();
@@ -1165,6 +1262,14 @@ export class Game {
       this.enemies.startWave(this.enemies.wave + 1);
     }
 
+    // Ağır yaralı: hasar almadan geçen süre çemberi doldurur
+    if (downed) {
+      this._downProgress = Math.min(1, this._downProgress + dt / REVIVE_TIME);
+      this.hud.setDowned(true, this._downProgress, DOWNED_HITS - this._downHits);
+      if (this._downProgress >= 1) this._revive();
+    }
+    this._updateTreatment(now);
+
     // Baskın kapanışı: birlik bir süre görünür, sonra görev biter
     if (this.raid.finale && now > this._finaleEndAt) {
       this._raidVictory();
@@ -1189,6 +1294,15 @@ export class Game {
   _updateHud(now) {
     const s = this.weaponry.current;
     const mg = this.raid.mounted;
+    const p = this.player;
+    this.hud.setWound(p.wounded ? {
+      cap: p.healthCap,
+      adim: p.treatStage === 0 ? 'sargı bezi' : 'ilk yardım kiti',
+      adet: this.shop.adet(p.treatStage === 0 ? 'sargi' : 'kit'),
+      tedavi: this._treating
+        ? { ad: TREAT[this._treating.item].ad, t: (now - this._treating.start) / (this._treating.end - this._treating.start) }
+        : null,
+    } : null);
     if (mg) this.hud.setAmmo(mg.ammo, RAID.mgRounds, '—');
     else this.hud.setAmmo(s.ammo, s.def.mag, s.reserve);
     if (this.binoc) this._updateBinocular(now);
@@ -1205,7 +1319,7 @@ export class Game {
       if (g) hint = ['F', `Kurşun geçirmez ${camYazi(g)}`];
     }
     this.hud.setHint(hint);
-    this.hud.setHealth(this.player.health, this.player.maxHealth);
+    this.hud.setHealth(this.player.health, this.player.maxHealth, this.player.healthCap);
     this.hud.setStamina(this.player.stamina, this.player.exhausted);
     this.hud.setSectors(this.world.sectors.size, this.world.grid ** 2);
     this.hud.setWave(this.enemies.wave, this.enemies.remaining, this.enemies.waveTotal ?? 1);

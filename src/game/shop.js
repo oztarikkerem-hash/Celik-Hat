@@ -1,4 +1,4 @@
-/* Mağaza: koruyucu teçhizat.
+/* Mağaza: koruyucu teçhizat, silahlar ve sağlık malzemeleri.
 
    İki bölüm var — kurşun geçirmez yelekler ve kasklar. Her parçanın bir
    bedeli, bir koruma profili ve bir hareket cezası var. Tasarım kuralı:
@@ -101,11 +101,30 @@ export const SILAHLAR = [
   },
 ];
 
+/* Sağlık malzemeleri: tüketilir (her alış bir adet ekler). Ağır yaralıyken
+   ayağa kalkınca can 25'te kalır; önce sargı bezi, sonra ilk yardım kiti
+   kullanılınca can yeniden dolar. */
+export const SAGLIK = [
+  {
+    id: 'sargi', ad: 'Sargı Bezi', fiyat: 250, tuket: true,
+    aciklama: 'Kanamayı durdurur. Ağır yaralandıktan sonra tedavinin ilk '
+      + 'adımı: önce bu sarılır.',
+    adim: '1. adım', sure: '2,5 sn',
+  },
+  {
+    id: 'kit', ad: 'İlk Yardım Kiti', fiyat: 700, tuket: true,
+    aciklama: 'Sargı bezinden sonra kullanılır: can sınırını kaldırır ve '
+      + 'canını yeniden 100\'e çıkarır.',
+    adim: '2. adım', sure: '4 sn',
+  },
+];
+
 const VARSAYILAN = {
   kredi: 0,
   sahip: ['hafif', 'bere'],
   yelek: 'hafif',
   kask: 'bere',
+  stok: { sargi: 0, kit: 0 },
 };
 
 export class Shop {
@@ -124,12 +143,16 @@ export class Shop {
         sahip: Array.isArray(d.sahip) ? d.sahip : [...VARSAYILAN.sahip],
         yelek: d.yelek || VARSAYILAN.yelek,
         kask: d.kask || VARSAYILAN.kask,
+        stok: {
+          sargi: Math.max(0, Number(d.stok?.sargi) || 0),
+          kit: Math.max(0, Number(d.stok?.kit) || 0),
+        },
       };
       for (const id of VARSAYILAN.sahip) {
         if (!this.durum.sahip.includes(id)) this.durum.sahip.push(id);
       }
     } catch {
-      this.durum = { ...VARSAYILAN, sahip: [...VARSAYILAN.sahip] };
+      this.durum = { ...VARSAYILAN, sahip: [...VARSAYILAN.sahip], stok: { ...VARSAYILAN.stok } };
     }
   }
 
@@ -154,7 +177,19 @@ export class Shop {
 
   urun(id) {
     return YELEKLER.find((u) => u.id === id) ?? KASKLAR.find((u) => u.id === id)
-      ?? SILAHLAR.find((u) => u.id === id) ?? null;
+      ?? SILAHLAR.find((u) => u.id === id) ?? SAGLIK.find((u) => u.id === id) ?? null;
+  }
+
+  /** Tüketilen malzemeden elde kaç tane var. */
+  adet(id) { return this.durum.stok?.[id] ?? 0; }
+
+  /** Bir adet kullanır; elde yoksa false. */
+  kullan(id) {
+    this.yukle();
+    if (this.adet(id) <= 0) return false;
+    this.durum.stok[id]--;
+    this.kaydet();
+    return true;
   }
 
   satinAl(id) {
@@ -162,6 +197,13 @@ export class Shop {
     // yoksa bellekteki eski bakiye onun kazandırdıklarının üzerine yazar
     this.yukle();
     const u = this.urun(id);
+    if (u?.tuket) {
+      if (this.durum.kredi < u.fiyat) return { ok: false, sebep: 'kredi' };
+      this.durum.kredi -= u.fiyat;
+      this.durum.stok[id] = this.adet(id) + 1;
+      this.kaydet();
+      return { ok: true };
+    }
     if (!u || this.sahipMi(id)) return { ok: false, sebep: 'zaten' };
     if (this.durum.kredi < u.fiyat) return { ok: false, sebep: 'kredi' };
     this.durum.kredi -= u.fiyat;

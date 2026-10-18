@@ -105,11 +105,15 @@ export class Hud {
     document.getElementById('shop-tab-vest').classList.toggle('active', bolum === 'vest');
     document.getElementById('shop-tab-helm').classList.toggle('active', bolum === 'helm');
     document.getElementById('shop-tab-weapons')?.classList.toggle('active', bolum === 'weapons');
+    document.getElementById('shop-tab-health')?.classList.toggle('active', bolum === 'health');
     document.getElementById('shop-note').textContent = bolum === 'vest'
       ? 'Koruma arttıkça koşu yavaşlar. Uzman yelekler kendi tehdidine karşı çok güçlü, diğerine karşı zayıftır.'
       : bolum === 'helm'
         ? 'Kask yalnızca KAFA isabetlerini azaltır; gövde hasarına etkisi yoktur.'
-        : 'Silahlar bir kez alınır ve kalıcıdır. Tank bölümünde kazandığın puanın bir kısmı da buraya kredi olarak yazılır.';
+        : bolum === 'health'
+          ? 'Canın biterse AĞIR YARALI olursun; ayağa kalkınca canın 25\'te kalır. '
+            + 'Önce sargı bezini, sonra ilk yardım kitini kullan (oyunda H tuşu): canın yeniden dolar.'
+          : 'Silahlar bir kez alınır ve kalıcıdır. Tank bölümünde kazandığın puanın bir kısmı da buraya kredi olarak yazılır.';
 
     const grid = document.getElementById('shop-grid');
     grid.innerHTML = '';
@@ -119,7 +123,11 @@ export class Hud {
       const kart = document.createElement('article');
       kart.className = `shop-card${takili ? ' equipped' : ''}${sahip ? ' owned' : ''}`;
 
-      const satirlar = bolum === 'weapons' ? [
+      const satirlar = bolum === 'health' ? [
+        ['Elde', `${durum.adet?.(u.id) ?? 0} adet`, true],
+        ['Sıra', u.adim, false],
+        ['Kullanma süresi', u.sure, false],
+      ] : bolum === 'weapons' ? [
         ['Kullanım', u.kullanim, true],
         ['Atış hızı', u.atis, false],
         ['Mürettebat', u.murettebat, false],
@@ -153,6 +161,12 @@ export class Hud {
       btn.disabled = takili || (!sahip && durum.kredi < u.fiyat);
       if (bolum === 'weapons' && sahip) { btn.textContent = 'Sahipsin'; btn.disabled = true; }
       if (!sahip && durum.kredi < u.fiyat) btn.textContent = 'Kredi yetersiz';
+      if (u.tuket) {                        // tüketilen: her alış bir adet
+        btn.dataset.eylem = 'al';
+        btn.className = 'shop-btn';
+        btn.disabled = durum.kredi < u.fiyat;
+        btn.textContent = btn.disabled ? 'Kredi yetersiz' : 'Bir tane al';
+      }
       kart.append(btn);
       grid.append(kart);
     }
@@ -343,11 +357,44 @@ export class Hud {
 
   /* ── Alt bilgi ─────────────────────────────────────────────────────── */
 
-  setHealth(hp, max) {
+  setHealth(hp, max, cap = max) {
     const pct = Math.max(0, hp / max);
     this.el.healthFill.style.width = `${pct * 100}%`;
     this.el.healthFill.className = pct < 0.25 ? 'crit' : pct < 0.55 ? 'warn' : '';
     this.el.healthNum.textContent = Math.ceil(hp);
+    // Ağır yaralıyken sınırın ötesi taranmış görünür
+    const bar = this.el.healthFill.parentElement;
+    bar.style.setProperty('--cap', `${(cap / max) * 100}%`);
+    bar.classList.toggle('capped', cap < max);
+  }
+
+  /** Ağır yaralı ekranı. progress: çemberin dolumu (0–1). */
+  setDowned(on, progress = 0, hitsLeft = 0) {
+    const el = $('downed');
+    if (el.hidden === on) el.hidden = !on;
+    document.body.classList.toggle('is-downed', on);
+    if (!on) return;
+    const C = 2 * Math.PI * 52;
+    const ring = $('downed-ring');
+    ring.style.strokeDasharray = `${C}`;
+    ring.style.strokeDashoffset = `${C * (1 - progress)}`;
+    const text = hitsLeft <= 1
+      ? 'Bir isabet daha ölümcül — hasar alma!'
+      : `Hasar alma — çember dolunca ayağa kalkarsın (${hitsLeft} isabet ölümcül)`;
+    if (this._downedText !== text) { this._downedText = text; $('downed-sub').textContent = text; }
+  }
+
+  /** Can sınırı ve tedavi durumu (null = yaralı değil). */
+  setWound(w) {
+    const el = $('wound-tag');
+    const text = !w ? ''
+      : w.tedavi ? `${w.tedavi.ad} kullanılıyor… %${Math.min(100, Math.round(w.tedavi.t * 100))}`
+        : `AĞIR YARALI · can en fazla ${w.cap} · H: ${w.adim} (${w.adet} adet)`;
+    if (text === this._woundText) return;
+    this._woundText = text;
+    el.hidden = !w;
+    el.textContent = text;
+    el.classList.toggle('none', Boolean(w) && !w.tedavi && w.adet === 0);
   }
 
   setStamina(v, exhausted = false) {
