@@ -99,6 +99,13 @@ export const SILAHLAR = [
       + 'mürettebat açıkta kalmaz.',
     kullanim: 'Tankta E basılı + sol tık', atis: '700 / dk', murettebat: 'Korunur',
   },
+  {
+    id: 'cifttabanca', ad: 'Çift Desert Eagle', fiyat: 10000,
+    aciklama: 'İki elde iki altın Desert Eagle: tetik her basışta sırayla sağdan '
+      + 've soldan. Şarjör değiştirirken sol tabancayı yeleğine koyar, '
+      + 'doldurunca geri çekersin. Görev başındaki silah seçiminde de çıkar.',
+    satirlar: [['Kullanım', 'Y tuşu', true], ['Şarjör', '2 × 7 mermi', false], ['Atış hızı', '330 / dk, sırayla', false]],
+  },
 ];
 
 /* Sağlık malzemeleri: tüketilir (her alış bir adet ekler). Ağır yaralıyken

@@ -329,6 +329,7 @@ export class Game {
       if (code === 'KeyR') this.weaponry.startReload();
       if (code === 'KeyG') this._throwGrenade();
       if (code === 'KeyB') this.weaponry.equipSlot('B');      // M4A1 (rakamlar dolu)
+      if (code === 'KeyY') this.weaponry.equipSlot('Y');      // çift tabanca (mağazadan)
       if (code.startsWith('Digit')) {
         const n = Number(code.slice(5));
         if (n >= 0 && n <= 9) this.weaponry.equipSlot(n);       // 0: bıçak
@@ -489,7 +490,10 @@ export class Game {
     const baskin = missionId === 'baskin';
     const max = baskin ? 2 : PICK_COUNT;
     const pick = baskin ? this.raidPick : this.pick4;
-    const defs = this.weaponry.slots.map((s) => s.def).filter((d) => !d.melee);   // bıçak zaten yanında
+    this._syncLocks();
+    // Bıçak zaten yanında; mağazadan alınmamış silahlar listelenmez
+    const defs = this.weaponry.slots.map((s) => s.def)
+      .filter((d) => !d.melee && !this.weaponry.locked.has(d.id));
     // Kayıtlı seçim artık yoksa (silah adı değişti vb.) temizle
     for (const id of pick) if (!defs.some((d) => d.id === id)) pick.delete(id);
     const draw = () => this.hud.buildRaidLoadout(defs, pick, (id) => {
@@ -554,7 +558,9 @@ export class Game {
 
     this.player.reset();
     this.weaponry.resetAmmo();
-    const secilen = raidIds ?? loadout;
+    this._syncLocks();
+    let secilen = raidIds ?? loadout;
+    if (secilen) secilen = secilen.filter((id) => !this.weaponry.locked.has(id));
     this.weaponry.setLoadout(secilen);
     this.weaponry.equip(secilen ? secilen[0] : 'ak47');
     this.hud.buildWeaponStrip(
@@ -718,6 +724,14 @@ export class Game {
     if (sandik) { this._useCrate(sandik); return; }
     if (this.vehicles.nearby(this.player.pos)) { this._toggleVehicle(); return; }
     if (this.raid.active) this._toggleGlass();
+  }
+
+  /** Mağazadan alınmamış silahlar (shopId) kilitli kalır. */
+  _syncLocks() {
+    this.shop.yukle();
+    this.weaponry.locked = new Set(this.weaponry.slots
+      .filter((s) => s.def.shopId && !this.shop.sahipMi(s.def.shopId))
+      .map((s) => s.def.id));
   }
 
   /** Mühimmat sandığı: bütün silahların mermisi dolar. */

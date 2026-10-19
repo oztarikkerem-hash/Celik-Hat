@@ -89,10 +89,11 @@ Eski `soldier.glb` ve `tex/T_*.png` SİLİNDİ (kullanıcının rigsiz
 | `assets/characters/swat.glb` | müttefikler | 50.898 | S.W.A.T. Operator Remaster |
 | `assets/characters/fsb.glb` | düşmanlar | 46.411 | FSB Operator |
 
-İkisi de **SpatialNeglect** (Sketchfab, CC BY 4.0) — künye ana ekranda
-(`.home-credit`) ve **Lisanslar** ekranında (`#licensesScreen`; ana ekranın
-sağ alt köşesindeki küçük bağlantıdan açılır — menü yazısının dörtte biri,
-kullanıcı göze batmasın istedi), kaldırma.
+İkisi de **SpatialNeglect** (Sketchfab, CC BY 4.0) — künye **Lisanslar**
+ekranında (`#licensesScreen`; ana ekranın sağ alt köşesindeki küçük
+bağlantıdan açılır — menü yazısının dörtte biri, kullanıcı göze batmasın
+istedi). Ana ekranın ortasındaki künye satırı kullanıcının isteğiyle
+kaldırıldı; künyeler Lisanslar ekranından ÇIKARILMAMALI.
 Yeni hazır model eklenince Lisanslar ekranına da satır ekle.
 Kaynak `.blend`'ler `~/Downloads/` altında.
 İkisi de **Mixamo iskeletli**: kemik adları `mixamorig:` öneki atılarak
@@ -583,6 +584,23 @@ doğrudan başlatır).
 
 **Dürbün (X)**: her piyade görevinde çalışır; 8× büyütme, fare hassasiyeti
 de 1/8, telemetre (ışın) ve pusula yönü. Dürbündeyken ateş edilmez.
+
+## Çift Desert Eagle (yuva **Y**, mağazadan)
+
+- `weapons.js` `deagle2`: `shopId: 'cifttabanca'` — mağazanın Silahlar
+  bölümünde 10.000 kredi. Alınmamışsa `weaponry.locked`'ta (`game._syncLocks`,
+  her başlangıçta ve silah seçiminde): kuşanılamaz, seçim ekranında yok.
+- İkiz tabanca `_buildTwin`: tutucunun çocukları kopyalanır, ikiz RIG'in
+  çocuğu (tutucunun değil) — her karede tutucu duruşu × `dual.offset`
+  (`_placeTwin`). Kendi alevi, sürgüsü ve geri tepmesi var. Atışlar sırayla
+  (`leftNext`); sol atışta sol işaret parmağı sıkar (`_fireBlendL`).
+- Sol elin `support` çapası `on: 'twin'` — ikizin uzayında; el tabancayı
+  taşıyormuş gibi onu izler.
+- Doldurma `dualPistol` (mechanics.js): 0.38 sn ikiz yeleğe (`VEST_P/Q`,
+  kamera uzayı, ekran dışı), sağ tabanca normal tabanca koreografisiyle
+  doldurulur (bütün izler kaydırılır), son 0.4 sn ikiz yelekten çekilir.
+  Kolaylık: 14 merminin tamamı tek doldurmada dolar.
+- Omuz üstü görüşte karakter tek tabanca tutar (kopya tutucudan alınır).
 
 ## Makineli yuvası (normal görevler)
 

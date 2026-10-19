@@ -25,6 +25,11 @@ const _q = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
 
+/* Çift tabanca: doldururken sol tabancanın yelekteki yeri (KAMERA uzayı,
+   ekranın sol altı, namlu aşağı) */
+const VEST_P = new THREE.Vector3(-0.2, -0.6, -0.1);
+const VEST_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-1.25, 0.25, 0.35));
+
 /** Basamak izi: t anına kadarki son anahtarın değeri (geçişsiz). */
 function stepValue(track, t) {
   let v = track[0][1];
@@ -164,6 +169,8 @@ export class Weaponry {
     this.slots = [];       // { def, holder, model, flash, muzzle, ammo, reserve }
     // Baskın: yalnızca seçilen silahlar kuşanılır
     this.allowed = null;   // Set(id) | null
+    // Mağazadan alınmamış silahlar (ör. çift tabanca) hiç kuşanılmaz
+    this.locked = new Set();
     this.current = null;
     this.previousId = null;
 
@@ -313,6 +320,7 @@ export class Weaponry {
         manualSpin: 0,
       };
       if (slot.rig) this._buildParts(slot);
+      if (def.dual) this._buildTwin(slot);
       this.slots.push(slot);
     }
 
@@ -370,6 +378,35 @@ export class Weaponry {
     }
   }
 
+  /**
+   * Çift tabanca: tutucunun içeriği (model, nişangâh, parça pivotları)
+   * kopyalanıp ikinci bir tabanca kurulur. İkiz RIG'in çocuğudur (tutucunun
+   * değil): her karede tutucunun duruşuna `dual.offset` eklenerek yerleşir,
+   * doldururken oradan yeleğe kayar. Kendi alevi ve sürgüsü vardır.
+   */
+  _buildTwin(slot) {
+    const twin = new THREE.Group();
+    const map = new Map();
+    for (const c of slot.holder.children) {
+      if (c === slot.flash) continue;
+      const k = c.clone(true);
+      map.set(c, k);
+      twin.add(k);
+    }
+    const flash = makeFlash(slot.def.flash ?? 1);
+    flash.position.copy(slot.muzzle);
+    twin.add(flash);
+    twin.visible = false;
+    this.rig.add(twin);
+    slot.twin = twin;
+    slot.twinFlash = flash;
+    slot.twinFlashTimer = 0;
+    slot.twinSlide = slot.parts.slide ? map.get(slot.parts.slide.pivot) : null;
+    slot.twinSlideKick = 1;
+    slot.twinKick = 0;
+    slot.leftNext = false;   // sıradaki atış sol tabancadan mı
+  }
+
   /** Birinci şahıs kollar (SWAT modelinden). Askerler yüklenince çağrılır. */
   attachArms(arms) {
     this.arms = arms;
@@ -380,6 +417,7 @@ export class Weaponry {
 
   /** Silah bu turda kullanılabilir mi (Baskın'da yalnızca seçilen ikisi). */
   usable(id) {
+    if (this.locked.has(id)) return false;
     return !this.allowed || this.allowed.has(id);
   }
 
@@ -392,6 +430,7 @@ export class Weaponry {
       this.previousId = this.current.def.id;
       this.current.holder.visible = false;
       this.current.flash.visible = false;
+      if (this.current.twin) this.current.twin.visible = false;
     }
 
     this.current = next;
@@ -499,8 +538,12 @@ export class Weaponry {
     s.ammo--;
     this.nextShot = now + this.fireInterval;
 
+    // Çift tabanca: sırayla sağ ve sol
+    const left = Boolean(s.twin) && s.leftNext;
+    if (s.twin) s.leftNext = !s.leftNext;
+
     // Namlu ucunun dünya konumu ve kameranın bakış yönü
-    const origin = s.holder.localToWorld(s.muzzle.clone());
+    const origin = (left ? s.twin : s.holder).localToWorld(s.muzzle.clone());
 
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.getWorldQuaternion(new THREE.Quaternion()));
 
@@ -514,22 +557,24 @@ export class Weaponry {
       dir.addScaledVector(right, Math.sin(a) * r).addScaledVector(up, Math.cos(a) * r).normalize();
     }
 
-    // Görsel geri tepme
-    this._kickVel += s.def.kickback * 26;
-    this._punch.x += (Math.random() - 0.5) * s.def.recoil * 0.5;
+    // Görsel geri tepme (sol tabancanın kendi yayı var)
+    if (left) s.twinKick = s.def.kickback;
+    else this._kickVel += s.def.kickback * 26;
+    this._punch.x += (Math.random() - 0.5) * s.def.recoil * 0.5 + (s.twin ? (left ? -0.4 : 0.4) : 0);
     this._punch.y += s.def.recoil * 0.7;
 
     // Namlu alevi
-    s.flash.visible = true;
-    s.flashTimer = 0.045;
-    s.flash.rotation.z = Math.random() * Math.PI;
+    const fl = left ? s.twinFlash : s.flash;
+    fl.visible = true;
+    if (left) s.twinFlashTimer = 0.045; else s.flashTimer = 0.045;
+    fl.rotation.z = Math.random() * Math.PI;
     const sc = 0.85 + Math.random() * 0.4;
-    s.flash.scale.setScalar(sc);
-    s.flash.userData.light.intensity = 4.5 * (s.def.flash ?? 1);
+    fl.scale.setScalar(sc);
+    fl.userData.light.intensity = 4.5 * (s.def.flash ?? 1);
 
     this.audio.shot(s.def.sound);
-    s.slideKick = 0;                // tabanca sürgüsü geri-ileri gider
-    this._fireBlend = 1;            // tetik parmağı sıkar
+    if (left) s.twinSlideKick = 0; else s.slideKick = 0;   // tabanca sürgüsü geri-ileri gider
+    if (left) this._fireBlendL = 1; else this._fireBlend = 1;   // tetik parmağı sıkar
     const bolt = s.rig?.reload === 'bolt';
     this.onShot?.({ origin, dir, weapon: s.def, slot: s, noEject: bolt || Boolean(s.def.rocket) });
 
@@ -583,7 +628,16 @@ export class Weaponry {
       s.manualSpin = act ? manual : 0;
     }
 
-    // Namlu alevi sönümü
+    // Namlu alevi sönümü (çift tabancada sol alev de)
+    if (s.twinFlashTimer > 0) {
+      s.twinFlashTimer -= dt;
+      const k = Math.max(0, s.twinFlashTimer / 0.045);
+      s.twinFlash.userData.light.intensity = 5 * k * (def.flash ?? 1);
+      if (s.twinFlashTimer <= 0) {
+        s.twinFlash.visible = false;
+        s.twinFlash.userData.light.intensity = 0;
+      }
+    }
     if (s.flashTimer > 0) {
       s.flashTimer -= dt;
       const k = Math.max(0, s.flashTimer / 0.045);
@@ -667,6 +721,7 @@ export class Weaponry {
       h.position.add(a.sub(b));
     }
     h.updateMatrix();
+    if (s.twin) this._placeTwin(s, chor, t, dt);
 
     // Dürbünlü silah: nişan alınca model gizlenir, dürbün maskesi devralır
     const scoped = Boolean(def.scope) && this.adsBlend > 0.72;
@@ -688,6 +743,7 @@ export class Weaponry {
 
     // ── Eller ───────────────────────────────────────────────────────────
     this._fireBlend = Math.max(0, this._fireBlend - dt * 9);
+    this._fireBlendL = Math.max(0, (this._fireBlendL ?? 0) - dt * 9);
     if (this.arms) {
       // Gövde duruşu silaha göre yumuşakça değişir
       const st = s.rig?.stance ?? { yaw: 0.5, mid: [0, -0.27, 0.12] };
@@ -697,6 +753,35 @@ export class Weaponry {
       this.arms.setStance(this._stYaw, this._stMid);
       this.arms.visible = !scoped;
       if (!scoped) this._updateHands(s, chor, t);
+    }
+  }
+
+  /* Çift tabanca: ikiz tutucuya göre `dual.offset`'te; doldururken
+     (`twin` izi) yeleğe kayar. Kendi geri tepmesi ve sürgüsü. */
+  _placeTwin(s, chor, t, dt) {
+    const tw = s.twin;
+    const off = s.def.dual.offset;
+    s.twinKick *= Math.pow(0.0004, dt);
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(off[0], off[1], off[2] + s.twinKick),
+      new THREE.Quaternion(), new THREE.Vector3(1, 1, 1),
+    ).premultiply(s.holder.matrix);
+    m.decompose(tw.position, tw.quaternion, new THREE.Vector3());
+    const vk = chor?.twin ? sampleNum(chor.twin, t) : 0;
+    if (vk > 0) {
+      tw.position.lerp(VEST_P, vk);
+      tw.quaternion.slerp(VEST_Q, vk);
+    }
+    tw.visible = true;
+    tw.updateMatrix();
+
+    // Sol sürgü: her atışta geri-ileri; şarjör bitince açık kilitlenir
+    s.twinSlideKick += dt;
+    if (s.twinSlide && s.parts.slide) {
+      const k = s.twinSlideKick;
+      const kick = k < 0.025 ? k / 0.025 : k < 0.07 ? 1 - (k - 0.025) / 0.045 : 0;
+      const locked = s.ammo === 0 && !chor ? 1 : 0;
+      s.twinSlide.position.z = s.parts.slide.home.z + Math.max(kick, locked) * (s.rig.slideTravel ?? 0.03);
     }
   }
 
@@ -797,8 +882,8 @@ export class Weaponry {
   /** Çapanın DÜNYA uzayındaki avuç hedefi. */
   _anchorWorld(s, name) {
     const an = s.rig.anchors[name] ?? s.rig.anchors.support;
-    const part = an.on ? s.parts[an.on] : null;
-    const frame = part ? part.pivot : s.holder;
+    const part = an.on && an.on !== 'twin' ? s.parts[an.on] : null;
+    const frame = an.on === 'twin' && s.twin ? s.twin : part ? part.pivot : s.holder;
     frame.updateWorldMatrix(true, false);
     const local = new THREE.Vector3().fromArray(an.p);
     // Şarjör çapaları şarjör pivotuna GÖRE yazıldı (şarjör elden ele
@@ -846,6 +931,10 @@ export class Weaponry {
       R.pose = blendPose(R.pose, 'squeeze', this._fireBlend);
     }
     const L = this._handTarget(s, chor?.L, t, 'support');
+    // Çift tabancada sol işaret parmağı da sıkar
+    if (s.twin && this._fireBlendL > 0 && !this.reloading) {
+      L.pose = blendPose(L.pose, 'squeeze', this._fireBlendL);
+    }
 
     this.arms.reach('R', R, R.pose, poleR);
     this.arms.reach('L', L, L.pose, poleL);

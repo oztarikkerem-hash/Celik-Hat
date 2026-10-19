@@ -129,7 +129,7 @@ export class Hud {
         ['Elde', `${durum.adet?.(u.id) ?? 0} adet`, true],
         ['Sıra', u.adim, false],
         ['Kullanma süresi', u.sure, false],
-      ] : bolum === 'weapons' ? [
+      ] : bolum === 'weapons' ? u.satirlar ?? [
         ['Kullanım', u.kullanim, true],
         ['Atış hızı', u.atis, false],
         ['Mürettebat', u.murettebat, false],

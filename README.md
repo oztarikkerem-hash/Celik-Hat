@@ -55,6 +55,7 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | 1–9, fare tekerleği | Silah seç |
 | 0 | Bıçak (sol tık savurur; arkadan üç kat hasar) |
 | B | M4A1 dürbünlü tüfek (büyütmesiz dürbün) |
+| Y | Çift Desert Eagle (mağazadan 10.000 kredi; doldururken biri yeleğe girer) |
 | C / Ctrl | Çömel (siperin arkasında tamamen saklanırsın) |
 | G | El bombası |
 | X | Dürbün |
@@ -81,7 +82,7 @@ Ayrıntılı geliştirici notları: [CLAUDE.md](CLAUDE.md).
 
 ## Model lisansları
 
-Oyun içinde ana menüdeki **Lisanslar** ekranında da listelenir.
+Oyun içinde ana ekranın sağ alt köşesindeki **Lisanslar** bağlantısından da görülür.
 
 - Asker modelleri: **SpatialNeglect** — S.W.A.T. Operator ve FSB Operator
   (Sketchfab, CC BY 4.0).

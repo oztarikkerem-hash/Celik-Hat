@@ -65,6 +65,29 @@ export const RIGS = {
     },
   },
 
+  // Çift tabanca: sağ el sağ tabancada (Desert Eagle çapaları), sol el
+  // ikiz tabancanın kabzasında (`on: 'twin'` — ikizin kendi uzayında,
+  // sağ tutuşun aynası). Doldururken ikiz yeleğe girer.
+  deagle2: {
+    reload: 'dualPistol',
+    stance: { yaw: 0, mid: [0, -0.27, 0.1] },          // omuzlar tam karşıya
+    parts: { mag: /^(Magazine|Mag_Base)$/, slide: /^(Slide_|Serr|RearSight|RearNotch|Hammer)/ },
+    slideTravel: 0.038,
+    anchors: {
+      grip: a([0.02, -0.032, -0.06], R_GRIP, 'trigger'),
+      support: a([-0.02, -0.032, -0.06], { k: [0.22, 0.32, -0.92], n: [0.96, -0.08, 0.22] }, 'trigger', { on: 'twin' }),
+      mag: a([-0.022, -0.045, 0.01], L_MAG, 'mag', { on: 'mag' }),
+      slap: a([0, -0.085, -0.03], { k: [0.2, 0.3, -0.93], n: [0, 1, 0] }, 'flat', { on: 'mag' }),
+      rack: a([0, 0.098, -0.035], { k: [0.95, -0.05, 0.3], n: [0, -1, 0] }, 'pinch', { on: 'slide' }),
+    },
+    magPoses: {
+      out: { p: [0, -0.05, 0.004], r: [0.04, 0, 0] },
+      below: { p: [0, -0.15, 0.02], r: [0.18, 0, 0.05] },
+      start: { p: [0, -0.07, 0.008], r: [0.06, 0, 0] },
+      tug: { p: [0, -0.004, 0], r: [0, 0, 0] },
+    },
+  },
+
   ak47: {
     reload: 'ak',
     parts: { mag: /^Cube006$/, charge: /^weapon001$/ },
@@ -363,6 +386,30 @@ function pistolReload(empty) {
   };
 }
 
+/* Çift tabanca: sol el ikiz tabancayı yeleğe koyar (HOLSTER sn), sağdaki
+   tabanca normal tabanca koreografisiyle doldurulur, sonra sol el ikizi
+   yelekten çekip yerine getirir (DRAW sn). `twin` izi: 0 elde, 1 yelekte.
+   Sol elin 'support' çapası ikizi izlediği için el tabancayı taşır.   */
+function dualPistolReload(empty) {
+  const HOLSTER = 0.38, DRAW = 0.4;
+  const base = pistolReload(empty);
+  const shift = (track) => track.map(([t, ...rest]) => [t + HOLSTER, ...rest]);
+  const out = { dur: base.dur + HOLSTER + DRAW };
+  for (const [key, track] of Object.entries(base)) {
+    if (!Array.isArray(track)) continue;
+    if (key === 'ev') { out.ev = shift(track); continue; }
+    out[key] = [[0, ...track[0].slice(1)], ...shift(track)];
+  }
+  // Sol el: önce ikizle birlikte yeleğe; sonunda yine ikizle (yelekten) geri
+  const L = out.L;
+  const lEnd = L[L.length - 1][0];
+  L.push([out.dur, 'support']);
+  out.R.push([out.dur, 'grip']);
+  out.twin = [[0, 0], [HOLSTER, 1], [lEnd, 1], [out.dur, 0]];
+  out.ev = [[0.1, 'cloth'], ...out.ev, [lEnd + 0.08, 'cloth']];
+  return out;
+}
+
 /* Barrett: ağır şarjör iki hareketle; boşta sol taraftaki kurma kolu
    sonuna kadar çekilip bırakılır. */
 function barrettReload(empty) {
@@ -490,6 +537,7 @@ export function choreography(type, empty) {
     case 'ar': return arReload(empty);
     case 'ak': return akReload(empty);
     case 'pistol': return pistolReload(empty);
+    case 'dualPistol': return dualPistolReload(empty);
     case 'barrett': return barrettReload(empty);
     case 'bolt': return boltReload(empty);
     case 'belt': return beltReload();

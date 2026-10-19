@@ -318,6 +318,42 @@ export const WEAPONS = [
   },
 ];
 
+// Çift Desert Eagle: mağazadan (Silahlar, 10.000 kredi) açılır — `shopId`
+// alınmadan kuşanılamaz ve silah seçiminde görünmez. Yuva Y (rakamlar
+// dolu). Atışlar sırayla sağ/sol tabancadan; doldururken sol tabanca
+// yeleğe girer (mechanics.js `dualPistol`). Nişan yok: iki tabanca kalçadan.
+WEAPONS.push({
+  id: 'deagle2',
+  shopId: 'cifttabanca',
+  finish: { body: 0xb5821f, metal: 0x9e998f, grip: 0x141513, stock: 0x141513, accent: 0xdcb758 },
+  name: 'Çift Desert Eagle',
+  file: 'assets/weapons/deagle.glb',
+  kind: 'Çift tabanca',
+  slot: 'Y',
+  damage: 62,
+  rpm: 330,             // iki tabanca sırayla: tek tabancanın 1.5 katı
+  auto: false,
+  mag: 14,              // 2 × 7
+  reserve: 112,
+  reloadTime: 2.4,
+  spread: 1.1,
+  adsSpread: 1.1,
+  recoil: 2.0,
+  kickback: 0.05,
+  zoom: 1,
+  noAds: true,
+  tracer: 0xffd27a,
+  flash: 0.9,
+  sound: { body: 190, crack: 3000, length: 0.26, punch: 0.85 },
+  view: {
+    // Sağ tabanca sağda; ikizi `dual.offset` kadar solda (tutucu uzayı)
+    length: 0.33, pos: [0.16, -0.205, -0.36], rot: [0, 2, 0],
+    flipForward: true, flipUp: false,
+  },
+  sights: { front: [-0.215, 0.099, 0.1135] },
+  dual: { offset: [-0.32, 0, 0] },
+});
+
 // Bıçak: listenin SONUNDA (yuva sırası WEAPONS[1] = AK-47 varsayımını bozmasın).
 // Yakın dövüş — mermi yok; sol tık savurur, 0 tuşuyla kuşanılır.
 WEAPONS.push({

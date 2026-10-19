@@ -1051,13 +1051,6 @@ body.unlocked #viewport { cursor: default; }
 }
 
 /* Ana ekran künyesi: model lisansı (CC-BY) atıf gerektiriyor */
-.home-credit {
-  margin: 18px 0 0;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: rgba(226, 232, 240, 0.42);
-}
-.home-credit strong { color: rgba(226, 232, 240, 0.62); font-weight: 600; }
 
 /* ── Mağaza ─────────────────────────────────────────────────────────── */
 .shop {
