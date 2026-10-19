@@ -23,7 +23,7 @@ const PALETTES = {
 const texCache = new Map();
 
 /** Kamuflaj: zemin rengi + düzensiz lekeler + panel çizgileri + alt çamur. */
-function camoTexture(kind) {
+export function camoTexture(kind) {
   if (texCache.has(kind)) return texCache.get(kind);
   const S = 512;
   const c = document.createElement('canvas');

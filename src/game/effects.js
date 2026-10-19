@@ -7,7 +7,7 @@ import * as THREE from 'three';
 const TRACERS = false;      // mermi izleri (bkz. tracer)
 
 const MAX_PARTICLES = 900;
-const MAX_SMOKE = 420;
+const MAX_SMOKE = 1600;     // füze izi + geri tepme dumanı aynı anda
 const MAX_TRACERS = 36;
 const MAX_DECALS = 64;
 

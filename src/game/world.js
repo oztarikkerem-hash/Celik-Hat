@@ -436,7 +436,7 @@ export class World {
       }
       const add = (list, mat, solidMesh) => {
         if (!list.length) return;
-        const geo = mergeGeometries(list.map((g) => g.toNonIndexed()), false);
+        const geo = mergeGeometries(list.map((g) => (g.index ? g.toNonIndexed() : g)), false);
         for (const g of list) g.dispose();
         geo.computeVertexNormals();
         const mesh = new THREE.Mesh(geo, mat);

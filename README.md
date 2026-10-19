@@ -32,6 +32,9 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
   tut (20 · 25 · 30 · 25). Yanında seçtiğin iki silah (normal cephaneleriyle);
   pencerelerde 10.000'er mermili iki M2 Browning; düşmanların bir kısmı
   kurşun geçirmez camları kırmaya çalışır.
+- **Füze Rampası** (2. özel görev): zırhlı araçla ormanın içinden 12 km;
+  pusularda 1 ile kuleye geç (arkadaşın sürer), 2 ile direksiyona dön.
+  Ormanda 40 + 30 düşman, sonra roketatar ve ayrıntılı bir sinematik.
 - **Bölümler:** tank bölümü — T-90 ya da M1 Abrams, müttefik ve
   düşman tanklar, yakıt, benzinlik ve market.
 

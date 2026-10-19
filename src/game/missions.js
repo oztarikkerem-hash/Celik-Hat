@@ -20,6 +20,13 @@ export const MISSIONS = [
     on: (ev) => (ev.type === 'raid-wave' ? 1 : 0),
   },
   {
+    // 2. özel görev: 12 km yol + orman çatışması + roketatar sinematiği
+    id: 'baskin2', name: 'Füze Rampası', target: 1, special: true,
+    desc: 'Zırhlı araçla ormandaki roketatara 12 km: yolda pusular var, 1 ile kuleye '
+      + 'geç, 2 ile direksiyona. Sonra 40 ve 30 kişilik iki dalga, en sonda roketatar.',
+    on: (ev) => (ev.type === 'op2-done' ? 1 : 0),
+  },
+  {
     id: 'ilk-kan', name: 'İlk Kan', target: 1,
     desc: 'Sahaya in ve ilk hedefi düşür.',
     on: (ev) => (ev.type === 'kill' ? 1 : 0),

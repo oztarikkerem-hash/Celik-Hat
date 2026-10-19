@@ -404,7 +404,8 @@ export class Enemy {
 
     // Saldırı: menzilde ateş, dibinde darbe. Cam hedefi (Baskın) büyük ve
     // durağan: 38 m'den ateş açılır
-    const shootRange = player.glass ? 38 : this.def.shootRange;
+    // e.shootRange: göreve özel menzil (ör. yol pususu: yol kenarından 45 m)
+    const shootRange = player.glass ? 38 : (this.shootRange ?? this.def.shootRange);
     if (dist <= this.def.range && now >= this.nextAttack) {
       this.nextAttack = now + this.def.cooldown;
       this.lunge = 1;
@@ -682,16 +683,20 @@ export class EnemyManager {
   }
 
   _spawnOne(type, player) {
-    const e = new Enemy(type, this.wave, this.gear, this.soldierFactory);
-    // Baskında saldırganların ~%45'i camları kırmaya çalışır
-    if (this.raid) e.breaker = Math.random() < 0.45;
-
     // Oyuncudan belirli uzaklıkta, yüklü bir sektörde doğsun.
     const r = this.raid;
     const pick = r
       ? this.world.spawnPoint(r.center, r.minR, r.maxR)
       : this.world.spawnPoint(player.pos);
-    e.pos.copy(pick);
+    const e = this.spawnAt(type, pick);
+    // Baskında saldırganların ~%45'i camları kırmaya çalışır
+    if (this.raid && this.glassList) e.breaker = Math.random() < 0.45;
+  }
+
+  /** Belirli bir noktada düşman (dalgadan bağımsız; ör. yol pususu). */
+  spawnAt(type, pos, wave = this.wave || 1) {
+    const e = new Enemy(type, wave, this.gear, this.soldierFactory);
+    e.pos.copy(pos);
     e.group.position.copy(e.pos);
     this.scene.add(e.group);
 
@@ -703,6 +708,17 @@ export class EnemyManager {
     }
 
     this.enemies.push(e);
+    return e;
+  }
+
+  /** Geride kalan düşmanı sessizce kaldırır (ölüm sayılmaz). */
+  despawn(e) {
+    e.alive = false;
+    if (e.body) { this.physics?.remove(e.body); e.body = null; }
+    if (e.cover) { e.cover.taken = null; e.cover = null; }
+    e.dispose(this.scene);
+    const i = this.enemies.indexOf(e);
+    if (i >= 0) this.enemies.splice(i, 1);
   }
 
   /**
@@ -744,7 +760,9 @@ export class EnemyManager {
       // Kurşun geçirmez cam gibi hasar alan engeller
       if (blocked.object.userData?.glass || blocked.object.userData?.vehicle) {
         // Cam kıranın mermisi cama iki kat işler (zırh delici)
-        const k = target.glass && blocked.object === target.glass.pane ? 2 : 1;
+        // Pusu mangası araca zırh delici atar (enemy.vsVehicle)
+        const k = target.glass && blocked.object === target.glass.pane ? 2
+          : blocked.object.userData?.vehicle ? (enemy.vsVehicle ?? 1) : 1;
         this.onBlocked?.(blocked.object, damage * k, blocked.point);
         return;
       }

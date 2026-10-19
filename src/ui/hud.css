@@ -2184,3 +2184,17 @@ body.touch .interact-hint { bottom: 130px; }
   .mission-cards { gap: 6px; }
   .btn-row { position: sticky; bottom: 0; padding: 8px 0; background: rgba(7, 10, 9, 0.94); }
 }
+
+/* Füze Rampası sinematiği: ekranı saran duman ve geçiş karartması */
+.smoke-veil {
+  position: fixed; inset: 0; z-index: 44; pointer-events: none; opacity: 0;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(170, 164, 154, 0.9), transparent 60%),
+    radial-gradient(ellipse at 75% 65%, rgba(140, 134, 125, 0.95), transparent 55%),
+    rgba(128, 123, 115, 0.92);
+}
+.op-fade {
+  position: fixed; inset: 0; z-index: 46; pointer-events: none;
+  background: #050605; opacity: 0; transition: opacity 0.9s ease;
+}
+.op-fade.on { opacity: 1; }

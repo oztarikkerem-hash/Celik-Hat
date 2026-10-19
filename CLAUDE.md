@@ -659,6 +659,53 @@ sıralı kuyruk, 4.5 sn).
 - **Mermi izi yok**: `effects.tracer` kapalı (`TRACERS = false`); atışta
   geri tepme, namlu alevi ve namlu dumanı kalır.
 
+## Füze Rampası (2. özel görev, `src/game/op2.js` + `road.js`)
+
+Görev listesinde Baskın'ın altında (`baskin2`). Silah seçimi 4, alan
+seçimi YOK (yol + orman sabit). `game.startOp2(ids)`; `start()` artık
+`_prepareRun` + `_finishPrepare` ortak parçalarını kullanıyor.
+
+1. **Yol (12 km, `road.js`)**: ana haritanın çok uzağında (x = 6 km),
+   kuzeye (−Z): z = Z0 − s → ilerleme s = Z0 − z. 160 m'lik parçalar önde
+   kurulur, arkada sökülür; her parça dünyaya *fixture* (çarpışma, mermi
+   engeli, siper). Bu sırada `world.half` = 1e6 (sınır yok), harita gizli ve
+   `world.update` ÇAĞRILMAZ (`op2.roadActive`); indeks `_rebuildIndex` ile,
+   güneş gölgesi elle izletilir.
+   - Araç `v.vmax` 24 m/sn (oyuncu), arkadaşın sürüşü `v.pathDriver`
+     (11 m/sn, pusuda 6.5) şeridi izler: enkaz sağda → sol şerit, kütük
+     solda → sağ şerit (`road.lane`).
+   - **1** kuleye (arkadaş sürer), **2** direksiyona (arkadaş kuleye) —
+     yolcular korunarak (`climb`/`enter` yakınlığa göre topluyordu).
+     Yolda F/T kapalı (araçtan inilmez).
+   - 8 pusu (`ROAD.ambushes`): ~230 m önde manga (`enemies.spawnAt`),
+     menzil 48 m, araca ×3 zırh delici (`e.vsVehicle`). Temizlenince
+     +600 zırh; 260 m geride kalanlar `despawn`. Araç patlarsa görev biter.
+2. **Orman**: kararma (`#op-fade`) → harita geri, araç (0, 100)'de durur,
+   herkes iner. `enemies.raid` = { waves: [40, 30], center: saha } (Baskın
+   dalga mekanizması); `_onWaveClear` → `op2.onWaveClear`; ikinci dalgadan
+   sonra 3. dalga yok (`state = 'idle'`).
+3. **Saha** (0, −48): `assets/props/mlrs.glb` + `mlrs_fuze.glb` —
+   kullanıcının Blender'daki MLRS sahnesi (kopyası
+   `~/Desktop/Roketatar/Roketatar.blend`), `tools/export_mlrs.py` ile:
+   1. kare (rampa 33°, füze tüpte), 630 parça tek nesne, ateşlenen tüpün
+   kapakları ayrı (`CapFront`/`CapBack`), prosedürel "Camo" için dünya
+   uzayı kutu UV (oyun kamuflaj dokusu basar). Tüp ekseni/füze noktası
+   op2.js'te sabit (`TUBE_AXIS`, `ROCKET_REST`).
+4. **Sinematik** (E, operatörün 8 m yakınında; ~31 sn, Boşluk geçer):
+   geniş açı → kumanda yakın (emniyet kapağı, LED, başparmak) → POV nişan
+   (ağır çekim 0.42) → atış → başparmak düğmeye basar → kapaklar fırlar,
+   geri tepme, füze (30 → 48 m/sn²) → kovalayan kamera → her yer duman
+   (`#smoke-veil` + büyük duman parçacıkları) → duman çekilir → kart
+   "2. BÖLÜM TAMAMLANDI" → `_showVictory`.
+   - Kumanda elde: önkol ekseni + başparmak yönünden taban; **sinematik
+     başında poz dondurulur** (sonra yalnızca başparmak oynar) ve basan
+     başparmağın ucu ölçülüp kumanda ona göre kaydırılır (`st.cal`) —
+     poz kaydığı için sabit ofset tutmuyordu. Başparmak kemikleri Y
+     ekseninde ×0.4 kıvrılır (ölçüm).
+   - Füze alevi/ışıması ve gövdesi `fog: false` (gökte silinmesin); iz
+     dumanı kare başına önceki-şimdiki kuyruk arasına doldurulur
+     (`MAX_SMOKE` 1600).
+
 ## Telefon ve tablet (YALNIZCA yatay)
 
 - `src/ui/touch.js`: `(pointer: coarse)` ve ince işaretçi yoksa `body.touch`.

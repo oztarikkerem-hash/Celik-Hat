@@ -344,15 +344,16 @@ export class Hud {
    * Baskın görünümü: başlıkta "BASKIN", altında can barı gibi dolu başlayıp
    * her ölen düşmanla azalan dalga barı. waves = toplam dalga (0 = normal).
    */
-  setRaidMode(waves) {
+  setRaidMode(waves, label = 'BASKIN') {
     this._raidWaves = waves;
+    this._raidLabel = label;
     this.el.waveBlock.classList.toggle('raid', waves > 0);
     if (!waves) this.el.waveLabel.textContent = 'DALGA';
   }
 
   setWave(n, remaining, total) {
     if (this._raidWaves) {
-      this.el.wave.textContent = 'BASKIN';
+      this.el.wave.textContent = this._raidLabel ?? 'BASKIN';
       this.el.waveLabel.textContent = `DALGA ${n} / ${this._raidWaves}`;
       this.el.enemiesLeft.textContent = remaining > 0 ? `${remaining} / ${total} düşman` : 'DALGA BİTTİ';
       const left = total > 0 ? remaining / total : 0;

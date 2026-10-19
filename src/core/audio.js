@@ -332,6 +332,64 @@ export class AudioEngine {
     this._noise({ dur: 0.12, gain: 0.5, freq: 5200, q: 0.8, type: 'highpass' });
   }
 
+  /**
+   * Uzun gürültü gövdesi: yavaş yükselir, tutar, söner (füze motoru,
+   * uzaklaşan gürleme). sweepTo: süzgeç frekansı bu değere kayar.
+   */
+  _swell({ dur = 3, gain = 0.5, type = 'lowpass', freq = 600, q = 0.5, attack = 0.08, hold = 0.4, at = 0, sweepTo = null }) {
+    const t0 = this.t + at;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    src.loop = true;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = type;
+    filter.frequency.setValueAtTime(freq, t0);
+    if (sweepTo) filter.frequency.exponentialRampToValueAtTime(sweepTo, t0 + dur);
+    filter.Q.value = q;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0 + attack);
+    g.gain.setValueAtTime(gain, t0 + attack + hold);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(filter).connect(g).connect(this.master);
+    src.start(t0);
+    src.stop(t0 + dur + 0.05);
+  }
+
+  /** Sinematik: yavaş kalp atışı (iki vuruş). */
+  heartbeat(at = 0) {
+    if (!this.ctx) return;
+    this._tone({ f0: 70, f1: 38, dur: 0.16, gain: 0.55, type: 'sine', at });
+    this._tone({ f0: 62, f1: 34, dur: 0.18, gain: 0.42, type: 'sine', at: at + 0.24 });
+  }
+
+  /** Kumanda: emniyet kapağı / düğme tıkı. */
+  click(sharp = false) {
+    if (!this.ctx) return;
+    this._noise({ dur: 0.03, gain: sharp ? 0.32 : 0.18, freq: sharp ? 3800 : 2600, q: 4 });
+    this._tone({ f0: sharp ? 1900 : 1400, f1: 900, dur: 0.025, gain: 0.08, type: 'square' });
+  }
+
+  /**
+   * Füze ateşlemesi: ateşleme patlaması, geri tepme alevinin uğultusu ve
+   * motorun yükselip uzaklaşan gürlemesi (~9 sn).
+   */
+  missileLaunch() {
+    if (!this.ctx) return;
+    this.explosion();
+    this._tone({ f0: 48, f1: 22, dur: 2.6, gain: 0.9, type: 'sine' });
+    this._swell({ dur: 7.5, gain: 0.85, freq: 900, sweepTo: 140, attack: 0.05, hold: 1.4 });
+    this._swell({ dur: 4.5, gain: 0.42, type: 'bandpass', freq: 2400, sweepTo: 600, q: 0.6, attack: 0.03, hold: 0.8 });
+    this._swell({ dur: 9, gain: 0.3, freq: 260, sweepTo: 70, attack: 0.6, hold: 2, at: 0.4 });
+    this._noise({ dur: 0.25, gain: 0.6, freq: 5200, q: 0.7, type: 'highpass' });
+  }
+
+  /** Duman içinde sönen uzun gürleme. */
+  rumble(dur = 6) {
+    if (!this.ctx) return;
+    this._swell({ dur, gain: 0.35, freq: 180, sweepTo: 60, attack: 0.4, hold: dur * 0.3 });
+  }
+
   /** Başarım: yükselen iki nota. */
   achievement() {
     if (!this.ctx) return;

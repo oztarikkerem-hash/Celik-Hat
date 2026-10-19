@@ -253,10 +253,12 @@ export class Vehicles {
     else if (thr < 0) v.speed -= (v.speed > 0 ? BRAKE : ACCEL * 0.7) * dt;
     else v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), DRAG * dt);
     if (input.jump) v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), BRAKE * dt);
-    v.speed = THREE.MathUtils.clamp(v.speed, -VREV, VMAX);
+    // v.vmax: görev başına üst hız (ör. Füze Rampası'nın toprak yolunda 24 m/sn)
+    const vmax = v.vmax ?? VMAX;
+    v.speed = THREE.MathUtils.clamp(v.speed, -VREV, vmax);
 
     // Hızlanınca direksiyon kısılır (yüksek hızda keskin dönüş takla attırır)
-    const steerMax = STEER_MAX * (1 - 0.6 * Math.min(1, Math.abs(v.speed) / VMAX));
+    const steerMax = STEER_MAX * (1 - 0.6 * Math.min(1, Math.abs(v.speed) / vmax));
     const want = -input.right * steerMax;
     v.steer += (want - v.steer) * Math.min(1, dt * 5);
     v.yaw += (v.speed / WHEELBASE) * Math.tan(v.steer) * dt;
@@ -484,7 +486,8 @@ export class Vehicles {
         w.steer.rotation.y = w.front ? v.steer : 0;
       }
       if (v.dead) continue;
-      if (v === this.topside && v.autoDrive) this._autoDrive(v, dt, now);
+      // pathDriver: görevin kendi sürüşü (ör. yolu izleyen silah arkadaşı)
+      if (v === this.topside && v.autoDrive) (v.pathDriver ?? ((a, b, c) => this._autoDrive(a, b, c)))(v, dt, now);
       else if (v === this.topside) this._physics(v, dt, now, { forward: 0, right: 0, jump: true });
       v.root.updateMatrixWorld(true);
       // Binenler araçla taşınır (görünmez); nişancı kulede görünür

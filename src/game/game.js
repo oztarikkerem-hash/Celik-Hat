@@ -34,6 +34,7 @@ import { NameTags } from '../ui/nametags.js';
 import { AmmoCrates } from './ammocrate.js';
 import { Achievements } from './achievements.js';
 import { Weekly } from './weekly.js';
+import { Op2 } from './op2.js';
 import { TouchControls, isTouchDevice } from '../ui/touch.js';
 import { Input } from '../core/input.js';
 import { AudioEngine } from '../core/audio.js';
@@ -130,6 +131,7 @@ export class Game {
     this.missions = new MissionBook();
     this.raid = new Raid(this);
     this.crates = new AmmoCrates(this);
+    this.op2 = new Op2(this);                // Füze Rampası (2. özel görev)
     // Başarım ödülü o anki tura puan olarak eklenir
     this.achv = new Achievements((id, def) => {
       if (def.odul) {
@@ -309,6 +311,7 @@ export class Game {
     on('raid-start-btn', () => {
       const m = this._loadoutFor;
       if (m === 'baskin') this._askMap('baskin', () => this.startRaid([...this.raidPick]));
+      else if (m === 'baskin2') this.startOp2([...this.pick4]);         // alan sabit: yol + orman
       else this._askMap(m, () => this._startWithPick(m));
     });
     on('raid-back-btn', () => (this._loadoutFor === null ? this.toHome() : this.showMissions()));
@@ -347,6 +350,13 @@ export class Game {
       if (code === 'KeyX') this._setBinocular(!this.binoc);
       // F: etkileşim — M2, zırhlı araç, pencere camı (yakında hangisi varsa).
       // Q / E artık yana eğilme (basılı tutulur, _step'te okunur).
+      // Füze Rampası yolu: 1 kuleye, 2 direksiyona; araçtan inilmez
+      if (this.op2.roadActive) {
+        if (code === 'Digit1') this.op2.swap(1);
+        if (code === 'Digit2') this.op2.swap(2);
+        if (this.vehicles.driving || this.vehicles.topside) return;
+      }
+      if (code === 'KeyE' && this.op2.active) this.op2.tryCine();
       if (code === 'KeyF') this._interact();
       if (code === 'KeyT') this._toggleTop();
       // Kuledeyken 1 / 2: silah arkadaşı sürsün / araç dursun
@@ -493,6 +503,11 @@ export class Game {
    * seçimler kullanılır. id: görev (null = serbest hat)
    */
   startMission(id, retry = false) {
+    if (id === 'baskin2') {
+      if (retry && this.pick4.size === PICK_COUNT) this.startOp2([...this.pick4]);
+      else this._showLoadout('baskin2');
+      return;
+    }
     if (id === 'baskin') {
       if (retry && this.raidPick.size === 2) this.startRaid([...this.raidPick]);
       else this._showLoadout('baskin');
@@ -556,6 +571,95 @@ export class Game {
 
   /** loadout: normal görevde seçilen 4 silah (null = hepsi) */
   start(missionId = null, raidIds = null, loadout = null) {
+    this._prepareRun(missionId, raidIds, loadout);
+    // Giriş sinematiğinde aracın geleceği yol şeridi boşaltılır
+    const plan = this._introPlan(raidIds);
+    // Sandık yuvası: oyuncunun ~55 m önünde (müttefik menzili 42 m — ilk
+    // saniyede onlar indirmesin), namlusu iniş noktasına dönük
+    this.raid.teardownNest();
+    const nestAt = raidIds ? null : this.player.pos.clone().add(new THREE.Vector3(6, 0, -55)).setY(0);
+    const rects = [plan.rect];
+    if (nestAt) rects.push({ x0: nestAt.x - 4, x1: nestAt.x + 4, z0: nestAt.z - 4, z1: nestAt.z + 4 });
+    this.world.setClearRects(rects);
+    if (nestAt) {
+      const nest = this.raid.setupNest(nestAt, Math.atan2(nestAt.x - this.player.pos.x, nestAt.z - this.player.pos.z));
+      if (nest) this.enemies.addNestGunner(nest, { hp: NEST.hp, damage: NEST.damage, range: NEST.range });
+    }
+    this.enemies.glassList = raidIds ? this.raid.glass : null;
+
+    // İki mühimmat sandığı: biri iniş noktasının yanında (araç yolunun
+    // dışında), biri makineli yuvasına giden yolda; Baskın'da evin iki odasında
+    const crateSpots = raidIds
+      ? [{ pos: this.raid._w(-2.4, 4.3), yaw: Math.PI }, { pos: this.raid._w(5.0, -2.0), yaw: -Math.PI / 2 }]
+      : [{ pos: this.player.pos.clone().add(new THREE.Vector3(-8.5, 0, -2)).setY(0), yaw: 0.5 },
+        { pos: nestAt.clone().add(new THREE.Vector3(-8, 0, 9)), yaw: -0.4 }];
+    if (!raidIds) {
+      for (const c of crateSpots) rects.push({ x0: c.pos.x - 1.5, x1: c.pos.x + 1.5, z0: c.pos.z - 1.5, z1: c.pos.z + 1.5 });
+      this.world.setClearRects(rects);
+    }
+    this.crates.place(crateSpots);
+    if (raidIds) {
+      const st = this.raid.playerStart;
+      this.player.pos.copy(st.pos);
+      this.player.yaw = st.yaw;
+      // Evin çevresindeki sektörler hemen kurulsun (ilk karede boş arazi görünmesin)
+      this.camera.position.set(st.pos.x, 1.66, st.pos.z);
+      this.camera.rotation.set(0, st.yaw, 0);
+      this.camera.updateMatrixWorld();
+      this.world.update(this.camera, this.player.pos, performance.now() / 1000, 30);
+    } else {
+      // Alan değişmiş olabilir: çevredeki sektörler ilk karede hazır olsun
+      this.camera.position.set(this.player.pos.x, 1.66, this.player.pos.z);
+      this.camera.rotation.set(0, this.player.yaw, 0);
+      this.camera.updateMatrixWorld();
+      this.world.update(this.camera, this.player.pos, performance.now() / 1000, 30);
+    }
+    this.allies.engageRange = raidIds ? 80 : 42;
+    this.allies.spawn(raidIds ? 4 : 3, this.player.pos, raidIds ? this.raid.posts : null);
+    this.enemies.allies = this.allies.allies;
+    this.nametags.rebuild(this.allies.allies);
+    this._finishPrepare();
+
+    this.state = 'cinematic';
+    this.nametags.setVisible(false);
+    // Giriş sinematiği: araçla varış ve iniş; bitince dalga başlar
+    this.activeCine = this.intro;
+    this.intro.begin({
+      ...plan,
+      map: mapById(this.mapId),
+      missionName: MISSIONS.find((m) => m.id === missionId)?.name ?? null,
+      onDone: () => this._afterIntro(raidIds),
+    });
+  }
+
+  /**
+   * Füze Rampası (2. özel görev): yol + orman çatışması + roketatar.
+   * Alan seçimi yok (yol ve orman sabit). ids: seçilen 4 silah.
+   */
+  async startOp2(ids) {
+    try { localStorage.setItem(PICK4_KEY, JSON.stringify(ids)); } catch { /* gizli sekme */ }
+    await this.ensureAssets();
+    if (!this.op2.assets) {
+      this.hud.screen('loader');
+      this.hud.loading(0.1, 'Roketatar hazırlanıyor');
+      await this.op2.load((p, label) => this.hud.loading(0.1 + p * 0.9, label));
+    }
+    this._prepareRun('baskin2', null, ids);
+    this.raid.teardownNest();
+    this.enemies.glassList = null;
+    this.world.setClearRects([]);
+    this.crates.place([]);
+    this._finishPrepare();
+    this.op2.begin();
+    this.state = 'playing';
+    this.nametags.setVisible(true);
+    this.camera.fov = BASE_FOV;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /** Bütün görevlerin ortak hazırlığı (oyuncu, silahlar, düşmanlar). */
+  _prepareRun(missionId, raidIds, loadout) {
+    this.op2.end();
     this._kaskKalkaniKullanildi = false;
     this._treating = null;
     this.hud.setDowned(false);
@@ -604,63 +708,17 @@ export class Game {
     );
     this.hud.setActiveWeapon(this.weaponry.current.def);
     this.enemies.reset();
-    // Giriş sinematiğinde aracın geleceği yol şeridi boşaltılır
-    const plan = this._introPlan(raidIds);
-    // Sandık yuvası: oyuncunun ~55 m önünde (müttefik menzili 42 m — ilk
-    // saniyede onlar indirmesin), namlusu iniş noktasına dönük
-    this.raid.teardownNest();
-    const nestAt = raidIds ? null : this.player.pos.clone().add(new THREE.Vector3(6, 0, -55)).setY(0);
-    const rects = [plan.rect];
-    if (nestAt) rects.push({ x0: nestAt.x - 4, x1: nestAt.x + 4, z0: nestAt.z - 4, z1: nestAt.z + 4 });
-    this.world.setClearRects(rects);
-    if (nestAt) {
-      const nest = this.raid.setupNest(nestAt, Math.atan2(nestAt.x - this.player.pos.x, nestAt.z - this.player.pos.z));
-      if (nest) this.enemies.addNestGunner(nest, { hp: NEST.hp, damage: NEST.damage, range: NEST.range });
-    }
-    this.enemies.glassList = raidIds ? this.raid.glass : null;
-
-    // İki mühimmat sandığı: biri iniş noktasının yanında (araç yolunun
-    // dışında), biri makineli yuvasına giden yolda; Baskın'da evin iki odasında
-    const crateSpots = raidIds
-      ? [{ pos: this.raid._w(-2.4, 4.3), yaw: Math.PI }, { pos: this.raid._w(5.0, -2.0), yaw: -Math.PI / 2 }]
-      : [{ pos: this.player.pos.clone().add(new THREE.Vector3(-8.5, 0, -2)).setY(0), yaw: 0.5 },
-        { pos: nestAt.clone().add(new THREE.Vector3(-8, 0, 9)), yaw: -0.4 }];
-    if (!raidIds) {
-      for (const c of crateSpots) rects.push({ x0: c.pos.x - 1.5, x1: c.pos.x + 1.5, z0: c.pos.z - 1.5, z1: c.pos.z + 1.5 });
-      this.world.setClearRects(rects);
-    }
-    this.crates.place(crateSpots);
-    if (raidIds) {
-      const st = this.raid.playerStart;
-      this.player.pos.copy(st.pos);
-      this.player.yaw = st.yaw;
-      // Evin çevresindeki sektörler hemen kurulsun (ilk karede boş arazi görünmesin)
-      this.camera.position.set(st.pos.x, 1.66, st.pos.z);
-      this.camera.rotation.set(0, st.yaw, 0);
-      this.camera.updateMatrixWorld();
-      this.world.update(this.camera, this.player.pos, performance.now() / 1000, 30);
-    } else {
-      // Alan değişmiş olabilir: çevredeki sektörler ilk karede hazır olsun
-      this.camera.position.set(this.player.pos.x, 1.66, this.player.pos.z);
-      this.camera.rotation.set(0, this.player.yaw, 0);
-      this.camera.updateMatrixWorld();
-      this.world.update(this.camera, this.player.pos, performance.now() / 1000, 30);
-    }
-    this.allies.engageRange = raidIds ? 80 : 42;
-    this.allies.spawn(raidIds ? 4 : 3, this.player.pos, raidIds ? this.raid.posts : null);
-    // Zırhlı araç giriş sinematiğinde gelir (intro.js)
     this.vehicles.clear();
-    this.enemies.allies = this.allies.allies;
-    this.nametags.rebuild(this.allies.allies);
+  }
+
+  /** Ortak hazırlığın sonu: bombalar, kovanlar, sayaçlar, HUD. */
+  _finishPrepare() {
     this.grenades.reset(3);
     this._finaleEndAt = 0;
     this.casings.reset();
     this.droppedMags.reset();
     this.rockets.reset();
     this.missions.resetRun();
-
-    this.state = 'cinematic';
-    this.nametags.setVisible(false);
     this.hud.screen(null);
     this.hud.setScore(0);
     this.hud.setHealth(this.player.health, this.player.maxHealth);
@@ -668,14 +726,6 @@ export class Game {
     this.hud.setMission(this.missions.active, this.missions);
     this.input.requestLock();
     this.clock.getDelta();
-    // Giriş sinematiği: araçla varış ve iniş; bitince dalga başlar
-    this.activeCine = this.intro;
-    this.intro.begin({
-      ...plan,
-      map: mapById(this.mapId),
-      missionName: MISSIONS.find((m) => m.id === missionId)?.name ?? null,
-      onDone: () => this._afterIntro(raidIds),
-    });
   }
 
   /** Sinematik bitti (ya da atlandı): oyun başlar. */
@@ -832,6 +882,7 @@ export class Game {
 
   /** Son düşman düştüğü an: Baskın'da duyuru, son dalgada kapanış. */
   _onWaveClear(wave, now) {
+    if (this.op2.active) { this.op2.onWaveClear(wave, now); return; }
     if (!this.raid.active) return;
     this.missions.report({ type: 'raid-wave', wave });
     this.hud.setMission(this.missions.active, this.missions);
@@ -910,6 +961,7 @@ export class Game {
   }
 
   toHome() {
+    this.op2.end();
     this.state = 'home';
     this._syncLocks();
     this._drawWeekly();
@@ -1657,7 +1709,7 @@ export class Game {
     } else if (this.state === 'cinematic') {
       this.input.consumeLook();                  // sinematikte fare bakışı yok
       this.weaponry.rig.visible = false;
-      this.world.update(this.camera, this.player.pos, now, 3);
+      if (!this.op2.roadActive) this.world.update(this.camera, this.player.pos, now, 3);
       this.vehicles.update(dt, now);
       if (this.raid.active) this.raid.update(dt, now);       // ufuktaki birlik yürür
       this.activeCine?.update(dt, now);
@@ -1706,7 +1758,8 @@ export class Game {
     );
 
     // Dünya akışı: görüş alanına giren sektörler kurulur, çıkanlar sökülür.
-    this.world.update(this.camera, this.player.pos, now);
+    // Füze Rampası yolunda harita gizli ve sektör akışı durur (road.js)
+    if (!this.op2.roadActive) this.world.update(this.camera, this.player.pos, now);
 
     const def = this.weaponry.current.def;
     const firing = this.input.mouse(0) && !this.binoc && !busy;
@@ -1760,6 +1813,7 @@ export class Game {
     this.allies.update(dt, now, this.player, this.enemies.enemies);
     this.raid.update(dt, now);
     this.vehicles.update(dt, now);
+    this.op2.update(dt, now);
 
     // Dalga geçişi
     if (this.enemies.state === 'break' && now > this.enemies.breakEnd) {
@@ -1849,6 +1903,7 @@ export class Game {
     } else if (!this.player.downed && this.vehicles.nearby(this.player.pos)) {
       hint = ['F', 'araca bin (sür) · T kuleye çık — yakındaki silah arkadaşların da biner'];
     }
+    if (this.op2.active) hint = this.op2.hint() ?? hint;
     this.hud.setHint(hint);
     this.hud.setHealth(this.player.health, this.player.maxHealth, this.player.healthCap);
     this.hud.setStamina(this.player.stamina, this.player.exhausted);
@@ -1890,6 +1945,7 @@ export class Game {
       world: this.world,
       grenades: this.grenades.live,
     });
+    if (this.op2.active) this.op2.drawHud();
 
     if (now > this.comboUntil && this.combo > 0) {
       this.combo = 0;
