@@ -1299,7 +1299,7 @@ body.unlocked #viewport { cursor: default; }
 }
 .tank-hint[hidden] { display: none !important; }
 
-/* ── Zırhlı görev çerçevesi (Death Star) ────────────────────────────── */
+/* ── Zırhlı görev çerçevesi (tank bölümü) ────────────────────────────── */
 #tankFrame {
   position: fixed;
   inset: 0;
@@ -1822,3 +1822,210 @@ body.cine-bars .cine-bottom { transform: none; }
 .home-licenses-link:hover,
 .home-licenses-link:focus-visible { font-size: 11px; color: var(--bone); }
 .home-licenses-link:focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
+
+/* ══════════════════ Ana ekran (yeniden tasarım) ══════════════════════
+   Sol üstte başlık, altında yukarıdan aşağı renkli menü; sağ üstte
+   haftalık ödül takvimi. Arkada menü manzarası (3B dünya) görünsün diye
+   zemin sağa doğru açılır. Her menü kaleminin kendi rengi var (--c).   */
+
+.home {
+  background:
+    radial-gradient(ellipse at 88% 8%, rgba(255, 140, 60, 0.22), transparent 45%),
+    radial-gradient(ellipse at 10% 100%, rgba(63, 184, 169, 0.16), transparent 50%),
+    linear-gradient(100deg, rgba(8, 11, 14, 0.95) 0%, rgba(10, 14, 18, 0.82) 42%, rgba(12, 16, 22, 0.35) 100%);
+  place-items: stretch;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.home-layout {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) 1fr;
+  gap: 28px 40px;
+  padding: calc(28px + env(safe-area-inset-top, 0px)) 32px calc(28px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.home-left { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.home-right { display: flex; flex-direction: column; align-items: flex-end; gap: 16px; min-width: 0; }
+
+.home .home-brand { display: grid; gap: 8px; }
+.home .home-title {
+  grid-column: auto;
+  grid-row: auto;
+  justify-self: start;
+  white-space: nowrap;
+  margin: 0;
+  font-family: var(--disp);
+  font-size: clamp(54px, 7.5vw, 96px);
+  font-weight: 700;
+  line-height: 0.84;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  text-align: left;
+  background: linear-gradient(95deg, #ffd27a 0%, #ff9a3c 45%, #ff5a3c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 3px 14px rgba(255, 110, 50, 0.28));
+}
+.home .home-title span {
+  background: linear-gradient(95deg, #7ee0d2, #3fb8a9);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.home .lede { margin: 0; max-width: 40ch; color: rgba(221, 225, 215, 0.72); font-size: 14px; line-height: 1.45; }
+
+/* Menü: yukarıdan aşağı */
+.home-menu { display: flex; flex-direction: column; gap: 8px; }
+.menu-item {
+  --c: var(--amber);
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px 10px 10px;
+  text-align: left;
+  font: inherit;
+  color: var(--bone);
+  cursor: pointer;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 22%, transparent), rgba(16, 21, 26, 0.72) 55%);
+  border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
+  border-radius: 4px;
+  transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+}
+.menu-item:hover, .menu-item:focus-visible {
+  transform: translateX(4px);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 40%, transparent), rgba(20, 26, 32, 0.85) 70%);
+  border-color: var(--c);
+  outline: none;
+}
+.menu-item:focus-visible { box-shadow: 0 0 0 2px var(--c); }
+.mi-ico {
+  display: grid; place-items: center;
+  width: 38px; height: 38px;
+  border-radius: 3px;
+  background: var(--c);
+  color: #0b0f0d;
+  font-size: 16px;
+}
+.mi-text { display: grid; gap: 1px; min-width: 0; }
+.mi-text b {
+  font-family: var(--disp);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.mi-text small { font-family: var(--mono); font-size: 11px; color: rgba(221, 225, 215, 0.6); letter-spacing: 0.03em; }
+.mi-go { font-size: 26px; color: var(--c); line-height: 1; }
+.menu-item.sound-btn {
+  display: block;
+  padding: 8px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(221, 225, 215, 0.7);
+  background: rgba(16, 21, 26, 0.6);
+  width: auto;
+  align-self: flex-start;
+}
+
+.home .home-stats {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+  gap: 26px;
+  padding: 14px 0 0;
+  border-top: 1px solid rgba(221, 225, 215, 0.12);
+  border-bottom: 0;
+}
+.home .home-stats strong { font-size: 26px; color: #ffd27a; }
+
+/* Haftalık ödüller (sağ üst) */
+.weekly {
+  width: min(470px, 100%);
+  padding: 16px 18px 14px;
+  background: linear-gradient(160deg, rgba(40, 30, 20, 0.92), rgba(14, 18, 24, 0.92));
+  border: 1px solid rgba(255, 170, 80, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  display: grid;
+  gap: 12px;
+}
+.weekly-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.weekly-head .eyebrow { color: #ffb35c; }
+.weekly-head h2 { margin: 2px 0 0; font-family: var(--disp); font-size: 22px; font-weight: 700; line-height: 1; text-wrap: balance; }
+.weekly-streak { font-family: var(--mono); font-size: 13px; color: #ffd27a; white-space: nowrap; }
+.weekly-days {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px;
+}
+.weekly-days li {
+  display: grid; justify-items: center; gap: 4px;
+  padding: 8px 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+.weekly-days .wd-day { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; color: rgba(221, 225, 215, 0.55); }
+.weekly-days .wd-amt { font-family: var(--disp); font-size: 17px; font-weight: 700; color: var(--bone); }
+.weekly-days .wd-state { font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em; color: rgba(221, 225, 215, 0.45); }
+.weekly-days li.done { background: rgba(123, 201, 111, 0.12); border-color: rgba(123, 201, 111, 0.4); }
+.weekly-days li.done .wd-amt { color: #9be08e; }
+.weekly-days li.done .wd-state { color: #9be08e; }
+.weekly-days li.today {
+  background: linear-gradient(180deg, rgba(255, 170, 70, 0.35), rgba(255, 110, 50, 0.18));
+  border-color: #ffb35c;
+  box-shadow: 0 0 18px rgba(255, 150, 60, 0.35);
+}
+.weekly-days li.today .wd-amt { color: #ffe0a0; }
+.weekly-days li.today .wd-state { color: #ffd27a; }
+.weekly-days li.last .wd-amt { color: #ffcf5c; }
+.weekly-claim {
+  font: inherit;
+  font-family: var(--disp);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #1a1206;
+  background: linear-gradient(90deg, #ffd27a, #ff9a3c);
+}
+.weekly-claim:hover { filter: brightness(1.08); }
+.weekly-claim:focus-visible { outline: 2px solid #ffe0a0; outline-offset: 2px; }
+.weekly-claim:disabled { cursor: default; color: rgba(221, 225, 215, 0.6); background: rgba(255, 255, 255, 0.07); }
+.weekly-note { margin: 0; font-size: 11px; color: rgba(221, 225, 215, 0.5); }
+
+.home .home-controls {
+  width: min(470px, 100%);
+  margin: 0;
+  padding: 14px 16px;
+  background: rgba(14, 18, 24, 0.88);
+  border: 1px solid rgba(90, 169, 240, 0.35);
+  border-radius: 6px;
+}
+
+/* Görev kartı: tamamlanmış görev tekrar oynanabilir */
+.mission-card .tag.again { background: rgba(63, 184, 169, 0.2); color: #7ee0d2; border-color: rgba(63, 184, 169, 0.5); }
+
+@media (max-width: 820px) {
+  .home-layout { grid-template-columns: 1fr; }
+  .home-right { align-items: stretch; }
+  .weekly, .home .home-controls { width: 100%; }
+}
+@media (max-width: 420px) {
+  .weekly-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .home .home-stats { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .menu-item { transition: none; } .menu-item:hover { transform: none; } }

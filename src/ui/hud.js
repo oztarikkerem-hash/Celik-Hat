@@ -285,6 +285,35 @@ export class Hud {
     }
   }
 
+  /**
+   * Haftalık ödül takvimi. gunler: [{ gun, odul, durum }], alinabilir:
+   * bugünün ödülü duruyor mu, kazanilan: az önce alınan puan (teşekkür yazısı).
+   */
+  buildWeekly(gunler, alinabilir, kazanilan = 0) {
+    const fmt = (n) => n.toLocaleString('tr-TR');
+    const etiket = { done: 'ALINDI', today: 'BUGÜN', next: 'YARIN', locked: '' };
+    const ol = $('weekly-days');
+    ol.innerHTML = '';
+    for (const g of gunler) {
+      const li = document.createElement('li');
+      li.className = `${g.durum}${g.gun === 7 ? ' last' : ''}`;
+      li.innerHTML = `<span class="wd-day">${g.gun}. GÜN</span>`
+        + `<span class="wd-amt">${g.durum === 'done' ? '✓' : fmt(g.odul)}</span>`
+        + `<span class="wd-state">${etiket[g.durum]}</span>`;
+      li.setAttribute('aria-label', `${g.gun}. gün, ${fmt(g.odul)} puan${etiket[g.durum] ? `, ${etiket[g.durum].toLowerCase()}` : ''}`);
+      ol.append(li);
+    }
+    const bugunku = gunler.find((g) => g.durum === 'today');
+    const alinanSayisi = gunler.filter((g) => g.durum === 'done').length;
+    $('weekly-streak').textContent = `Gün ${Math.min(7, alinanSayisi + (bugunku ? 1 : 0)) || 1} / 7`;
+    const btn = $('weekly-claim');
+    btn.disabled = !alinabilir;
+    btn.textContent = alinabilir && bugunku
+      ? `Bugünün ödülünü al · +${fmt(bugunku.odul)} puan`
+      : kazanilan ? `+${fmt(kazanilan)} puan kredine eklendi — yarın yine gel`
+        : 'Bugünün ödülü alındı — yarın yine gel';
+  }
+
   toggleControls() {
     this.el.homeControls.hidden = !this.el.homeControls.hidden;
   }
@@ -299,7 +328,7 @@ export class Hud {
       li.dataset.id = m.id;
       li.innerHTML = `
         <div class="card-head">
-          <strong>${m.name}${m.special ? '<span class="tag">ÖZEL</span>' : ''}</strong>
+          <strong>${m.name}${m.special ? '<span class="tag">ÖZEL</span>' : ''}${done ? '<span class="tag again">TEKRAR OYNA</span>' : ''}</strong>
           <span class="card-count">${value}/${m.target}</span>
         </div>
         <p>${m.desc}</p>

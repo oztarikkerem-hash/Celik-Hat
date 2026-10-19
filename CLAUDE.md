@@ -48,7 +48,7 @@ Yeni bir modül eklenince ya da import map'e sabit bir giriş gerekince
   yanılırsa `weapons.js` içindeki `view.flipForward` / `view.flipUp` ile elle
   ezilir. Ölçüler sınırlayıcı kutuyla değil **yüzdelik** sınırlarla alınır;
   ayrıca Blender'dan kalan şablon düzlemleri ve zemin levhaları ayıklanır.
-- **Namlu ucu konumu holder uzayındadır** — alev/izli mermi modele değil
+- **Namlu ucu konumu holder uzayındadır** — alev (ve kapalı izli mermi) modele değil
   `holder`'a bağlanır.
 - **Dünya akışı** (`world.js`): 9×9 sektör, yalnızca görüş piramidine giren
   (+ oyuncunun çevresindeki halka) sektörler kurulur; çıkanlar geometri,
@@ -213,7 +213,7 @@ duruyor; asker ateş ederken de öyle kalıyordu. `fire` klibinin
 klipte kalır. Ateş klibi yan duruşlu (~60°): tüfek yönü (sağ el → sol el)
 ölçülüp omurga `-yawFix` kadar döndürülür. `aiming`: müttefikte hedef
 varken, düşmanda atış menzilinde ve saklanmıyorken, kule nişancısında
-hedef varken, omuz üstü karakterde nişan/ateşte.
+hedef varken.
 
 **Tüfek yönü kararlılığı** (`_fitRifleToHand`): yön sağ el → sol el, ama
 (1) ters çevirme yalnızca namlu AÇIKÇA geriye bakarsa (dot < −0.35; eşik 0
@@ -280,10 +280,12 @@ yeniden ayarlandı — eski "havada asılı silah" değerlerine dönme, kol yeti
 - Duman için `effects.puff` normal karışımlı ayrı bir sistem kullanır
   (toplamalı karışım gri dumanı ışık gibi parlatıyordu).
 
-## Tank bölümü (`tankgame/index.html` — Death Star kopyası)
+## Tank bölümü (`tankgame/index.html`)
 
-Bölümler bu sayfayı çerçevede açar; claude.ai'deki Death Star artifact'i
-AYRI bir kopyadır, buradaki değişiklikler oraya gitmez.
+Bölümler bu sayfayı çerçevede açar (`?gorev=…&ad=…`). Sayfada oyun adı
+YAZILMAZ (kullanıcı istemedi: "Death Star" kaldırıldı) — başlık bölümün
+adıdır (ör. "Hat Yarması", `#gorevAdi`). claude.ai'deki eski tank
+artifact'i AYRI bir kopyadır, buradaki değişiklikler oraya gitmez.
 
 - **Benzinlik** `istasyon.glb` (`~/Desktop/BenzinIstasyonu/Istasyon.blend`,
   `STATION` koleksiyonu, `export_glb.py ... 4000 0 STATION`). Konum
@@ -357,8 +359,8 @@ kalıyordu). Şarjör değişimi `ar` koreografisi.
 0.75) ekrana `#optic` SVG'si gelir (koyu tüp halkası, amber mercek, yatay
 çizgiler, amber ok, alt çentikler) ve modelin `opticHide` (`/^Scope/`)
 parçaları gizlenir — yoksa tüpün içi görüşü kapatıyor. Barrett'in büyüten
-keskin nişancı dürbünü (`def.scope`) ayrı ve değişmedi. Omuz üstünde,
-araçta ve dürbünde gösterilmez.
+keskin nişancı dürbünü (`def.scope`) ayrı ve değişmedi. Araçta ve
+dürbünde gösterilmez.
 
 ## Gez-arpacık ölçümü
 
@@ -459,25 +461,11 @@ da tahliye); atlama tuşları ona gider.
   kapısında belirir; ufuktaki birlik (`raid.update`) yürümeye devam eder.
   Baskın şeridi batıya da uzatıldı (araç oradan çıkar).
 
-## Omuz üstü görüş (`src/game/thirdperson.js`)
+## Omuz üstü görüş — KALDIRILDI
 
-**V**: gözden ⇄ omuz üstü (`celikhat.gorus`'ta saklanır). Kamera sağ
-omzun 2.35 m arkasında, nişanda 1.25 m'ye yaklaşır; kamera–baş arasında
-engel varsa öne çekilir. Karakter SWAT modeli (kol bandı yok), gövde nişan
-yönünde. Atış: nişan noktası kameradan (`aimPoint`, kamera–karakter arası
-atlanır), mermi karakter göğsünden oraya; roket ve bıçak da karakterden.
-Araçta, kulede, M2'de, dürbünde ve keskin nişancı dürbünüyle nişanda gözden
-görüşe geçilir. Birinci şahıs silah/eller gizlenir (şarjör animasyonu
-karakterde yok).
-
-- Karakterin elindeki silah, birinci şahısta seçili silahın tutucusunun
-  KOPYASI (`_gunFor`; ışıklar atılır, alev kopyası atışta 0.05 sn
-  görünür). Silah değişince `soldier.setRifle(grup, kabza)`. İzli mermi
-  bu kopyanın namlu ucundan çıkar.
-- Koşmuyorsa silah hep omuzda (`aiming`), gövde nişan yönünde.
-- Gövde burulması her karede ölçülür: iki el arası doğrultu kökün ileri
-  ekseniyle karşılaştırılıp hata `Spine`'a ters döndürme olarak verilir
-  (sabit `yawFix` çömelme klibinde gövdeyi döndürüyordu).
+Kullanıcı istemedi: `thirdperson.js` ve V tuşu silindi; oyun yalnızca
+birinci şahıs. `soldier.setRifle` ve askerlerin nişan katmanı müttefik /
+düşman için kaldı.
 
 ## Eğilme, çömelme, etkileşim tuşları
 
@@ -603,7 +591,6 @@ de 1/8, telemetre (ışın) ve pusula yönü. Dürbündeyken ateş edilmez.
   kamera uzayı, ekran dışı), sağ tabanca normal tabanca koreografisiyle
   doldurulur (bütün izler kaydırılır), son 0.4 sn ikiz yelekten çekilir.
   Kolaylık: 14 merminin tamamı tek doldurmada dolar.
-- Omuz üstü görüşte karakter tek tabanca tutar (kopya tutucudan alınır).
 
 ## Makineli yuvası (normal görevler)
 
@@ -652,6 +639,25 @@ sıralı kuyruk, 4.5 sn).
 
 Şarjör sayaçları silah yuvasında: `_magShots` / `_magHits`
 (`resetAmmo`, `reload-end` ve sandık sıfırlar).
+
+## Ana ekran ve açılış
+
+- Açılış: `game.load()` yalnızca menü manzarasını kurup ana ekranı
+  HEMEN açar; silah/asker modelleri `_loadAssets` ile arka planda iner.
+  Görev başlarken `ensureAssets()` gerekiyorsa yükleme ekranında bekletir.
+  Menü ekranları model değil `WEAPONS` tanımlarını kullanır (inmeden çalışsın).
+- Ana ekran: sol üstte "ÇELİK HAT" (gradyan), altında yukarıdan aşağı renkli
+  menü (`.menu-item`, her birinin `--c` rengi): Bölümler, Görevler, Serbest
+  hat, Mağaza, Kontroller, Ses. Sol altta istatistikler, sağ altta küçük
+  Lisanslar bağlantısı.
+- **Haftalık ödüller** (`src/game/weekly.js`, sağ üst): her takvim günü bir
+  ödül; 1. gün 1.000, her gün +500, 7. gün 4.000, sonra baştan. Puan mağaza
+  kredisine eklenir. Gün kaçırmak ceza değil (`celikhat.haftalik`).
+- **Görev tekrarı**: tamamlanmış görev seçilip yeniden oynanabilir
+  (`missions.isReplay`): ilerleme o turda sıfırdan sayılır, tur bitişi
+  `runDone`'dan okunur (eskiden ilk öldürmede "görev tamam" deyip bitiyordu).
+- **Mermi izi yok**: `effects.tracer` kapalı (`TRACERS = false`); atışta
+  geri tepme, namlu alevi ve namlu dumanı kalır.
 
 ## Sırada ne var
 

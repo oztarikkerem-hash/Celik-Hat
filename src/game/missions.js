@@ -2,7 +2,9 @@
 
    Her görev oyun içindeki olayları dinler ve ilerlemesini kendisi hesaplar.
    Tamamlanan görevler tarayıcıda saklanır; bir sonraki oturumda listede işaretli
-   gelir. İlerleme her yeni oyunda sıfırlanır, tamamlanma kalıcıdır.        */
+   gelir. İlerleme her yeni oyunda sıfırlanır, tamamlanma kalıcıdır.
+   Tamamlanmış görev TEKRAR oynanabilir: seçili (focus) görev tamamlanmış
+   olsa da bu turda ilerlemesi sayılır; turun bitişi `runDone`'dan okunur. */
 
 const STORE_KEY = 'celik-hat-gorevler';
 
@@ -102,12 +104,19 @@ export class MissionBook {
   resetRun() {
     this.progress = new Map(MISSIONS.map((m) => [m.id, 0]));
     this.state = new Map(MISSIONS.map((m) => [m.id, {}]));
+    this.runDone = new Set();        // bu turda hedefine ulaşan görevler
+  }
+
+  /** Seçili görev daha önce tamamlanmış ve yeniden oynanıyor mu. */
+  isReplay(id) {
+    return id === this.focusId && this.completed.has(id);
   }
 
   /** Oyun olaylarını görevlere dağıtır. */
   report(ev) {
     for (const m of MISSIONS) {
-      if (this.completed.has(m.id)) continue;
+      if (this.runDone.has(m.id)) continue;
+      if (this.completed.has(m.id) && !this.isReplay(m.id)) continue;
       const inc = m.on(ev, this.state.get(m.id)) || 0;
       if (!inc) continue;
 
@@ -115,17 +124,21 @@ export class MissionBook {
       this.progress.set(m.id, next);
 
       if (next >= m.target) {
-        this.completed.add(m.id);
-        this._save();
+        this.runDone.add(m.id);
+        if (!this.completed.has(m.id)) {
+          this.completed.add(m.id);
+          this._save();
+        }
         this.onComplete?.(m);
       }
     }
   }
 
   get(m) {
+    const replay = this.isReplay(m.id) && !this.runDone.has(m.id);
     return {
       done: this.completed.has(m.id),
-      value: this.completed.has(m.id) ? m.target : (this.progress.get(m.id) ?? 0),
+      value: this.completed.has(m.id) && !replay ? m.target : (this.progress.get(m.id) ?? 0),
     };
   }
 
@@ -138,7 +151,7 @@ export class MissionBook {
   get active() {
     if (this.focusId) {
       const m = MISSIONS.find((x) => x.id === this.focusId);
-      if (m && !this.completed.has(m.id)) return m;
+      if (m) return m;                // tamamlanmış olsa da (tekrar oynanıyor)
     }
     return MISSIONS.find((m) => !this.completed.has(m.id)) ?? null;
   }

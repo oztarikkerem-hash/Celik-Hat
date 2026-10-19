@@ -4,6 +4,8 @@
 
 import * as THREE from 'three';
 
+const TRACERS = false;      // mermi izleri (bkz. tracer)
+
 const MAX_PARTICLES = 900;
 const MAX_SMOKE = 420;
 const MAX_TRACERS = 36;
@@ -208,7 +210,14 @@ export class Effects {
     this.pDrag[i] = drag;
   }
 
+  /**
+   * İzli mermi KAPALI: kullanıcı mermilerin havada iz bırakmasını istemedi
+   * (namlu alevi, dumanı ve geri tepme kalır). Çağrılar (oyuncu,
+   * müttefik, düşman, M2) yerinde kalsın diye işlev boş döner; açmak için
+   * `TRACERS` true yapılır.
+   */
   tracer(origin, end, color = 0xffd27a) {
+    if (!TRACERS) return;
     const t = this.tracers[this.tracerCursor];
     this.tracerCursor = (this.tracerCursor + 1) % MAX_TRACERS;
 

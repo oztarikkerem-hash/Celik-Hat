@@ -11,7 +11,8 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
   kendine özgü şarjör değiştirme animasyonu var.
 - Sandıklardan siper hatları; düşmanlar siperde saklanıp doğrularak ateş
   ediyor, siperden sipere ilerliyor.
-- Görevler, müttefik askerler, mağaza (yelek, kask, silah, sağlık).
+- Görevler (bitenler tekrar oynanabilir), müttefik askerler, mağaza (yelek,
+  kask, silah, sağlık) ve **haftalık giriş ödülleri** (1.000'den 4.000'e).
 - **Dört alan**: Sanayi Bölgesi, Çöl Kasabası, Orman, Karlı Dağ Üssü —
   görev seçilince hangi alanda savaşacağın sorulur.
 - **Bıçak** (0 tuşu) ve asker taşıyan **zırhlı araç** (F: bin / in) —
@@ -31,7 +32,7 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
   tut (20 · 25 · 30 · 25). Yanında seçtiğin iki silah (normal cephaneleriyle);
   pencerelerde 10.000'er mermili iki M2 Browning; düşmanların bir kısmı
   kurşun geçirmez camları kırmaya çalışır.
-- **Bölümler:** tank oyunu (Death Star) — T-90 ya da M1 Abrams, müttefik ve
+- **Bölümler:** tank bölümü — T-90 ya da M1 Abrams, müttefik ve
   düşman tanklar, yakıt, benzinlik ve market.
 
 ## Çalıştırma
@@ -60,7 +61,6 @@ Sonra tarayıcıda `http://localhost:8777` adresini aç.
 | C / Ctrl | Çömel (siperin arkasında tamamen saklanırsın) |
 | G | El bombası |
 | X | Dürbün |
-| V | Görüş: gözden ⇄ omuz üstü (üçüncü şahıs) |
 | Q / E | Sola / sağa eğil (köşeden çıkmadan ateş) |
 | F | Etkileşim: zırhlı araca bin / in, M2'ye geç / bırak (yuvadaki nişancıyı öldürünce o M2'ye de), mühimmat sandığından mermi doldur, pencere camı |
 | T | Zırhlı aracın kulesine çık / in — 1: silah arkadaşın sürsün, 2: araç dursun |
