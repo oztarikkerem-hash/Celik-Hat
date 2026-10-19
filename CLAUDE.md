@@ -659,6 +659,25 @@ sıralı kuyruk, 4.5 sn).
 - **Mermi izi yok**: `effects.tracer` kapalı (`TRACERS = false`); atışta
   geri tepme, namlu alevi ve namlu dumanı kalır.
 
+## Telefon ve tablet (YALNIZCA yatay)
+
+- `src/ui/touch.js`: `(pointer: coarse)` ve ince işaretçi yoksa `body.touch`.
+  Fare kilidi yok → `Input.requestLock` doğrudan serbest bakış. Modül
+  klavye/fareyi taklit eder (oyun kodu aynı): sol yarıda beliren hareket
+  çubuğu (WASD, sonuna kadar ileri = Shift), sağ yarıda sürükleyerek bakış
+  (`LOOK_K` 2.4), ATEŞ basılıyken aynı parmakla nişan kayar. Düğmeler:
+  NİŞAN (aç/kapa sağ tık), DOLDUR, ZIPLA, ÇÖMEL (aç/kapa), BOMBA,
+  F · KULLAN, SİLAH ↻ (tekerlek), TEDAVİ, ❚❚ duraklat.
+- Düğmeler yalnızca `body.in-play` iken (piyade oyunu) görünür; oyundan
+  çıkınca `touch.reset()` bütün girdileri bırakır.
+- Dikey tutulursa `#rotate` "Cihazını yatay çevir" kaplaması. İlk dokunuşta
+  tam ekran + `screen.orientation.lock('landscape')` denenir (iOS'ta yok).
+- Kısa ekran (`max-height: 540px`, yatay telefon): menü, ödül kartı, HUD ve
+  liste ekranları sıkıştırılır; liste ekranlarının alt düğmeleri yapışkan.
+  Masaüstü düzeni değişmez; dikey "telefon genişliği" düzeni YOK (kullanıcı
+  istemedi).
+- Mobilde cephane sayacı üst ortada, silah şeridi gizli.
+
 ## Sırada ne var
 
 - MAR 556 için ekranın altında yakınlaştırmayan dürbün paneli.

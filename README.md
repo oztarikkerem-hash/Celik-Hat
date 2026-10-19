@@ -46,6 +46,12 @@ python3 tools/devserver.py 8777
 
 Sonra tarayıcıda `http://localhost:8777` adresini aç.
 
+## Telefon ve tablet
+
+Yatay tutulur (dikeyde uyarı çıkar). Sol yarı: hareket çubuğu; sağ yarı:
+sürükleyerek bakış; sağ altta ATEŞ, NİŞAN, DOLDUR, ZIPLA, ÇÖMEL, BOMBA,
+F · KULLAN, SİLAH ↻, TEDAVİ; üstte duraklat.
+
 ## Kontroller
 
 | Tuş | İş |

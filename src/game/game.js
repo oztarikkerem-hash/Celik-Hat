@@ -34,6 +34,7 @@ import { NameTags } from '../ui/nametags.js';
 import { AmmoCrates } from './ammocrate.js';
 import { Achievements } from './achievements.js';
 import { Weekly } from './weekly.js';
+import { TouchControls, isTouchDevice } from '../ui/touch.js';
 import { Input } from '../core/input.js';
 import { AudioEngine } from '../core/audio.js';
 import { Music } from '../core/music.js';
@@ -91,6 +92,18 @@ export class Game {
     // değişmeden çalışıyor.
     this.shop = new Shop();
     this.weekly = new Weekly(this.shop);     // haftalık giriş ödülleri
+
+    // Telefon / tablet (yatay): dokunmatik kontroller, tam ekran + yatay kilit
+    this.touch = null;
+    if (isTouchDevice()) {
+      this.input.touch = true;
+      document.body.classList.add('touch');
+      this.touch = new TouchControls(this.input, {
+        pause: () => this.pause(),
+        onFirstTouch: () => this._goFullscreen(),
+      });
+      addEventListener('touchend', () => this._goFullscreen(), { passive: true });
+    }
     this.shopBolum = 'vest';
     // Tank modu: piyade sistemleri uyur, muharebeyi TankBattle sürer
     this.tanks = new TankFactory();
@@ -857,8 +870,20 @@ export class Game {
     });
   }
 
+  /** Mobilde tam ekran ve yatay yön kilidi (kullanıcı dokunuşunda çağrılır). */
+  _goFullscreen() {
+    if (!this.touch || document.fullscreenElement) return;
+    const el = document.documentElement;
+    const req = el.requestFullscreen ?? el.webkitRequestFullscreen;
+    try {
+      const p = req?.call(el, { navigationUI: 'hide' });
+      p?.then?.(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
+    } catch { /* iOS Safari: tam ekran yok, yön uyarısı yeter */ }
+  }
+
   pause() {
     if (this.state !== 'playing') return;
+    this.touch?.reset();
     this.state = 'paused';
     this.input.releaseLock();
     this.music.setLevel(0.5, 0.5);
@@ -1617,6 +1642,14 @@ export class Game {
   frame() {
     const dt = Math.min(this.clock.getDelta(), 1 / 20);
     const now = performance.now() / 1000;
+
+    // Dokunmatik düğmeler yalnızca piyade oyunu sırasında görünür
+    const oyunda = this.state === 'playing' && this.mod === 'piyade';
+    if (oyunda !== this._oyundaSinifi) {
+      this._oyundaSinifi = oyunda;
+      document.body.classList.toggle('in-play', oyunda);
+      if (!oyunda) this.touch?.reset();
+    }
 
     if (this.state === 'playing') {
       if (this.mod === 'tank') this._tankStep(dt, now);

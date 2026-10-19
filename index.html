@@ -2,13 +2,15 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Çelik Hat</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b0f0d'/><path d='M5 17h14l3-4h5v3h-4l-3 5H9z' fill='%23e8a33d'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;600;700&family=Share+Tech+Mono&display=swap">
-<link rel="stylesheet" href="src/ui/hud.css?v=b9fe72547d">
+<link rel="stylesheet" href="src/ui/hud.css?v=dd71e8fc21">
 <!-- SÜRÜM:BAŞ -->
 <script type="importmap">
 {
@@ -16,49 +18,50 @@
   "three": "./vendor/three.module.js",
   "three/addons/": "./vendor/addons/",
   "cannon-es": "./vendor/cannon-es.js",
-  "./src/core/audio.js": "./src/core/audio.js?v=b9fe72547d",
-  "./src/core/input.js": "./src/core/input.js?v=b9fe72547d",
-  "./src/core/music.js": "./src/core/music.js?v=b9fe72547d",
-  "./src/core/physics.js": "./src/core/physics.js?v=b9fe72547d",
-  "./src/game/achievements.js": "./src/game/achievements.js?v=b9fe72547d",
-  "./src/game/align.js": "./src/game/align.js?v=b9fe72547d",
-  "./src/game/allies.js": "./src/game/allies.js?v=b9fe72547d",
-  "./src/game/ammocrate.js": "./src/game/ammocrate.js?v=b9fe72547d",
-  "./src/game/apc.js": "./src/game/apc.js?v=b9fe72547d",
-  "./src/game/casings.js": "./src/game/casings.js?v=b9fe72547d",
-  "./src/game/chapters.js": "./src/game/chapters.js?v=b9fe72547d",
-  "./src/game/droppedmags.js": "./src/game/droppedmags.js?v=b9fe72547d",
-  "./src/game/effects.js": "./src/game/effects.js?v=b9fe72547d",
-  "./src/game/enemies.js": "./src/game/enemies.js?v=b9fe72547d",
-  "./src/game/enemyGear.js": "./src/game/enemyGear.js?v=b9fe72547d",
-  "./src/game/finish.js": "./src/game/finish.js?v=b9fe72547d",
-  "./src/game/fparms.js": "./src/game/fparms.js?v=b9fe72547d",
-  "./src/game/game.js": "./src/game/game.js?v=b9fe72547d",
-  "./src/game/grenades.js": "./src/game/grenades.js?v=b9fe72547d",
-  "./src/game/intro.js": "./src/game/intro.js?v=b9fe72547d",
-  "./src/game/maps.js": "./src/game/maps.js?v=b9fe72547d",
-  "./src/game/mechanics.js": "./src/game/mechanics.js?v=b9fe72547d",
-  "./src/game/missions.js": "./src/game/missions.js?v=b9fe72547d",
-  "./src/game/outro.js": "./src/game/outro.js?v=b9fe72547d",
-  "./src/game/player.js": "./src/game/player.js?v=b9fe72547d",
-  "./src/game/raid.js": "./src/game/raid.js?v=b9fe72547d",
-  "./src/game/rockets.js": "./src/game/rockets.js?v=b9fe72547d",
-  "./src/game/shop.js": "./src/game/shop.js?v=b9fe72547d",
-  "./src/game/soldier.js": "./src/game/soldier.js?v=b9fe72547d",
-  "./src/game/tankarena.js": "./src/game/tankarena.js?v=b9fe72547d",
-  "./src/game/tankbattle.js": "./src/game/tankbattle.js?v=b9fe72547d",
-  "./src/game/tankpilot.js": "./src/game/tankpilot.js?v=b9fe72547d",
-  "./src/game/tanks.js": "./src/game/tanks.js?v=b9fe72547d",
-  "./src/game/textures.js": "./src/game/textures.js?v=b9fe72547d",
-  "./src/game/vehicle.js": "./src/game/vehicle.js?v=b9fe72547d",
-  "./src/game/weaponry.js": "./src/game/weaponry.js?v=b9fe72547d",
-  "./src/game/weapons.js": "./src/game/weapons.js?v=b9fe72547d",
-  "./src/game/weekly.js": "./src/game/weekly.js?v=b9fe72547d",
-  "./src/game/world.js": "./src/game/world.js?v=b9fe72547d",
-  "./src/main.js": "./src/main.js?v=b9fe72547d",
-  "./src/ui/hud.js": "./src/ui/hud.js?v=b9fe72547d",
-  "./src/ui/minimap.js": "./src/ui/minimap.js?v=b9fe72547d",
-  "./src/ui/nametags.js": "./src/ui/nametags.js?v=b9fe72547d"
+  "./src/core/audio.js": "./src/core/audio.js?v=dd71e8fc21",
+  "./src/core/input.js": "./src/core/input.js?v=dd71e8fc21",
+  "./src/core/music.js": "./src/core/music.js?v=dd71e8fc21",
+  "./src/core/physics.js": "./src/core/physics.js?v=dd71e8fc21",
+  "./src/game/achievements.js": "./src/game/achievements.js?v=dd71e8fc21",
+  "./src/game/align.js": "./src/game/align.js?v=dd71e8fc21",
+  "./src/game/allies.js": "./src/game/allies.js?v=dd71e8fc21",
+  "./src/game/ammocrate.js": "./src/game/ammocrate.js?v=dd71e8fc21",
+  "./src/game/apc.js": "./src/game/apc.js?v=dd71e8fc21",
+  "./src/game/casings.js": "./src/game/casings.js?v=dd71e8fc21",
+  "./src/game/chapters.js": "./src/game/chapters.js?v=dd71e8fc21",
+  "./src/game/droppedmags.js": "./src/game/droppedmags.js?v=dd71e8fc21",
+  "./src/game/effects.js": "./src/game/effects.js?v=dd71e8fc21",
+  "./src/game/enemies.js": "./src/game/enemies.js?v=dd71e8fc21",
+  "./src/game/enemyGear.js": "./src/game/enemyGear.js?v=dd71e8fc21",
+  "./src/game/finish.js": "./src/game/finish.js?v=dd71e8fc21",
+  "./src/game/fparms.js": "./src/game/fparms.js?v=dd71e8fc21",
+  "./src/game/game.js": "./src/game/game.js?v=dd71e8fc21",
+  "./src/game/grenades.js": "./src/game/grenades.js?v=dd71e8fc21",
+  "./src/game/intro.js": "./src/game/intro.js?v=dd71e8fc21",
+  "./src/game/maps.js": "./src/game/maps.js?v=dd71e8fc21",
+  "./src/game/mechanics.js": "./src/game/mechanics.js?v=dd71e8fc21",
+  "./src/game/missions.js": "./src/game/missions.js?v=dd71e8fc21",
+  "./src/game/outro.js": "./src/game/outro.js?v=dd71e8fc21",
+  "./src/game/player.js": "./src/game/player.js?v=dd71e8fc21",
+  "./src/game/raid.js": "./src/game/raid.js?v=dd71e8fc21",
+  "./src/game/rockets.js": "./src/game/rockets.js?v=dd71e8fc21",
+  "./src/game/shop.js": "./src/game/shop.js?v=dd71e8fc21",
+  "./src/game/soldier.js": "./src/game/soldier.js?v=dd71e8fc21",
+  "./src/game/tankarena.js": "./src/game/tankarena.js?v=dd71e8fc21",
+  "./src/game/tankbattle.js": "./src/game/tankbattle.js?v=dd71e8fc21",
+  "./src/game/tankpilot.js": "./src/game/tankpilot.js?v=dd71e8fc21",
+  "./src/game/tanks.js": "./src/game/tanks.js?v=dd71e8fc21",
+  "./src/game/textures.js": "./src/game/textures.js?v=dd71e8fc21",
+  "./src/game/vehicle.js": "./src/game/vehicle.js?v=dd71e8fc21",
+  "./src/game/weaponry.js": "./src/game/weaponry.js?v=dd71e8fc21",
+  "./src/game/weapons.js": "./src/game/weapons.js?v=dd71e8fc21",
+  "./src/game/weekly.js": "./src/game/weekly.js?v=dd71e8fc21",
+  "./src/game/world.js": "./src/game/world.js?v=dd71e8fc21",
+  "./src/main.js": "./src/main.js?v=dd71e8fc21",
+  "./src/ui/hud.js": "./src/ui/hud.js?v=dd71e8fc21",
+  "./src/ui/minimap.js": "./src/ui/minimap.js?v=dd71e8fc21",
+  "./src/ui/nametags.js": "./src/ui/nametags.js?v=dd71e8fc21",
+  "./src/ui/touch.js": "./src/ui/touch.js?v=dd71e8fc21"
  }
 }
 </script>
@@ -67,6 +70,13 @@
 <body>
 
 <canvas id="viewport"></canvas>
+
+<!-- Telefon/tablet dikey tutulursa: oyun yalnızca YATAY oynanır -->
+<div id="rotate" class="rotate-note" aria-live="polite">
+  <div class="rotate-phone" aria-hidden="true"></div>
+  <strong>Cihazını yatay çevir</strong>
+  <span>Çelik Hat telefonda ve tablette yatay oynanır.</span>
+</div>
 
 <!-- Nişangah -->
 <div id="crosshair" class="crosshair" aria-hidden="true">
@@ -677,7 +687,7 @@
      kendini yeniden yükler. BUILD ve import map tools/stamp.py ile yazılır. -->
 <script>
 (function () {
-  var BUILD = 'b9fe72547d';
+  var BUILD = 'dd71e8fc21';
   function start() {
     var s = document.createElement('script');
     s.type = 'module';

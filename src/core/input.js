@@ -94,6 +94,9 @@ export class Input {
 
   requestLock() {
     if (this.locked) return;
+    // Dokunmatik cihazda fare kilidi yok: doğrudan serbest bakış (bakışı ve
+    // tuşları ui/touch.js üretir)
+    if (this.touch) { this._fallback(); return; }
     let result;
     try {
       result = this.canvas.requestPointerLock();
