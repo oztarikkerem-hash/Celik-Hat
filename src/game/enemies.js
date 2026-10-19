@@ -786,8 +786,9 @@ export class EnemyManager {
       // Hedef: oyuncu ya da daha yakın bir müttefik asker
       let hedef = player;
       let hedefMesafe = Math.hypot(player.pos.x - e.pos.x, player.pos.z - e.pos.z);
-      // Yerdeki ağır yaralı oyuncu öncelikli hedef değil (yine de vurulabilir)
-      if (player.downed) hedefMesafe *= 2.5;
+      // Yerdeki ağır yaralı oyuncu ÖNCELİKLİ hedef: düşman işini bitirmeye
+      // çalışır (tek isabet ölümcül) — siper alıp saklanmak gerekir
+      if (player.downed) hedefMesafe *= 0.5;
       for (const ally of this.allies ?? []) {
         if (!ally.alive || ally.aboard) continue;
         const d = Math.hypot(ally.pos.x - e.pos.x, ally.pos.z - e.pos.z);

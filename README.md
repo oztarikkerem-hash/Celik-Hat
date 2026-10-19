@@ -23,9 +23,10 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
   **mühimmat sandığı** (F: bütün mermiler dolar).
 - **Başarımlar**: Kendi yıldızlarını parlat, İlk kan, Keskin nişancı,
   Beceriksiz… — sağ üstte bildirim ve puan ödülü.
-- **Ağır yaralı**: can bitince ölmezsin, yere düşersin; hasar almadan
-  beklersen kalkarsın ama canın 25'te kalır — sargı bezi ve ilk yardım
-  kitiyle (mağaza) tedavi olursun.
+- **Ağır yaralı**: can bitince yere düşersin; düşmanlar işini bitirmeye
+  çalışır ve TEK isabet ölümcüldür — sürünerek (W A S D) siper al. Hasar
+  almadan beklersen kalkarsın ama canın 25'te kalır — sargı bezi ve ilk
+  yardım kitiyle (mağaza) tedavi olursun.
 - **Baskın** (özel görev): dört silah arkadaşınla bir evi dört dalgaya karşı
   tut (20 · 25 · 30 · 25). Yanında seçtiğin iki silah (normal cephaneleriyle);
   pencerelerde 10.000'er mermili iki M2 Browning; düşmanların bir kısmı

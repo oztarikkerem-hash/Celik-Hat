@@ -49,7 +49,7 @@ const BINOC_ZOOM = 8;
 const FINALE_TIME = 7;           // ufuktaki birlik belirdikten sonra tahliye sinematiği
 // Ağır yaralı: kalbin çevresindeki çember hasar almadan bu sürede dolar
 const REVIVE_TIME = 10;
-const DOWNED_HITS = 3;           // yerdeyken bu kadar isabet ölüm
+const DOWNED_HITS = 1;           // yerdeyken TEK isabet ölümdür
 const WOUND_CAP = 25;            // ayağa kalkınca can bu sınırda kalır
 const TREAT = {
   sargi: { sure: 2.5, ad: 'Sargı bezi' },
@@ -1339,7 +1339,7 @@ export class Game {
     this.raid.dismount();
     this.weaponry.ads = false;
     this.hud.setDowned(true, 0, DOWNED_HITS);
-    this.hud.feed('AĞIR YARALISIN — hasar almadan bekle', true);
+    this.hud.feed('AĞIR YARALISIN — tek isabet ölümcül, sürünerek siper al', true);
   }
 
   /** Yerdeyken isabet: çember sıfırlanır; çok isabet ölümdür. */
@@ -1639,7 +1639,12 @@ export class Game {
     const busy = downed || Boolean(this._treating) || Boolean(driving) || Boolean(topside);     // elde silah yok
 
     const ads = this.input.mouse(2) && !this.binoc && !mounted && !busy;
-    const moveInput = downed ? { forward: 0, right: 0, jump: false, sprint: false, crouch: true } : {
+    // Ağır yaralı: yalnızca sürünür (koşu, zıplama, eğilme yok)
+    const crawl = (a, b) => (this.input.down(a) ? 1 : 0) - (this.input.down(b) ? 1 : 0);
+    const moveInput = downed ? {
+      forward: crawl('KeyW', 'KeyS'), right: crawl('KeyD', 'KeyA'),
+      jump: false, sprint: false, crouch: true, lean: 0,
+    } : {
       forward: (this.input.down('KeyW') ? 1 : 0) - (this.input.down('KeyS') ? 1 : 0),
       right: (this.input.down('KeyD') ? 1 : 0) - (this.input.down('KeyA') ? 1 : 0),
       jump: this.input.down('Space'),

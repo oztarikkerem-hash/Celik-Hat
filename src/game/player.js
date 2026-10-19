@@ -8,6 +8,7 @@ const HEIGHT = 1.8;
 const EYE = 1.66;
 const EYE_CROUCH = 1.1;
 const EYE_DOWNED = 0.55;         // ağır yaralı: yerde yarı uzanmış
+const CRAWL_SPEED = 0.85;        // ağır yaralı: yerde sürünme (m/sn)
 // Yana eğilme (Q / E): baş bu kadar yana kayar, kamera bu kadar yatar.
 // Duvar köşesinden yalnızca baş ve omuz çıkar.
 const LEAN_DIST = 0.48;
@@ -165,7 +166,7 @@ export class Player {
     const canSprint = !this.exhausted && this.stamina > 0.02;
     // Gerçekten ilerliyor muyuz? Duvara dayanmış koşmak yorgunluk yakmasın.
     const advancing = Math.hypot(this.vel.x, this.vel.z) > 2;
-    const wantsSprint = input.sprint && !this.crouching && !ads && moving && canSprint;
+    const wantsSprint = input.sprint && !this.crouching && !ads && moving && canSprint && !this.downed;
     this.sprinting = wantsSprint;
 
     // Taşınan yük: ağır silahla hareket ederken nefes yavaşça erir,
@@ -190,6 +191,8 @@ export class Player {
       : this.sprinting ? this.speedSprint : this.speedWalk;
     if (ads) speed *= 0.55;
     speed *= this.gearSpeed;              // zırh ağırlığı (mağaza)
+    // Ağır yaralı: dirseklerin üstünde sürünerek siper aranır
+    if (this.downed) speed = CRAWL_SPEED;
 
     // Yön: bakış açısına göre
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
@@ -203,7 +206,7 @@ export class Player {
     this.vel.x = THREE.MathUtils.lerp(this.vel.x, wish.x, Math.min(1, dt * accel));
     this.vel.z = THREE.MathUtils.lerp(this.vel.z, wish.z, Math.min(1, dt * accel));
 
-    if (input.jump && this.onGround) {
+    if (input.jump && this.onGround && !this.downed) {
       this.vel.y = JUMP_V;
       this.onGround = false;
     }

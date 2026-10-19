@@ -495,9 +495,12 @@ karakterde yok).
 - Can 0 olunca `game._goDown()`: oyuncu yere düşer (`player.downed`, göz
   0.55 m), silah inik, hareket yok. Ekranda üstte "AĞIR YARALI", ortada
   nabızlı kalp ve çember (`#downed`, `hud.setDowned`).
-- Çember `REVIVE_TIME` (10 sn) hasar almadan dolar; yerdeyken her isabet
-  çemberi sıfırlar, `DOWNED_HITS` (3). isabet ölümdür (gameOver). Düşman
-  yerdeki oyuncuyu daha az önceler (mesafe ×2.5).
+- Çember `REVIVE_TIME` (10 sn) hasar almadan dolar. Yerdeyken TEK isabet
+  ölümdür (`DOWNED_HITS` = 1; eskiden 3'tü ve neredeyse hiç ölünmüyordu).
+  Düşmanlar yerdeki oyuncuyu ÖNCELER (mesafe ×0.5) — işini bitirmeye
+  çalışır. Kurtuluş siper: yerdeyken W A S D ile sürünülür
+  (`CRAWL_SPEED` 0.85 m/sn; koşu, zıplama, eğilme yok). Açıkta ~2 sn'de
+  ölünüyor, aracın arkasında 20 sn ayakta kalındı (ölçüldü).
 - Kalkınca `player.healthCap` = 25: yenilenme ve dalga ikmali bunu aşmaz.
   H tuşu tedavinin sıradaki adımı: önce sargı bezi (2.5 sn), sonra ilk
   yardım kiti (4 sn) → sınır kalkar, can 100. Malzemeler mağazanın

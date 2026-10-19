@@ -407,7 +407,7 @@ export class Hud {
     ring.style.strokeDasharray = `${C}`;
     ring.style.strokeDashoffset = `${C * (1 - progress)}`;
     const text = hitsLeft <= 1
-      ? 'Bir isabet daha ölümcül — hasar alma!'
+      ? 'Tek isabet ölümcül — W A S D ile sürünüp siper al, çember dolunca kalkarsın'
       : `Hasar alma — çember dolunca ayağa kalkarsın (${hitsLeft} isabet ölümcül)`;
     if (this._downedText !== text) { this._downedText = text; $('downed-sub').textContent = text; }
   }
