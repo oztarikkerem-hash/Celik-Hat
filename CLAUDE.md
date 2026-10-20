@@ -96,7 +96,9 @@ istedi). Ana ekranın ortasındaki künye satırı kullanıcının isteğiyle
 kaldırıldı; künyeler Lisanslar ekranından ÇIKARILMAMALI.
 Yeni hazır model eklenince Lisanslar ekranına da satır ekle.
 Kaynak `.blend`'ler `~/Downloads/` altında.
-İkisi de **Mixamo iskeletli**: kemik adları `mixamorig:` öneki atılarak
+FSB modelinin omuzlarındaki Rusya bayraklı arma (`tex/fsb_patch.jpg`
+malzemesi) kullanıcının isteğiyle yüklemede modelden çıkarılır
+(`SoldierFactory.load`, `patch` adlı doku). İkisi de **Mixamo iskeletli**: kemik adları `mixamorig:` öneki atılarak
 oyunun beklediği sade adlara (Hips, Spine, LeftArm…) dönüşüyor.
 
 ```bash

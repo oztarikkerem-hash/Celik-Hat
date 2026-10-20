@@ -159,6 +159,23 @@ export class SoldierFactory {
     const gltf = await new GLTFLoader().loadAsync(url);
     const root = gltf.scene;
 
+    // Omuz armaları (FSB modelinde Rusya bayraklı "РОССИЯ" arması,
+    // tex/fsb_patch.jpg) kullanıcının isteğiyle kaldırılır: o dokuyu
+    // kullanan malzemenin parçaları modelden çıkar
+    const pj = gltf.parser.json;
+    const patchMats = new Set((pj.materials ?? []).map((m, i) => {
+      const t = m.pbrMetallicRoughness?.baseColorTexture?.index;
+      const uri = t != null ? pj.images?.[pj.textures[t].source]?.uri ?? '' : '';
+      return /patch/i.test(uri) ? i : -1;
+    }).filter((i) => i >= 0));
+    if (patchMats.size) {
+      const drop = [];
+      root.traverse((o) => {
+        if (o.isMesh && patchMats.has(gltf.parser.associations.get(o.material)?.materials)) drop.push(o);
+      });
+      for (const o of drop) o.parent.remove(o);
+    }
+
     root.traverse((o) => {
       if (!o.isMesh && !o.isSkinnedMesh) return;
       o.castShadow = true;
