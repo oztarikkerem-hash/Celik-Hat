@@ -361,7 +361,15 @@ export class Game {
       }
       if (code === 'KeyE' && this.op2.active) this.op2.tryCine();
       if (code === 'KeyE' && this.op3.active) this.op3.tryInteract();
-      if (code === 'KeyP' && this.op3.active) this.op3.togglePhone();
+      // P: Suikast'ta bildirim/telefon açıksa telefon; değilse silahı cebe koy / çıkar
+      if (code === 'KeyP') {
+        if (this.op3.active && ['ping', 'open'].includes(this.op3.phoneState)) this.op3.togglePhone();
+        else if (this.weaponry.usable(this.weaponry.current.def.id) && !this.vehicles.driving) {
+          const on = !this.weaponry.holstered;
+          this.weaponry.setHolster(on);
+          this.hud.feed(on ? 'SİLAH CEPTE' : 'SİLAH ELDE');
+        }
+      }
       if (code === 'KeyF') this._interact();
       if (code === 'KeyT') this._toggleTop();
       // Kuledeyken 1 / 2: silah arkadaşı sürsün / araç dursun
@@ -1777,7 +1785,7 @@ export class Game {
     const driving = this.vehicles.driving;
     const topside = this.vehicles.topside;
     // Silahsız (Suikast'ın başı): kuşanılabilir silah yok — el boş
-    const unarmed = !this.weaponry.usable(this.weaponry.current.def.id);
+    const unarmed = !this.weaponry.usable(this.weaponry.current.def.id) || this.weaponry.holstered;
     if (unarmed !== this._unarmedCls) {
       this._unarmedCls = unarmed;
       document.body.classList.toggle('unarmed', unarmed);     // cephane göstergesi gizlenir

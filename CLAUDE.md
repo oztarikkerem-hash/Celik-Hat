@@ -752,10 +752,17 @@ Görev listesinde `baskin3`; silah ve alan seçimi YOK (silahsız başlanır:
    binmez (kule yok). Sürerken sağ altta **devir saati** (`#tacho`,
    `vehicles.gearbox`: 5 vites, 6500 üstü kırmızı) ve motor sesi
    (`audio.engineStart/Set/Stop`) — zırhlı araçta da çalışır.
-5. **Seslendirme**: macOS `say -v Yelda` + `[[pbas 30/37/39]]` (Yelda kadın
-   sesi; 36 altı perde 103 Hz'de sabit, 37 → 119, 40 → 152 Hz) →
-   `afconvert` AAC. `audio.playVoice` ana kazanca bağlı: sessiz modda susar,
-   altyazı kalır.
+5. **Seslendirme İngilizce** (Türkçe tek sentez sesi Yelda kadın sesiydi;
+   perde indirmesi kullanıcıyı ikna etmedi): macOS erkek sesleri — Demir
+   Daniel, Kaya Reed (ABD), Yılmaz Rocko (ABD), komutan Rocko (BK), düşman
+   Eddy (ABD); `say -v … -r …` → `afconvert` AAC (perde 85–120 Hz ölçüldü).
+   Altyazılar Türkçe çeviri. `audio.playVoice` ana kazanca bağlı: sessiz
+   modda susar, altyazı kalır.
+6. **P = silahı cebe koy** (`weaponry.holstered`, her görevde): cepteyken el
+   boş ve devriyeler seni silahlı saymaz; rakam tuşu ya da P çıkarır.
+   Suikast'ta bildirim/telefon açıkken P önce telefonu açar/kapatır.
+   Kılıkla silah taşımak serbest, ama ATEŞ ETMEK (kılıklı da olsa) 85 m'deki
+   devriyeleri alarma geçirir.
 
 ## Telefon ve tablet (YALNIZCA yatay)
 

@@ -32,7 +32,8 @@ export const OP3 = {
   site: new THREE.Vector3(0, 0, -48),
 };
 
-// Seslendirme (macOS Yelda sesi, perdesi erkek aralığına indirildi)
+// Seslendirme İNGİLİZCE (macOS erkek sesleri: Daniel, Reed, Rocko, Eddy —
+// Türkçe sentez sesi yalnızca kadın sesiydi); altyazı Türkçe çeviri
 const LINES = {
   op3_01: ['Çavuş Demir', 'Lan ne yaptın sen! O füze havada şu an, görüyor musun?'],
   op3_02: ['Onbaşı Kaya', 'Bir düğmeye basmasını engelleyemedin be adam! Koca bir düğmeye!'],
@@ -586,11 +587,11 @@ export class Op3 {
     if (shout) this.say('op3_12');
   }
 
-  /** Oyuncu ateş etti: kılıksızsa yakındaki devriyeler duyar. */
+  /** Oyuncu ateş etti: yakındaki devriyeler duyar — kılıklıyken de (üniforma
+      silah taşımayı örter, ateş etmeyi değil). */
   onPlayerShot() {
     if (!this.active || this.phase !== 'city') return;
     const p = this.game.player.pos;
-    if (this.disguised) return;
     for (const gr of this.groups) {
       if (gr.members.some((m) => m.alive && m.pos.distanceTo(p) < 85)) this._alarm(gr);
     }
@@ -607,7 +608,8 @@ export class Op3 {
   _watch() {
     const g = this.game;
     const w = g.weaponry;
-    const armed = !g.vehicles.driving && w.usable(w.current.def.id);
+    // Cepteki (P) silah görünmez; kılıkla silah taşımak da sorun değil
+    const armed = !g.vehicles.driving && !w.holstered && w.usable(w.current.def.id);
     if (!armed || this.disguised) return;
     const p = g.player.pos;
     const eye = new THREE.Vector3(p.x, p.y + 1.5, p.z);
@@ -809,6 +811,7 @@ export class Op3 {
     if (this.phase === 'intro' && this.chase && this.jeep && !g.vehicles.driving
       && Math.hypot(this.jeep.pos.x - p.x, this.jeep.pos.z - p.z) < 4.2) return ['F', 'arazi aracına bin — kaç!'];
     if (this.phoneState === 'ping') return ['P', 'telefonu çıkar — 1 yeni mesaj'];
+    if (this.phase === 'city' && g.weaponry.holstered && !g.vehicles.driving && this.hasPistol) return ['P', 'silahı cepten çıkar'];
     if (this.phoneState === 'open') return ['P', 'telefonu kaldır'];
     if (this.phase !== 'city' || g.vehicles.driving) return null;
     if (this.objective === 'house' && this.houseTable && p.distanceTo(this.houseTable) < 2.4) return ['E', 'tabancayı al (3 şarjör)'];

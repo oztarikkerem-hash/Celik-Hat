@@ -424,7 +424,9 @@ export class Weaponry {
   equip(id) {
     if (!this.usable(id)) return false;
     const next = this.slots.find((s) => s.def.id === id);
-    if (!next || next === this.current) return false;
+    if (!next) return false;
+    this.holstered = false;                  // silah değiştirmek cepten de çeker
+    if (next === this.current) return false;
 
     if (this.current) {
       this.previousId = this.current.def.id;
@@ -446,7 +448,15 @@ export class Weaponry {
     return true;
   }
 
+  /** P: silahı cebe koy / çıkar (cepteyken el boş, ateş yok). */
+  setHolster(on) {
+    if (on === this.holstered) return;
+    this.holstered = on;
+    this.audio.swap?.();
+  }
+
   equipSlot(n) {
+    this.holstered = false;                   // rakam tuşu silahı cepten de çeker
     const s = this.slots.find((x) => x.def.slot === n);
     return s ? this.equip(s.def.id) : false;
   }
@@ -967,6 +977,7 @@ export class Weaponry {
    */
   setLoadout(ids) {
     this.resetAmmo();
+    this.holstered = false;
     // Bıçak her zaman yanında (seçim hakkından sayılmaz)
     this.allowed = ids ? new Set([...ids, 'bicak']) : null;
   }

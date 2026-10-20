@@ -79,7 +79,7 @@ F · KULLAN, SİLAH ↻, TEDAVİ; üstte duraklat.
 | T | Zırhlı aracın kulesine çık / in — 1: silah arkadaşın sürsün, 2: araç dursun |
 | W/S, A/D, Space | Araçta: gaz-geri, direksiyon, fren |
 | H | Tedavi: önce sargı bezi, sonra ilk yardım kiti |
-| P | Telefon (Suikast görevi) |
+| P | Silahı cebe koy / çıkar (Suikast'ta mesaj gelince önce telefon) |
 | M | Sesi aç / kapat |
 
 Tank bölümünde: W/S sür, A/D dön, E (basılı) tepe makinelisi ya da
