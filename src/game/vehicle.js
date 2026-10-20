@@ -16,6 +16,7 @@
 
 import * as THREE from 'three';
 import { buildAPC, camoFor } from './apc.js';
+import { buildJeep, JEEP } from './jeep.js';
 const MAX_HP = 2500;
 const VMAX = 17;               // m/sn (~60 km/sa)
 const VREV = 6;
@@ -87,9 +88,13 @@ export class Vehicles {
     return null;
   }
 
-  /** map: kamuflaj paleti alanın zeminine göre seçilir. */
-  spawn(pos, yaw, map = null) {
-    const root = buildAPC(camoFor(map));
+  /**
+   * map: kamuflaj paleti alanın zeminine göre seçilir.
+   * opts.model 'jeep': arazi aracı (hızlı, açık kasa, kule yok — kimse binmez)
+   */
+  spawn(pos, yaw, map = null, opts = {}) {
+    const jeep = opts.model === 'jeep';
+    const root = jeep ? buildJeep(opts.color) : buildAPC(camoFor(map));
     root.position.copy(pos);
     root.rotation.y = yaw;
     root.updateMatrixWorld(true);
@@ -142,6 +147,15 @@ export class Vehicles {
       box: new THREE.Box3(),
       riders: [], gunner: null, nextShot: 0, target: null, nextThink: 0,
     };
+    if (jeep) {
+      // Arazi aracı: 140 km/sa, çevik; zırhı ince
+      Object.assign(v, {
+        kind: 'car', vmax: 38.9, accel: 9.5, brake: 22, vrev: 8,
+        wheelR: JEEP.wheelR, half: JEEP.half, height: JEEP.height,
+        bodyOffs: JEEP.bodyOffs, bodyR: JEEP.bodyR, camDist: 6.4, camH: 1.6,
+        hp: 900, maxHp: 900,
+      });
+    }
     for (const m of solids) m.userData = { ...m.userData, vehicle: v };
     v.fixture = { colliders: [v.box], solids, cover: [] };
     this._updateBox(v);
@@ -154,11 +168,11 @@ export class Vehicles {
   /** Dönük gövdeyi kapsayan eksen hizalı kutu (6.1 × 2.6 m). */
   _updateBox(v) {
     const c = Math.cos(v.yaw), s = Math.sin(v.yaw);
-    const hx = 3.05, hz = 1.3;
+    const hx = v.half?.[0] ?? 3.05, hz = v.half?.[1] ?? 1.3;
     const ex = Math.abs(c) * hx + Math.abs(s) * hz;
     const ez = Math.abs(s) * hx + Math.abs(c) * hz;
     v.box.min.set(v.pos.x - ex, 0, v.pos.z - ez);
-    v.box.max.set(v.pos.x + ex, 2.2, v.pos.z + ez);
+    v.box.max.set(v.pos.x + ex, v.height ?? 2.2, v.pos.z + ez);
   }
 
   forward(v) { return _v.set(Math.cos(v.yaw), 0, -Math.sin(v.yaw)); }
@@ -182,8 +196,9 @@ export class Vehicles {
     g.player.yaw = v.yaw - Math.PI / 2;
     g.player.pitch = -0.18;
     // Yakındaki silah arkadaşları biner; ilki kuledeki makineliye geçer
+    // (arazi aracında kule yok: kimse binmez)
     v.riders = [];
-    for (const a of g.allies.allies) {
+    for (const a of v.kind === 'car' ? [] : g.allies.allies) {
       if (!a.alive || a.downed) continue;
       if (Math.hypot(a.pos.x - v.pos.x, a.pos.z - v.pos.z) > BOARD_RANGE) continue;
       a.aboard = v;
@@ -236,9 +251,9 @@ export class Vehicles {
     g.player.pitch = THREE.MathUtils.clamp(g.player.pitch, -0.7, 0.25);
     const yaw = g.player.yaw, pitch = g.player.pitch;
     const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
-    const focus = new THREE.Vector3(v.pos.x, 2.1, v.pos.z);
+    const focus = new THREE.Vector3(v.pos.x, v.camH ?? 2.1, v.pos.z);
     const cam = g.camera;
-    cam.position.copy(focus).addScaledVector(dir, -9.5);
+    cam.position.copy(focus).addScaledVector(dir, -(v.camDist ?? 9.5));
     cam.position.y = Math.max(0.8, cam.position.y + 1.2);
     cam.rotation.set(0, 0, 0);
     cam.rotateY(yaw);
@@ -249,13 +264,17 @@ export class Vehicles {
   _physics(v, dt, now, input) {
     const g = this.game;
     const thr = input.forward;
-    if (thr > 0) v.speed += (v.speed < 0 ? BRAKE : ACCEL) * dt;
-    else if (thr < 0) v.speed -= (v.speed > 0 ? BRAKE : ACCEL * 0.7) * dt;
+    const accel = v.accel ?? ACCEL, brake = v.brake ?? BRAKE;
+    v.throttle = thr;
+    // Yüksek hızda ivme azalır (son km/sa'ler zor gelir)
+    const fall = 1 - 0.55 * Math.min(1, Math.max(0, v.speed) / (v.vmax ?? VMAX));
+    if (thr > 0) v.speed += (v.speed < 0 ? brake : accel * fall) * dt;
+    else if (thr < 0) v.speed -= (v.speed > 0 ? brake : accel * 0.7) * dt;
     else v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), DRAG * dt);
-    if (input.jump) v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), BRAKE * dt);
+    if (input.jump) v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), brake * dt);
     // v.vmax: görev başına üst hız (ör. Füze Rampası'nın toprak yolunda 24 m/sn)
     const vmax = v.vmax ?? VMAX;
-    v.speed = THREE.MathUtils.clamp(v.speed, -VREV, vmax);
+    v.speed = THREE.MathUtils.clamp(v.speed, -(v.vrev ?? VREV), vmax);
 
     // Hızlanınca direksiyon kısılır (yüksek hızda keskin dönüş takla attırır)
     const steerMax = STEER_MAX * (1 - 0.6 * Math.min(1, Math.abs(v.speed) / vmax));
@@ -269,6 +288,24 @@ export class Vehicles {
     const lim = g.world.half - 3.5;
     v.pos.x = THREE.MathUtils.clamp(v.pos.x, -lim, lim);
     v.pos.z = THREE.MathUtils.clamp(v.pos.z, -lim, lim);
+  }
+
+  /**
+   * Devir saati için vites ve devir (5 ileri vites, oyunlardaki gibi):
+   * vites aralıkları üst hızın oranları; vites atınca devir ~2600'e düşer.
+   */
+  gearbox(v) {
+    const kmh = v.speed * 3.6;
+    if (kmh < -0.5) return { gear: 'R', rpm: 1100 + Math.min(1, -kmh / 25) * 3200, kmh };
+    const top = (v.vmax ?? VMAX) * 3.6;
+    const edges = [0, 0.2, 0.38, 0.58, 0.79, 1.0].map((k) => k * top);
+    let g = 1;
+    while (g < 5 && kmh > edges[g]) g++;
+    const lo = edges[g - 1], hi = edges[g];
+    const f = Math.min(1, Math.max(0, (kmh - lo) / (hi - lo)));
+    const base = g === 1 ? 900 : 2600;
+    const idle = Math.abs(kmh) < 1 && !(v.throttle > 0);
+    return { gear: idle ? 'N' : g, rpm: idle ? 850 : base + (6400 - base) * f + (v.throttle > 0 ? 150 : 0), kmh };
   }
 
   /* ── Kule: oyuncu tepede, M2 başında ─────────────────────────────── */
@@ -433,7 +470,8 @@ export class Vehicles {
   _collide(v, now) {
     const world = this.game.world;
     const fwd = this.forward(v).clone();
-    for (const off of BODY) {
+    const bodyR = v.bodyR ?? BODY_R;
+    for (const off of v.bodyOffs ?? BODY) {
       const cx = v.pos.x + fwd.x * off, cz = v.pos.z + fwd.z * off;
       for (const box of world.colliders) {
         if (box === v.box || box.max.y < 0.5 || box.min.y > 2) continue;
@@ -441,14 +479,14 @@ export class Vehicles {
         const pz = THREE.MathUtils.clamp(cz, box.min.z, box.max.z);
         const dx = cx - px, dz = cz - pz;
         const d2 = dx * dx + dz * dz;
-        if (d2 >= BODY_R * BODY_R) continue;
+        if (d2 >= bodyR * bodyR) continue;
         const d = Math.sqrt(d2) || 0.001;
         const nx = d2 > 1e-8 ? dx / d : -fwd.x, nz = d2 > 1e-8 ? dz / d : -fwd.z;
         if (world.propByBox.has(box)) {
           world.pushProp(box, -nx, -nz, 3 + Math.abs(v.speed) * 0.8);
           continue;
         }
-        const push = BODY_R - d;
+        const push = bodyR - d;
         v.pos.x += nx * push;
         v.pos.z += nz * push;
         // Önden çarpışma hızı keser
@@ -465,8 +503,9 @@ export class Vehicles {
         const dx = e.pos.x - v.pos.x, dz = e.pos.z - v.pos.z;
         const along = dx * fwd.x + dz * fwd.z;
         const side = Math.abs(dx * fwd.z - dz * fwd.x);
-        if (Math.abs(along) > 3.3 || side > 1.6) continue;
+        if (Math.abs(along) > (v.half?.[0] ?? 3.05) + 0.25 || side > (v.half?.[1] ?? 1.3) + 0.3) continue;
         e._killedBy = { vehicle: true };
+        g.onEnemyRunOver?.(e);
         g.enemies.kill(e, now, fwd.clone().multiplyScalar(Math.sign(v.speed)));
         g.hud.feed(`${e.def.name} — EZİLDİ`, true);
       }
@@ -482,7 +521,7 @@ export class Vehicles {
       this._updateBox(v);
       // Tekerlekler: dönme ve öndekilerde direksiyon
       for (const w of v.wheels) {
-        w.spin.rotation.z -= (v.speed * dt) / WHEEL_R;
+        w.spin.rotation.z -= (v.speed * dt) / (v.wheelR ?? WHEEL_R);
         w.steer.rotation.y = w.front ? v.steer : 0;
       }
       if (v.dead) continue;

@@ -477,6 +477,61 @@ export class Hud {
     }
   }
 
+  /**
+   * Devir saati (araç sürerken, sağda). gb: { rpm, gear, kmh } ya da null.
+   * Kadran 0–8000 devir, 225°'den −45°'ye (270°); 6500 üstü kırmızı.
+   */
+  setTacho(gb) {
+    const el = $('tacho');
+    if (!gb) {
+      if (!el.hidden) { el.hidden = true; document.body.classList.remove('driving'); }
+      return;
+    }
+    if (el.hidden) {
+      el.hidden = false;
+      document.body.classList.add('driving');
+      if (!this._tachoBuilt) this._buildTacho();
+    }
+    const rpm = Math.max(0, Math.min(8000, gb.rpm));
+    this._tachoRpm = (this._tachoRpm ?? rpm) + (rpm - (this._tachoRpm ?? rpm)) * 0.35;
+    const a = 225 - (this._tachoRpm / 8000) * 270;
+    $('tacho-needle').setAttribute('transform', `rotate(${(-a + 90).toFixed(1)})`);
+    $('tacho-gear').textContent = gb.gear;
+    $('tacho-kmh').textContent = Math.round(Math.abs(gb.kmh));
+    el.classList.toggle('redline', rpm > 6500);
+  }
+
+  _buildTacho() {
+    this._tachoBuilt = true;
+    const g = $('tacho-ticks');
+    const NS = 'http://www.w3.org/2000/svg';
+    const pt = (deg, r) => [Math.cos((deg * Math.PI) / 180) * r, -Math.sin((deg * Math.PI) / 180) * r];
+    for (let v = 0; v <= 8000; v += 250) {
+      const deg = 225 - (v / 8000) * 270;
+      const major = v % 1000 === 0;
+      const [x1, y1] = pt(deg, major ? 70 : 76);
+      const [x2, y2] = pt(deg, 84);
+      const l = document.createElementNS(NS, 'line');
+      l.setAttribute('x1', x1); l.setAttribute('y1', y1); l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+      l.setAttribute('class', v >= 6500 ? 'tk red' : major ? 'tk major' : 'tk');
+      g.append(l);
+      if (major) {
+        const [tx, ty] = pt(deg, 56);
+        const t = document.createElementNS(NS, 'text');
+        t.setAttribute('x', tx); t.setAttribute('y', ty + 5);
+        t.setAttribute('class', v >= 7000 ? 'tn red' : 'tn');
+        t.textContent = v / 1000;
+        g.append(t);
+      }
+    }
+    // Kırmızı bölge yayı
+    const [ax, ay] = pt(225 - (6500 / 8000) * 270, 80), [bx, by] = pt(-45, 80);
+    const arc = document.createElementNS(NS, 'path');
+    arc.setAttribute('d', `M${ax} ${ay} A80 80 0 0 1 ${bx} ${by}`);
+    arc.setAttribute('class', 'redzone');
+    g.prepend(arc);
+  }
+
   setActiveWeapon(def) {
     for (const li of this.el.strip.children) {
       li.classList.toggle('active', li.dataset.id === def.id);

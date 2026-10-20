@@ -304,9 +304,45 @@ export class Enemy {
     return dist;
   }
 
+  /**
+   * Tarafsız asker (Suikast şehri): devriye halkasında yürür ya da yerinde
+   * durur; ateş etmez. `patrol`: { pts, idx, speed } ya da { face } (duran).
+   * Alarm verilince `neutral` kalkar ve normal savaş yapay zekâsı devralır.
+   */
+  _updatePatrol(dt) {
+    const p = this.patrol ?? {};
+    let speed = 0, want = this.facing;
+    if (p.pts?.length) {
+      const t = p.pts[p.idx];
+      const dx = t.x - this.pos.x, dz = t.z - this.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.7) p.idx = (p.idx + 1) % p.pts.length;
+      else {
+        speed = p.speed ?? 1.5;
+        this.pos.x += (dx / d) * speed * dt;
+        this.pos.z += (dz / d) * speed * dt;
+        want = Math.atan2(-dx, -dz);
+      }
+    } else if (p.face != null) {
+      want = p.face;
+    }
+    let diff = want - this.facing;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    this.facing += diff * Math.min(1, dt * (p.turn ?? 4));
+    this.vel.set(0, 0, 0);
+    if (this.soldier) {
+      this.soldier.setShadowDistance(30);
+      this.soldier.update({ dt, speed, crouching: false, downed: false, aimPitch: -0.15, aiming: false });
+    }
+    this.group.position.set(this.pos.x, this.pos.y, this.pos.z);
+    this.group.rotation.set(0, this.facing, 0);
+    return 999;
+  }
+
   /** raid: Baskın'da saldıran taraf — siperden sipere hızla eve yüklenir. */
   update(dt, now, player, arena, onAttack, world = null, raid = false) {
     if (this.nest) return this._updateNest(dt, now, player, onAttack);
+    if (this.neutral) return this._updatePatrol(dt);
     const toPlayer = new THREE.Vector3(
       player.pos.x - this.pos.x, 0, player.pos.z - this.pos.z,
     );
@@ -967,7 +1003,8 @@ export class EnemyManager {
     if (enemy.soldier) {
       // Asker modeli: kutu gibi devrilmek yerine dizleri bükülerek yığılır.
       enemy.dying = true;
-      enemy.removeAt = now + 12;
+      // corpseTime: ceset sahnede kalma süresi (Suikast'ta üniforma alınacak)
+      enemy.removeAt = now + (this.corpseTime ?? 12);
       this.dying.push(enemy);
     } else {
       this._makeCorpse(enemy, now, impactDir);

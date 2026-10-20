@@ -21,6 +21,9 @@ export const ROAD = {
   // Pusu noktaları (s, m): her biri bir düşman mangası ve yol kenarı siperleri
   ambushes: [1300, 2800, 4300, 5900, 7400, 8900, 10400, 11500],
   wreckAt: 28,           // enkaz pusu noktasının 28 m ötesinde, sağ şeritte
+  curve: [70, 520, 28, 190, 1.3],   // kıvrım: a1·sin(s/p1) + a2·sin(s/p2 + f)
+  trees: 170,
+  endPad: 1,             // yol sonundan sonra kurulacak parça sayısı
   logAfter: 22,          // enkazdan 22 m sonra sol şeridi kapatan devrik kütük
 };
 
@@ -34,8 +37,10 @@ function seeded(n) {
 }
 
 export class Road {
-  constructor(game) {
+  /** cfg: ROAD biçiminde ayarlar (Suikast görevi kendi patikasını verir). */
+  constructor(game, cfg = ROAD) {
     this.game = game;
+    this.cfg = { ...ROAD, ...cfg };
     this.active = false;
     this.chunks = new Map();     // k → { group, fixture }
     this._mats = null;
@@ -43,24 +48,26 @@ export class Road {
 
   /** Yolun s noktasındaki merkez x'i. */
   cx(s) {
-    return ROAD.x0 + 70 * Math.sin(s / 520) + 28 * Math.sin(s / 190 + 1.3);
+    const [a1, p1, a2, p2, f] = this.cfg.curve;
+    return this.cfg.x0 + a1 * Math.sin(s / p1) + a2 * Math.sin(s / p2 + f);
   }
 
   /** Yolun s noktasındaki dünya konumu (lat: merkezden sağa metre). */
   point(s, lat = 0) {
     const t = this.tangent(s);
     // Sağ = ileri × yukarı → (−t.z, 0, t.x) … ileri −Z iken sağ +X
-    return new THREE.Vector3(this.cx(s) - t.z * lat, 0, ROAD.z0 - s + t.x * lat);
+    return new THREE.Vector3(this.cx(s) - t.z * lat, 0, this.cfg.z0 - s + t.x * lat);
   }
 
   /** İlerleme yönü (birim). */
   tangent(s) {
-    const dx = (70 / 520) * Math.cos(s / 520) + (28 / 190) * Math.cos(s / 190 + 1.3);
+    const [a1, p1, a2, p2, f] = this.cfg.curve;
+    const dx = (a1 / p1) * Math.cos(s / p1) + (a2 / p2) * Math.cos(s / p2 + f);
     return new THREE.Vector3(dx, 0, -1).normalize();
   }
 
   /** Bir noktanın yoldaki ilerlemesi (m). */
-  progress(pos) { return ROAD.z0 - pos.z; }
+  progress(pos) { return this.cfg.z0 - pos.z; }
 
   /** Yol merkezine göre yanal sapma (sağ +). */
   lateral(pos) { return pos.x - this.cx(this.progress(pos)); }
@@ -70,10 +77,10 @@ export class Road {
    * diğer yerlerde sağ şerit.
    */
   lane(s) {
-    for (const a of ROAD.ambushes) {
-      const w = a + ROAD.wreckAt;
+    for (const a of this.cfg.ambushes) {
+      const w = a + this.cfg.wreckAt;
       if (s > w - 34 && s < w + 9) return -2.2;          // enkaz sağda → sol şerit
-      if (s >= w + 9 && s < w + ROAD.logAfter + 12) return 2.1;   // kütük solda → sağ
+      if (s >= w + 9 && s < w + this.cfg.logAfter + 12) return 2.1;   // kütük solda → sağ
     }
     return 1.6;
   }
@@ -113,9 +120,9 @@ export class Road {
   /** s: aracın ilerlemesi. Gerekli parçaları kurar, gerisini söker. */
   update(s, force = false) {
     if (!this.active) return;
-    const C = ROAD.chunk;
-    const k0 = Math.max(0, Math.floor((s - ROAD.behind) / C));
-    const k1 = Math.min(Math.ceil(ROAD.length / C) + 1, Math.floor((s + ROAD.ahead) / C));
+    const C = this.cfg.chunk;
+    const k0 = Math.max(0, Math.floor((s - this.cfg.behind) / C));
+    const k1 = Math.min(Math.ceil(this.cfg.length / C) - 1 + this.cfg.endPad, Math.floor((s + this.cfg.ahead) / C));
     let changed = false;
     for (const k of [...this.chunks.keys()]) {
       if (k < k0 || k > k1) { this._drop(k); changed = true; }
@@ -142,7 +149,7 @@ export class Road {
 
   _build(k) {
     const M = this._mats;
-    const C = ROAD.chunk;
+    const C = this.cfg.chunk;
     const s0 = k * C, s1 = s0 + C, mid = s0 + C / 2;
     const rand = seeded(k + 11);
     const group = new THREE.Group();
@@ -152,7 +159,7 @@ export class Road {
     // Zemin: 520 × 160 m çimen (sis 150 m'de kapattığı için kenar görünmez)
     const ground = own(new THREE.Mesh(new THREE.PlaneGeometry(520, C + 0.5), M.ground));
     ground.rotation.x = -Math.PI / 2;
-    ground.position.set(this.cx(mid), 0, ROAD.z0 - mid);
+    ground.position.set(this.cx(mid), 0, this.cfg.z0 - mid);
     ground.receiveShadow = true;
     group.add(ground);
 
@@ -161,7 +168,7 @@ export class Road {
     const n = Math.round(C / 5);
     for (let i = 0; i <= n; i++) {
       const s = s0 + (i / n) * C;
-      const L = this.point(s, -ROAD.width / 2), R = this.point(s, ROAD.width / 2);
+      const L = this.point(s, -this.cfg.width / 2), R = this.point(s, this.cfg.width / 2);
       pos.push(L.x, 0.03, L.z, R.x, 0.03, R.z);
       uv.push(0, s / 7, 1, s / 7);
       // Saat yönü tersine (yukarı bakan yüz): L_i → R_i → L_i+1
@@ -179,7 +186,7 @@ export class Road {
     // Ağaçlar: yolun iki yanında, gövde + taç tek geometride
     const trunks = [], crowns = [], leafs = [];
     // Sık orman: ağaçların çoğu yola yakın (ilk 60 m), seyrekleşerek uzar
-    const count = 170;
+    const count = this.cfg.trees;
     for (let i = 0; i < count; i++) {
       const s = s0 + rand() * C;
       const side = rand() < 0.5 ? -1 : 1;
@@ -234,7 +241,7 @@ export class Road {
     for (let i = 0; i < 4; i++) rock(s0 + rand() * C, (rand() < 0.5 ? -1 : 1) * (6 + rand() * 20), rand() < 0.3);
 
     // Pusu: yol kenarında siperler + sağ şeritte yanık enkaz
-    for (const a of ROAD.ambushes) {
+    for (const a of this.cfg.ambushes) {
       if (a + 60 < s0 || a - 60 >= s1) continue;
       this._ambushProps(a, s0, s1, group, colliders, solids, cover, rand, rock);
     }
@@ -288,10 +295,10 @@ export class Road {
     }
     // Devrik kütük: enkazdan sonra SOL şeridi kapatır (pusu bölgesi zikzakla,
     // yavaş geçilir)
-    const lg = a + ROAD.wreckAt + ROAD.logAfter;
+    const lg = a + this.cfg.wreckAt + this.cfg.logAfter;
     if (inChunk(lg)) box(lg, -2.25, 4.0, 0.95, 0.95, M.bark, 0.08);
     // Yanık araç enkazı: sağ şeritte, gövde + kabin
-    const w = a + ROAD.wreckAt;
+    const w = a + this.cfg.wreckAt;
     if (inChunk(w)) {
       box(w, 2.3, 2.3, 1.2, 4.6, M.wreck, 0.25);
       box(w - 0.8, 2.4, 2.0, 0.9, 1.8, M.rust, 0.25);

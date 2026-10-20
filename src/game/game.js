@@ -35,6 +35,7 @@ import { AmmoCrates } from './ammocrate.js';
 import { Achievements } from './achievements.js';
 import { Weekly } from './weekly.js';
 import { Op2 } from './op2.js';
+import { Op3 } from './op3.js';
 import { TouchControls, isTouchDevice } from '../ui/touch.js';
 import { Input } from '../core/input.js';
 import { AudioEngine } from '../core/audio.js';
@@ -132,6 +133,7 @@ export class Game {
     this.raid = new Raid(this);
     this.crates = new AmmoCrates(this);
     this.op2 = new Op2(this);                // Füze Rampası (2. özel görev)
+    this.op3 = new Op3(this);                // Suikast (3. özel görev)
     // Başarım ödülü o anki tura puan olarak eklenir
     this.achv = new Achievements((id, def) => {
       if (def.odul) {
@@ -290,6 +292,7 @@ export class Game {
     on('cine-skip', () => { if (this.state === 'cinematic') this.activeCine?.skip(); });
     on('home-free-btn', () => this.startMission(null));
     on('home-help-btn', () => this.hud.toggleControls());
+    on('phone-toast', () => this.op3.togglePhone());
     on('weekly-claim', () => {
       const puan = this.weekly.al();
       if (!puan) return;
@@ -357,6 +360,8 @@ export class Game {
         if (this.vehicles.driving || this.vehicles.topside) return;
       }
       if (code === 'KeyE' && this.op2.active) this.op2.tryCine();
+      if (code === 'KeyE' && this.op3.active) this.op3.tryInteract();
+      if (code === 'KeyP' && this.op3.active) this.op3.togglePhone();
       if (code === 'KeyF') this._interact();
       if (code === 'KeyT') this._toggleTop();
       // Kuledeyken 1 / 2: silah arkadaşı sürsün / araç dursun
@@ -425,6 +430,8 @@ export class Game {
       else this.raid.hitGlass(mesh, dmg, point);
     };
     // Araç kulesindeki makineli: müttefik ateşi gibi bölge çarpanlı
+    // Araçla ezilen düşman (Suikast: devriyesi alarma geçer)
+    this.onEnemyRunOver = (e) => { if (this.op3.active) this.op3.onEnemyHit(e); };
     this.onTurretHit = (enemy, part, point, dmg) => {
       if (!enemy.alive) return;
       const mult = part === 'head' ? HEADSHOT_MULT : part === 'leg' ? LEG_MULT : BODY_MULT;
@@ -503,6 +510,8 @@ export class Game {
    * seçimler kullanılır. id: görev (null = serbest hat)
    */
   startMission(id, retry = false) {
+    // Suikast: silahsız başlanır, silah/alan seçimi yok; ölünce şehirden
+    if (id === 'baskin3') { this.startOp3(retry); return; }
     if (id === 'baskin2') {
       if (retry && this.pick4.size === PICK_COUNT) this.startOp2([...this.pick4]);
       else this._showLoadout('baskin2');
@@ -657,9 +666,42 @@ export class Game {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Suikast (3. özel görev). retry: şehre girildiyse oradan devam. */
+  async startOp3(retry = false) {
+    await this.ensureAssets();
+    if (!this.op2.assets) {
+      this.hud.screen('loader');
+      this.hud.loading(0.1, 'Sahne hazırlanıyor');
+      await this.op2.load((p, label) => this.hud.loading(0.1 + p * 0.9, label));
+    }
+    // Seslendirmeyi önceden indir (ilk replik beklemesin)
+    this.audio.init();
+    for (const n of ['01', '02', '03', '04', '05', '06', '07', '10', '11', '12']) this.audio.loadVoice(`assets/voice/op3_${n}.m4a`);
+    const checkpoint = retry ? this.op3.checkpoint : null;
+    this._prepareRun('baskin3', null, []);
+    this.raid.teardownNest();
+    this.enemies.glassList = null;
+    this.world.setClearRects([]);
+    this.crates.place([]);
+    this.allies.clear();
+    this.enemies.allies = this.allies.allies;
+    this.nametags.rebuild(this.allies.allies);
+    this._finishPrepare();
+    this.op3.checkpoint = checkpoint;
+    this.op3.begin(Boolean(checkpoint));
+    this.state = 'playing';
+    this.nametags.setVisible(false);
+    this.camera.fov = BASE_FOV;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /** Yol/şehir arenası açık mı: harita gizli, sektör akışı durur. */
+  _arenaOn() { return this.op2.roadActive || this.op3.arenaActive; }
+
   /** Bütün görevlerin ortak hazırlığı (oyuncu, silahlar, düşmanlar). */
   _prepareRun(missionId, raidIds, loadout) {
     this.op2.end();
+    this.op3.end();
     this._kaskKalkaniKullanildi = false;
     this._treating = null;
     this.hud.setDowned(false);
@@ -962,6 +1004,7 @@ export class Game {
 
   toHome() {
     this.op2.end();
+    this.op3.end();
     this.state = 'home';
     this._syncLocks();
     this._drawWeekly();
@@ -1176,6 +1219,7 @@ export class Game {
 
   _resolveShot({ origin, dir, weapon, slot, noEject }) {
     this.shotsFired++;
+    if (this.op3.active) this.op3.onPlayerShot();
 
     if (weapon.rocket) {
       this._fireRocket(slot, dir, weapon);
@@ -1222,6 +1266,7 @@ export class Game {
       const head = part === 'head';
       const leg = part === 'leg';
       this.shotsHit++;
+      if (this.op3.active) this.op3.onEnemyHit(enemy);
       if (slot) slot._magHits = (slot._magHits ?? 0) + 1;
       if (head) this.achv.award('keskin');
 
@@ -1298,6 +1343,7 @@ export class Game {
       const back = fwd.dot(toP) < -0.3;
       const head = part === 'head';
       const dead = enemy.hurt(m.damage * (head ? 2 : 1) * (back ? m.backstab : 1));
+      if (this.op3.active) this.op3.onEnemyHit(enemy);
       this.effects.hitBurst(point, 0xa3241a, 14);
       this.audio.stab?.();
       this.hud.hitmarker(dead);
@@ -1709,7 +1755,7 @@ export class Game {
     } else if (this.state === 'cinematic') {
       this.input.consumeLook();                  // sinematikte fare bakışı yok
       this.weaponry.rig.visible = false;
-      if (!this.op2.roadActive) this.world.update(this.camera, this.player.pos, now, 3);
+      if (!this._arenaOn()) this.world.update(this.camera, this.player.pos, now, 3);
       this.vehicles.update(dt, now);
       if (this.raid.active) this.raid.update(dt, now);       // ufuktaki birlik yürür
       this.activeCine?.update(dt, now);
@@ -1730,12 +1776,19 @@ export class Game {
     const downed = this.player.downed;
     const driving = this.vehicles.driving;
     const topside = this.vehicles.topside;
-    const busy = downed || Boolean(this._treating) || Boolean(driving) || Boolean(topside);     // elde silah yok
+    // Silahsız (Suikast'ın başı): kuşanılabilir silah yok — el boş
+    const unarmed = !this.weaponry.usable(this.weaponry.current.def.id);
+    if (unarmed !== this._unarmedCls) {
+      this._unarmedCls = unarmed;
+      document.body.classList.toggle('unarmed', unarmed);     // cephane göstergesi gizlenir
+    }
+    const busy = downed || Boolean(this._treating) || Boolean(driving) || Boolean(topside) || unarmed;     // elde silah yok
 
     const ads = this.input.mouse(2) && !this.binoc && !mounted && !busy;
     // Ağır yaralı: yalnızca sürünür (koşu, zıplama, eğilme yok)
     const crawl = (a, b) => (this.input.down(a) ? 1 : 0) - (this.input.down(b) ? 1 : 0);
-    const moveInput = downed ? {
+    const moveInput = this.op3.active && this.op3.lockMove ? { forward: 0, right: 0, jump: false, sprint: false, crouch: false, lean: 0 }
+      : downed ? {
       forward: crawl('KeyW', 'KeyS'), right: crawl('KeyD', 'KeyA'),
       jump: false, sprint: false, crouch: true, lean: 0,
     } : {
@@ -1759,7 +1812,7 @@ export class Game {
 
     // Dünya akışı: görüş alanına giren sektörler kurulur, çıkanlar sökülür.
     // Füze Rampası yolunda harita gizli ve sektör akışı durur (road.js)
-    if (!this.op2.roadActive) this.world.update(this.camera, this.player.pos, now);
+    if (!this._arenaOn()) this.world.update(this.camera, this.player.pos, now);
 
     const def = this.weaponry.current.def;
     const firing = this.input.mouse(0) && !this.binoc && !busy;
@@ -1814,6 +1867,7 @@ export class Game {
     this.raid.update(dt, now);
     this.vehicles.update(dt, now);
     this.op2.update(dt, now);
+    this.op3.update(dt, now);
 
     // Dalga geçişi
     if (this.enemies.state === 'break' && now > this.enemies.breakEnd) {
@@ -1896,14 +1950,15 @@ export class Game {
       const g = this.raid.nearbyGlass(this.player.pos);
       if (g) hint = ['F', `Kurşun geçirmez ${camYazi(g)}`];
     } else if (top) {
-      hint = ['T', `kuleden in · 1 arkadaşın sürsün · 2 dursun${top.autoDrive ? ' (sürüyor)' : ' (duruyor)'} · zırh %${Math.ceil(top.hp / 25)}`];
+      hint = ['T', `kuleden in · 1 arkadaşın sürsün · 2 dursun${top.autoDrive ? ' (sürüyor)' : ' (duruyor)'} · zırh %${Math.ceil((top.hp / (top.maxHp ?? 2500)) * 100)}`];
     } else if (this.vehicles.driving) {
       const v = this.vehicles.driving;
-      hint = ['F', `in · W/S gaz-geri · A/D direksiyon · Space fren · zırh %${Math.ceil(v.hp / 25)} · ${Math.round(Math.abs(v.speed) * 3.6)} km/s`];
+      hint = ['F', `in · W/S gaz-geri · A/D direksiyon · Space fren · zırh %${Math.ceil((v.hp / (v.maxHp ?? 2500)) * 100)} · ${Math.round(Math.abs(v.speed) * 3.6)} km/s`];
     } else if (!this.player.downed && this.vehicles.nearby(this.player.pos)) {
       hint = ['F', 'araca bin (sür) · T kuleye çık — yakındaki silah arkadaşların da biner'];
     }
     if (this.op2.active) hint = this.op2.hint() ?? hint;
+    if (this.op3.active) hint = this.op3.hint() ?? hint;
     this.hud.setHint(hint);
     this.hud.setHealth(this.player.health, this.player.maxHealth, this.player.healthCap);
     this.hud.setStamina(this.player.stamina, this.player.exhausted);
@@ -1942,10 +1997,24 @@ export class Game {
       enemies: this.enemies.enemies,
       allies: this.allies.allies,
       crates: this.crates.list,
+      route: this.op3.active ? this.op3.route() : null,
       world: this.world,
       grenades: this.grenades.live,
     });
     if (this.op2.active) this.op2.drawHud();
+    if (this.op3.active) this.op3.drawHud();
+    else document.getElementById('nav-readout').hidden = true;
+    // Devir saati + motor sesi (araç sürerken)
+    const drv = this.vehicles.driving;
+    if (drv) {
+      const gb = this.vehicles.gearbox(drv);
+      this.hud.setTacho(gb);
+      this.audio.engineStart();
+      this.audio.engineSet(gb.rpm, Math.max(0, drv.throttle ?? 0));
+    } else {
+      this.hud.setTacho(null);
+      this.audio.engineStop();
+    }
 
     if (now > this.comboUntil && this.combo > 0) {
       this.combo = 0;

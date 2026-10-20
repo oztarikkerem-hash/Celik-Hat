@@ -390,6 +390,90 @@ export class AudioEngine {
     this._swell({ dur, gain: 0.35, freq: 180, sweepTo: 60, attack: 0.4, hold: dur * 0.3 });
   }
 
+  /* ── Seslendirme (assets/voice/*.m4a) ──────────────────────────────── */
+
+  /** Replik dosyasını önceden indirip çözer (önbellekli). */
+  async loadVoice(url) {
+    if (!this.ctx) return null;
+    this._voices ??= new Map();
+    if (!this._voices.has(url)) {
+      this._voices.set(url, fetch(url).then((r) => r.arrayBuffer())
+        .then((b) => this.ctx.decodeAudioData(b)).catch(() => null));
+    }
+    return this._voices.get(url);
+  }
+
+  /**
+   * Repliği çalar; sesin süresini (sn) döndürür (çalınamazsa tahmini süre).
+   * Sessiz moddayken ana kazanç sıfır olduğu için duyulmaz, altyazı kalır.
+   */
+  async playVoice(url, fallback = 3) {
+    if (!this.ctx) return fallback;
+    const buf = await this.loadVoice(url);
+    if (!buf) return fallback;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const g = this.ctx.createGain();
+    g.gain.value = 1.15;
+    src.connect(g).connect(this.master);
+    src.start();
+    return buf.duration;
+  }
+
+  /* ── Motor sesi (araç sürerken) ────────────────────────────────────── */
+
+  /** Sürekli motor uğultusu: iki testere dişi + alçak geçiren süzgeç. */
+  engineStart() {
+    if (!this.ctx || this._engine) return;
+    const t = this.t;
+    const out = this.ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.09, t + 0.4);
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 500;
+    lp.Q.value = 2;
+    const a = this.ctx.createOscillator(), b = this.ctx.createOscillator();
+    a.type = 'sawtooth'; b.type = 'square';
+    a.frequency.value = 30; b.frequency.value = 15;
+    const bg = this.ctx.createGain();
+    bg.gain.value = 0.5;
+    a.connect(lp); b.connect(bg).connect(lp);
+    lp.connect(out).connect(this.master);
+    a.start(); b.start();
+    this._engine = { a, b, lp, out };
+  }
+
+  /** rpm: devir, load: gaz (0–1). */
+  engineSet(rpm, load = 0) {
+    const e = this._engine;
+    if (!e) return;
+    const t = this.t;
+    const f = rpm / 30;                      // 4 silindir: devir/30 Hz ateşleme
+    e.a.frequency.setTargetAtTime(f, t, 0.05);
+    e.b.frequency.setTargetAtTime(f / 2, t, 0.05);
+    e.lp.frequency.setTargetAtTime(380 + load * 900 + rpm * 0.12, t, 0.08);
+    e.out.gain.setTargetAtTime(0.05 + load * 0.06 + Math.min(0.04, rpm / 160000), t, 0.1);
+  }
+
+  engineStop() {
+    const e = this._engine;
+    if (!e) return;
+    this._engine = null;
+    const t = this.t;
+    e.out.gain.setTargetAtTime(0.0001, t, 0.15);
+    e.a.stop(t + 0.8);
+    e.b.stop(t + 0.8);
+  }
+
+  /** Telefon bildirimi: iki kısa titreşim + zil. */
+  phoneBuzz() {
+    if (!this.ctx) return;
+    for (const at of [0, 0.28]) this._noise({ dur: 0.18, gain: 0.12, freq: 160, q: 3, at });
+    this._tone({ f0: 1320, f1: 1320, dur: 0.12, gain: 0.08, type: 'sine', at: 0.05 });
+    this._tone({ f0: 1760, f1: 1760, dur: 0.16, gain: 0.08, type: 'sine', at: 0.2 });
+  }
+
   /** Başarım: yükselen iki nota. */
   achievement() {
     if (!this.ctx) return;

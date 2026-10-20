@@ -27,6 +27,14 @@ export const MISSIONS = [
     on: (ev) => (ev.type === 'op2-done' ? 1 : 0),
   },
   {
+    // 3. özel görev: kaçış, 8 km patika, şehirde silahsız sızma ve suikast
+    id: 'baskin3', name: 'Suikast', target: 1, special: true,
+    desc: 'Füze yüzünden silah arkadaşların sana kızgın: kaç, arazi aracına bin. '
+      + 'Komutanın mesajıyla şehre git; silahsız başla, tabancayı bul, bir devriyeyi '
+      + 'indir, üniformasını giy ve düşman komutanını arkasını döndüğünde vur.',
+    on: (ev) => (ev.type === 'op3-done' ? 1 : 0),
+  },
+  {
     id: 'ilk-kan', name: 'İlk Kan', target: 1,
     desc: 'Sahaya in ve ilk hedefi düşür.',
     on: (ev) => (ev.type === 'kill' ? 1 : 0),

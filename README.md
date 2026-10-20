@@ -35,6 +35,10 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
 - **Füze Rampası** (2. özel görev): zırhlı araçla ormanın içinden 12 km;
   pusularda 1 ile kuleye geç (arkadaşın sürer), 2 ile direksiyona dön.
   Ormanda 40 + 30 düşman, sonra roketatar ve ayrıntılı bir sinematik.
+- **Suikast** (3. özel görev): silah arkadaşların füze yüzünden sana kızgın
+  (seslendirmeli); kaç, arazi aracıyla 8 km patika, telefona gelen mesajla
+  şehre git. Silahsız sız, tabancayı bul, bir devriyeyi indir, üniformasını
+  giy ve düşman komutanını vur. Arazi aracı 140 km/sa, sağda devir saati.
 - **Bölümler:** tank bölümü — T-90 ya da M1 Abrams, müttefik ve
   düşman tanklar, yakıt, benzinlik ve market.
 
@@ -75,6 +79,7 @@ F · KULLAN, SİLAH ↻, TEDAVİ; üstte duraklat.
 | T | Zırhlı aracın kulesine çık / in — 1: silah arkadaşın sürsün, 2: araç dursun |
 | W/S, A/D, Space | Araçta: gaz-geri, direksiyon, fren |
 | H | Tedavi: önce sargı bezi, sonra ilk yardım kiti |
+| P | Telefon (Suikast görevi) |
 | M | Sesi aç / kapat |
 
 Tank bölümünde: W/S sür, A/D dön, E (basılı) tepe makinelisi ya da

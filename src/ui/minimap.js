@@ -24,7 +24,7 @@ export class Minimap {
   }
 
   /** @param now saniye — çizim 20 Hz'e kısılır, oyun döngüsünü yormasın. */
-  draw(now, { player, enemies, allies, crates, world, grenades }) {
+  draw(now, { player, enemies, allies, crates, world, grenades, route }) {
     if (now - this._last < 0.05) return;
     this._last = now;
 
@@ -88,6 +88,26 @@ export class Minimap {
     for (let i = 1; i < corners.length; i++) g.lineTo(...corners[i]);
     g.closePath();
     g.stroke();
+
+    // ── Navigasyon rotası (Suikast): kalın mavi çizgi + hedef ──────────
+    if (route && route.length > 1) {
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      for (const [w, c] of [[6, 'rgba(10, 40, 80, 0.75)'], [3.4, '#4fb4ff']]) {
+        g.strokeStyle = c;
+        g.lineWidth = w;
+        g.beginPath();
+        route.forEach((p, k) => { const [mx, my] = toMap(p.x, p.z); if (k) g.lineTo(mx, my); else g.moveTo(mx, my); });
+        g.stroke();
+      }
+      const end = route[route.length - 1];
+      if (Math.hypot(end.x - player.pos.x, end.z - player.pos.z) < RANGE) {
+        const [mx, my] = toMap(end.x, end.z);
+        g.fillStyle = '#4fb4ff';
+        g.beginPath(); g.arc(mx, my, 5, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke();
+      }
+    }
 
     // ── Mühimmat sandıkları: amber kare ──────────────────────────────
     for (const c of crates ?? []) {

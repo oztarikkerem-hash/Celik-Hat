@@ -716,6 +716,47 @@ seçimi YOK (yol + orman sabit). `game.startOp2(ids)`; `start()` artık
      dumanı kare başına önceki-şimdiki kuyruk arasına doldurulur
      (`MAX_SMOKE` 1600).
 
+## Suikast (3. özel görev, `src/game/op3.js` + `city.js` + `jeep.js`)
+
+Görev listesinde `baskin3`; silah ve alan seçimi YOK (silahsız başlanır:
+`weaponry.allowed` boş küme → `game` "unarmed": el boş, cephane gizli).
+`game.startOp3(retry)`; ölünce şehre girildiyse oradan devam
+(`op3.checkpoint = 'city'`).
+
+1. **Giriş** (orman, 2. görevin roketatarı): 3 SWAT asker (`Soldier`,
+   AllyManager DEĞİL) sırayla bağırır — seslendirme `assets/voice/op3_*.m4a`
+   + altyazı (`#subtitle`). Hareket kilitli (`op3.lockMove`). Sonra üzerine
+   yürürler (3.2 → 6 m/sn); 1.3 m'ye girerlerse "Yakaladık seni" → biter.
+   Güneydeki arazi aracına F ile binince kararma → patika.
+2. **Patika** (`Road` cfg: x0 −6000, 8 km, 5 m, pusu yok, `endPad` 0 —
+   yol sonundan şehre ağaç taşmasın). 6. km'de telefon bildirimi
+   (`#phone-toast`, P ya da dokun): komutanın iki mesajı yazılarak düşer,
+   sonra navigasyon açılır (mini haritada mavi rota, `#nav-readout`).
+   7.35 km'de şehir akmaya başlar, 7.65'te gök/sis şehre (sanayi) döner.
+3. **Şehir** (`city.js`): yol sonu O'dan kuzeye 96 m'lik bloklar, oyuncunun
+   çevresinde ~7×7 blok akar (yarıçap 100 km, yük sabit). Geometri blok
+   köşesine göre YEREL (büyük koordinat titremesin); `solid()` grubu
+   güncelleyip çarpışma kutusu alır. Özel bloklar: sığınak ev
+   (`OP3.house`, sıva duvar, masada tabanca) ve karargâh (`OP3.hq`).
+   - Devriyeler: 5'erli, blok etrafında kaldırımdan dolaşır
+     (`enemy.neutral` + `patrol`; `Enemy._updatePatrol`, ateş etmez).
+     Devriye grubu düşmanda `e.squad` — `e.group` 3B modelin kendisi, üstüne
+     YAZMA. Alarm: kılıksızken ateş etmek (85 m), bir üyeyi vurmak/ezmek,
+     kılıksız silah çekili 22 m'de görünmek. Alarmda `neutral` kalkar.
+   - Akış: ev (E: tabanca 7+14, 1 ile çek) → bir devriyenin beşi de
+     (`hunt`) → cesetten tüfek + üniforma (E, `disguised`; cesetler 240 sn
+     kalır, `enemies.corpseTime`) → karargâh: kılıklı 9 m'de komutan döner,
+     iki repliği söyler, arkasını döner → vur → bitiş kartı.
+4. **Arazi aracı** (`jeep.js`): `vehicles.spawn(..., { model: 'jeep' })` —
+   140 km/sa, araç başına `vmax/accel/brake/half/bodyR/camDist`. Kimse
+   binmez (kule yok). Sürerken sağ altta **devir saati** (`#tacho`,
+   `vehicles.gearbox`: 5 vites, 6500 üstü kırmızı) ve motor sesi
+   (`audio.engineStart/Set/Stop`) — zırhlı araçta da çalışır.
+5. **Seslendirme**: macOS `say -v Yelda` + `[[pbas 30/37/39]]` (Yelda kadın
+   sesi; 36 altı perde 103 Hz'de sabit, 37 → 119, 40 → 152 Hz) →
+   `afconvert` AAC. `audio.playVoice` ana kazanca bağlı: sessiz modda susar,
+   altyazı kalır.
+
 ## Telefon ve tablet (YALNIZCA yatay)
 
 - `src/ui/touch.js`: `(pointer: coarse)` ve ince işaretçi yoksa `body.touch`.
