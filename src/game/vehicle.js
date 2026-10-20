@@ -533,7 +533,11 @@ export class Vehicles {
         if (Math.abs(along) > (v.half?.[0] ?? 3.05) + 0.25 || side > (v.half?.[1] ?? 1.3) + 0.3) continue;
         e._killedBy = { vehicle: true };
         g.onEnemyRunOver?.(e);
-        g.enemies.kill(e, now, fwd.clone().multiplyScalar(Math.sign(v.speed)));
+        // Ragdoll aracın hızıyla savrulur (biraz da havaya)
+        const sp = Math.abs(v.speed);
+        g.enemies.kill(e, now, fwd.clone().multiplyScalar(Math.sign(v.speed)), {
+          launch: fwd.clone().multiplyScalar(v.speed * 0.85).setY(Math.min(6, sp * 0.3)),
+        });
         g.hud.feed(`${e.def.name} — EZİLDİ`, true);
       }
     }

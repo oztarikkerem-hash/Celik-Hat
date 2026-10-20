@@ -2,7 +2,7 @@
 
    Şarjör değiştirirken düşen parça, silahtaki modelin AYNI geometrisini
    paylaşan bir kopyadır; o anki dünya konumundan, silahın hızıyla ve hafif
-   bir dönüşle bırakılır. Fizik motoru (cannon-es) onu zemine ve sandıklara
+   bir dönüşle bırakılır. Fizik motoru (Rapier) onu zemine ve sandıklara
    çarptırır; bir süre sonra kaybolur. En fazla MAX tane yaşar.            */
 
 import * as THREE from 'three';
@@ -53,11 +53,11 @@ export class DroppedMags {
     const dims = new THREE.Vector3(
       Math.max(0.02, size.x), Math.max(0.02, size.y), Math.max(0.02, size.z),
     );
-    const body = this.physics.addDynamicBox(group, dims, heavy ? 3.5 : 0.45);
-    body.linearDamping = 0.05;
-    body.angularDamping = 0.18;
-    body.velocity.set(velocity.x, velocity.y, velocity.z);
-    body.angularVelocity.set(
+    // Oyuncunun kendi gövdesinin içinde doğuyor: aktörlerle çarpışmaz
+    const body = this.physics.addDynamicBox(group, dims, heavy ? 3.5 : 0.45, { actors: false });
+    body.setDamping(0.05, 0.18);
+    body.setVelocity(velocity.x, velocity.y, velocity.z);
+    body.setAngularVelocity(
       (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 6,
     );
     body.wakeUp();

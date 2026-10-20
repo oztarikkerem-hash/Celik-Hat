@@ -38,9 +38,9 @@ export class Casings {
       const mesh = new THREE.Mesh(this.geometry, this.material);
       mesh.castShadow = true;
       this.scene.add(mesh);
-      const body = this.physics.addSphere(origin, 0.012, 0.012, {});
-      body.linearDamping = 0.08;
-      body.angularDamping = 0.1;
+      // Kovan oyuncunun gövdesinin içinden çıkıyor: aktörlerle çarpışmaz
+      const body = this.physics.addSphere(origin, 0.012, 0.012, { actors: false });
+      body.setDamping(0.08, 0.1);
       item = { mesh, body };
       this.pool[this.cursor] = item;
     }
@@ -48,14 +48,13 @@ export class Casings {
     this.cursor = (this.cursor + 1) % MAX;
 
     const b = item.body;
-    b.wakeUp();
-    b.position.set(origin.x, origin.y, origin.z);
-    b.velocity.set(
+    b.setPosition(origin.x, origin.y, origin.z);
+    b.setVelocity(
       right.x * 2.6 + up.x * 1.4 + (Math.random() - 0.5) * 0.6,
       right.y * 2.6 + up.y * 1.4 + 1.2,
       right.z * 2.6 + up.z * 1.4 + (Math.random() - 0.5) * 0.6,
     );
-    b.angularVelocity.set(
+    b.setAngularVelocity(
       (Math.random() - 0.5) * 28, (Math.random() - 0.5) * 28, (Math.random() - 0.5) * 28,
     );
     item.mesh.visible = true;
@@ -67,10 +66,9 @@ export class Casings {
     for (const item of this.pool) {
       if (!item || !item.mesh.visible) continue;
 
-      const p = item.body.interpolatedPosition;
-      item.mesh.position.set(p.x, p.y, p.z);
-      const q = item.body.interpolatedQuaternion;
-      item.mesh.quaternion.set(q.x, q.y, q.z, q.w);
+      const p = item.body.ipos;
+      item.mesh.position.copy(p);
+      item.mesh.quaternion.copy(item.body.iquat);
 
       // Yere ilk çarpışta metalik tıkırtı
       if (!item.clinked && p.y < 0.05) {

@@ -4,7 +4,7 @@
 (ilk açılışta ~40 MB model iner; sonraki açılışlarda tarayıcı önbelleğinden gelir)
 
 Tarayıcıda çalışan birinci şahıs nişancı oyunu. Three.js (görüntü) ve
-cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
+Rapier (fizik, WebAssembly) ile yazıldı; derleme adımı yok, saf ES modülleri.
 
 - On silah (Desert Eagle, AK-47, MAR 556, MG 43, Barrett M82, M98B,
   Minigun, M4 Karabina, Bazuka, M4A1 Dürbünlü) ve bıçak — gerçek ellerle tutuluyor, her birinin
@@ -13,6 +13,9 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
   ediyor, siperden sipere ilerliyor.
 - Görevler (bitenler tekrar oynanabilir), müttefik askerler, mağaza (yelek,
   kask, silah, sağlık) ve **haftalık giriş ödülleri** (1.000'den 4.000'e).
+- **Gerçek ragdoll**: vurulan asker fizikle, vurulduğu yere ve yöne göre
+  yığılır (kafadan vurulan çöker, patlamada savrulur, araç çarpınca uçar);
+  elindeki tüfek ayrı olarak yere düşer.
 - **Dört alan**: Sanayi Bölgesi, Çöl Kasabası, Orman, Karlı Dağ Üssü —
   görev seçilince hangi alanda savaşacağın sorulur.
 - **Bıçak** (0 tuşu) ve asker taşıyan **zırhlı araç** (F: bin / in) —
@@ -91,7 +94,7 @@ benzinlikte yakıt al / market, F benzinlikte tanktan in / tanka bin.
 - `src/` — oyun kodu (`core` altyapı, `game` oyun, `ui` arayüz)
 - `tankgame/` — Bölümler'deki tank oyunu (tek sayfa)
 - `assets/` — modeller ve dokular
-- `vendor/` — Three.js ve cannon-es
+- `vendor/` — Three.js ve Rapier
 - `tools/` — geliştirme sunucusu, Blender dönüştürücüleri, ayar araçları
 
 Ayrıntılı geliştirici notları: [CLAUDE.md](CLAUDE.md).

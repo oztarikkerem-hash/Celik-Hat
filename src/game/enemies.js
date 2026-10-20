@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { Soldier } from './soldier.js';
+import { Ragdoll } from './ragdoll.js';
 
 const TYPES = {
   runner: {
@@ -673,7 +674,11 @@ export class EnemyManager {
   }
 
   reset() {
-    for (const e of this.dying) this.scene.remove(e.group);
+    for (const e of this.dying) {
+      e.ragdoll?.dispose();
+      e.ragdoll = null;
+      this.scene.remove(e.group);
+    }
     this.dying = [];
     for (const c of this.corpses) {
       this.scene.remove(c.pivot);
@@ -930,8 +935,18 @@ export class EnemyManager {
     // ── Yığılan askerler ───────────────────────────────────────────────
     for (let i = this.dying.length - 1; i >= 0; i--) {
       const e = this.dying[i];
-      e.soldier.update({ dt, speed: 0, crouching: false, downed: false, dying: true, aimPitch: 0 });
+      if (e.ragdoll) {
+        // Ceset kayarsa yağma/yakınlık hesapları onu bulsun
+        e.ragdoll.update(dt);
+        const c = e.ragdoll.center;
+        e.pos.x = c.x;
+        e.pos.z = c.z;
+      } else {
+        e.soldier.update({ dt, speed: 0, crouching: false, downed: false, dying: true, aimPitch: 0 });
+      }
       if (now > e.removeAt) {
+        e.ragdoll?.dispose();
+        e.ragdoll = null;
         this.scene.remove(e.group);
         this.dying.splice(i, 1);
       }
@@ -985,14 +1000,19 @@ export class EnemyManager {
         e._killedBy = source;
         // Patlamadan kaçacak şekilde devrilsin
         const away = e.center.clone().sub(center).setY(0).normalize();
-        this.kill(e, now, away);
+        this.kill(e, now, away, { blast: { center, radius } });
         killed.push(e);
       }
     }
     return killed;
   }
 
-  kill(enemy, now, impactDir = null) {
+  /**
+   * @param hit  ragdoll için isabet bilgisi:
+   *   { part, point, force } mermi/bıçak · { blast: {center, radius} } patlama
+   *   · { launch: Vector3 } araçla ezilme (bütün parçalara hız)
+   */
+  kill(enemy, now, impactDir = null, hit = {}) {
     enemy.alive = false;
     enemy.removeAt = now + 0.05;
     if (enemy.body) { this.physics?.remove(enemy.body); enemy.body = null; }
@@ -1005,6 +1025,15 @@ export class EnemyManager {
       enemy.dying = true;
       // corpseTime: ceset sahnede kalma süresi (Suikast'ta üniforma alınacak)
       enemy.removeAt = now + (this.corpseTime ?? 12);
+      // Gerçek ragdoll: ölüm klibi yerine fizikle yığılır
+      if (this.physics) {
+        const vel = enemy.vel.clone();
+        if (hit.launch) vel.add(hit.launch);
+        enemy.ragdoll = new Ragdoll(this.physics, enemy.soldier, this.scene, {
+          velocity: vel, dir: impactDir, force: hit.force ?? (hit.blast || hit.launch ? 0 : 20),
+          part: hit.part, point: hit.point, blast: hit.blast, launch: !!hit.launch,
+        });
+      }
       this.dying.push(enemy);
     } else {
       this._makeCorpse(enemy, now, impactDir);
@@ -1035,9 +1064,7 @@ export class EnemyManager {
       { x: 0.8 * s, y: 2 * s, z: 0.55 * s },
       68 * s,
     );
-    body.angularDamping = 0.22;
-    // Pivot zaten kendi dönüşünü taşıyor; fizik gövdesine de aktar
-    body.quaternion.setFromEuler(0, enemy.facing, 0);
+    body.setDamping(null, 0.22);
 
     // Vuruşun geldiği yöne devril
     const d = impactDir ?? new THREE.Vector3(0, 0, 1);

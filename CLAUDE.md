@@ -1,7 +1,7 @@
 # Çelik Hat — proje notları
 
-Tarayıcıda çalışan birinci şahıs nişancı oyunu. Three.js (render) + cannon-es
-(fizik). Derleme adımı yok: saf ES modülleri, kütüphaneler `vendor/` içinde.
+Tarayıcıda çalışan birinci şahıs nişancı oyunu. Three.js (render) + Rapier
+(fizik, WASM). Derleme adımı yok: saf ES modülleri, kütüphaneler `vendor/` içinde.
 
 ## Çalıştırma
 
@@ -34,7 +34,7 @@ Yeni bir modül eklenince ya da import map'e sabit bir giriş gerekince
 ## Mimari
 
 - `src/core/` — altyapı: `input` (fare kilidi + yedek), `audio`/`music`
-  (tamamı sentezlenmiş, ses dosyası yok), `physics` (cannon-es sarmalayıcı).
+  (tamamı sentezlenmiş, ses dosyası yok), `physics` (Rapier sarmalayıcı).
 - `src/game/` — oyun: `game` (durum makinesi), `world` (sektörlü dünya ve
   akış), `player`, `weapons`+`weaponry`, `enemies`+`enemyGear`, `grenades`,
   `effects`, `missions`, `raid` (Baskın), `align`, `finish`, `textures`.
@@ -54,14 +54,45 @@ Yeni bir modül eklenince ya da import map'e sabit bir giriş gerekince
   (+ oyuncunun çevresindeki halka) sektörler kurulur; çıkanlar geometri,
   çarpışma kutusu ve fizik gövdeleriyle sökülür. HUD'da "SEKTÖR n / 81"
   sayacı bunu canlı gösterir.
-- **Fizik** (`src/core/physics.js`, cannon-es): sabit adım 1/90 sn (en çok
-  6 alt adım; 1/60'ta hızlı bomba ince duvardan geçebiliyordu). Görüntü
-  `interpolatedPosition/Quaternion` ile eşitlenir (eşyalar, bombalar,
-  kovanlar) — 120/144 Hz ekranda tırtıklanma olmasın. Kinematik gövdeler
-  (oyuncu, düşman) `moveKinematic`'te HIZ da alır (3 m'den büyük sıçrama =
-  ışınlanma, hız 0; en çok 20 m/sn), böylece eşyaları iterler. Patlama
-  itmesi merkezden kaçık uygulanır (dönerek savrulma). Eşya–eşya ve
-  eşya–bomba temas malzemeleri tanımlı, çözücü 14 yineleme.
+- **Fizik** (`src/core/physics.js`, **Rapier 0.19.3**, `vendor/rapier3d-compat.js`
+  — WASM base64 gömülü tek dosya, gzip ~830 KB; `index.html`'de
+  `modulepreload`). Modül üst düzey `await RAPIER.init()` yapar, `Physics`
+  yine eşzamanlı kurulur. cannon-es KALDIRILDI.
+  - Gövdeler `PBody` ile sarılır: `position`/`velocity` (okuma),
+    `setPosition/setVelocity/setAngularVelocity/setDamping/setRotation`,
+    `ipos`/`iquat` (ARA konum — çizim bunlardan), `sleep()/wakeUp()`.
+    Statik kutular gövdesiz çarpıştırıcıdır; zemin `HalfSpace`.
+  - Sabit adım 1/90 sn (en çok 6 alt adım). Kinematik gövdeler
+    (`moveKinematic`) hedefe alt adımlara bölünerek kaydırılır — Rapier
+    hızı kendisi çıkarır, eşyalar/cesetler itilir; 3 m'den büyük sıçrama
+    ışınlanma sayılır.
+  - Temas malzemeleri çarpıştırıcı başına: bomba Max sekme + Min sürtünme
+    (her yüzeyde seker), eşya 0.55/0.06, ragdoll 0.9/0.02.
+  - Çarpışma grupları `GROUP` (WORLD/PROP/ACTOR/RAGDOLL/SMALL). Kovan ve
+    düşen şarjör oyuncunun gövdesinin İÇİNDE doğar → `actors: false`.
+  - Patlama itmesi kütleyle orantılı kırpılır (`min(1, m/12)`): hafif
+    ragdoll uzvu 30 m uçuyordu.
+  - Menteşe sınırı eklem kurulduktan sonra `setLimits` ile verilir:
+    `JointData.limits` alanı yok sayılıyor (ölçüldü).
+  - Maliyet: boşta ~0.05 ms/kare (cannon ~0.8 ms), 8 ragdoll birden
+    yığılırken ort. 0.7 ms, en çok 1.7 ms.
+- **Ragdoll** (`src/game/ragdoll.js`): ölen asker ölüm klibi yerine fizikle
+  yığılır. Ölüm anındaki kemik pozundan 11 parça (kalça/gövde kutu, kafa
+  küre, kol/bacak kapsül; ön kola el, baldıra ayak eklenir). Diz/dirsek
+  menteşe (−0.15 … 2.4/2.5 rad, bükülme ekseni iki parçada da yerel X olsun
+  diye çerçeveler o eksenle kurulur), bel/boyun/omuz/kalça küresel eklem +
+  bizim koni sınırımız (`_applyCones`, her alt adımda; burulma da orada
+  sönümlenir — yoksa yerdeki kol kendi ekseninde dönüp duruyordu).
+  - Kemiklere ARA konum yazılır: Hips konum+dönüş, diğerleri yalnızca
+    dönüş (uzuvlar uzamaz); Spine1/2, el, ayak ölüm pozunda kalır.
+  - `kill(enemy, now, dir, hit)`: `{part, point, force}` mermi (silah
+    hasarı × 0.8, 16–90), `{blast}` patlama, `{launch}` araçla ezilme.
+    Mermide dizler zıt yönlü açısal hızla ÇÖZÜLÜR — düz kilitli bacakla
+    asker tahta gibi devriliyordu.
+  - 0.6 sn kıpırdamayınca (ya da 1.5 sn yer değiştirmeyince, en geç 9 sn)
+    DONAR: gövdeler sökülür, poz kalır. Ceset `e.pos`'u kalçayı izler
+    (Suikast yağması). Tüfek ayrı fizik kutusuyla yere düşer.
+  - Deri kırpması ragdoll'da kapatılır (kalça kökten uzaklaşıyor).
 - **Çarpışma**: statik kutular sektörle gelir; devrilebilen eşyaların
   (varil/sandık) kutuları her kare tazelenir (`_refreshProps`). Oyuncu onlara
   çarpınca `pushProp`, mermi isabetinde `hitProp` fizik itmesi uygular.

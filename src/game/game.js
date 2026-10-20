@@ -446,7 +446,8 @@ export class Game {
       this.effects.hitBurst(point, 0xffb35a, 8);
       if (enemy.hurt(dmg * mult)) {
         enemy._killedBy = { ally: true };
-        this.enemies.kill(enemy, performance.now() / 1000, enemy.center.clone().sub(point).setY(0).normalize());
+        this.enemies.kill(enemy, performance.now() / 1000, enemy.center.clone().sub(point).setY(0).normalize(),
+          { part, point, force: 45 });
         this.hud.feed(`Kule nişancısı: ${enemy.def.name} düştü`);
       }
     };
@@ -463,7 +464,7 @@ export class Game {
       if (dead) {
         enemy._killedBy = { ally: true };
         this.enemies.kill(enemy, performance.now() / 1000,
-          enemy.center.clone().sub(point).setY(0).normalize());
+          enemy.center.clone().sub(point).setY(0).normalize(), { part, point, force: 22 });
         this.hud.feed(`Müttefik: ${enemy.def.name} düştü`);
       }
     };
@@ -1291,7 +1292,11 @@ export class Game {
 
       if (dead) {
         enemy._killedBy = { weaponId: weapon.id, headshot: head };
-        this.enemies.kill(enemy, performance.now() / 1000, dir);
+        // Ragdoll'a isabet: vurulan uzuv, mermi yönünde itilir (ağır
+        // silah daha sert savurur)
+        this.enemies.kill(enemy, performance.now() / 1000, dir, {
+          part, point: hit.point, force: THREE.MathUtils.clamp(weapon.damage * 0.8, 16, 90),
+        });
       }
     } else if (data?.glass) {
       // Kurşun geçirmez cam: mermiyi durdurur, hasar alır
@@ -1357,7 +1362,7 @@ export class Game {
       this.hud.hitmarker(dead);
       if (dead) {
         enemy._killedBy = { weaponId: 'bicak', knife: true, backstab: back, headshot: head };
-        this.enemies.kill(enemy, now, dir);
+        this.enemies.kill(enemy, now, dir, { part, point, force: 14 });
       }
     } else if (hit) {
       const n = hit.face

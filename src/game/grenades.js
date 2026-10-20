@@ -66,7 +66,7 @@ export class Grenades {
     if (inheritVelocity) velocity.add(inheritVelocity.clone().multiplyScalar(0.5));
 
     const body = this.physics.addSphere(origin, 0.095, 0.9, { velocity });
-    body.angularVelocity.set(
+    body.setAngularVelocity(
       (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12,
     );
 
@@ -79,9 +79,8 @@ export class Grenades {
     for (let i = this.live.length - 1; i >= 0; i--) {
       const g = this.live[i];
       // Ara konum: ekran yenilemesi fizik adımından farklıyken akıcı
-      const p = g.body.interpolatedPosition, q = g.body.interpolatedQuaternion;
-      g.mesh.position.set(p.x, p.y, p.z);
-      g.mesh.quaternion.set(q.x, q.y, q.z, q.w);
+      g.mesh.position.copy(g.body.ipos);
+      g.mesh.quaternion.copy(g.body.iquat);
 
       // Fitil yaklaştıkça kırmızı yanıp söner
       const left = g.explodeAt - now;
@@ -95,7 +94,7 @@ export class Grenades {
   }
 
   _explode(g, index) {
-    const center = new THREE.Vector3(g.body.position.x, g.body.position.y, g.body.position.z);
+    const center = g.body.position;
 
     this.effects.explode(center, 0xffa23c, 90);
     this.effects.sparks(center, new THREE.Vector3(0, 1, 0), 0xfff0c0, 26);

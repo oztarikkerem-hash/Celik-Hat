@@ -29,7 +29,7 @@ PAGES = {
     'index.html': ('./', {
         'three': './vendor/three.module.js',
         'three/addons/': './vendor/addons/',
-        'cannon-es': './vendor/cannon-es.js',
+        'rapier': './vendor/rapier3d-compat.js',
     }),
     'tankgame/index.html': ('../', {
         'three': '../vendor/three.module.js',
