@@ -752,6 +752,13 @@ Görev listesinde `baskin3`; silah ve alan seçimi YOK (silahsız başlanır:
    binmez (kule yok). Sürerken sağ altta **devir saati** (`#tacho`,
    `vehicles.gearbox`: 5 vites, 6500 üstü kırmızı) ve motor sesi
    (`audio.engineStart/Set/Stop`) — zırhlı araçta da çalışır.
+   - **Sürücü görünür**: `Vehicles._seatDriver` bir SWAT askerini sol
+     koltuğa oturtur, her kare `Soldier.sit(seatY, gripL, gripR)` — bacaklar
+     kemik vektörleriyle, eller iki kemikli IK ile direksiyondaki `gripL` /
+     `gripR` işaretlerine (saat 10 ve 2, `steeringSpin` çocukları; çark
+     `-steer*4` döner, eller onunla gider). Tavan gerekmedi.
+   - **İvme 100 km/sa sonra düşer** (`_physics`, `fall` çarpanı): 0–100
+     ~3.4 sn, 0–120 ~5.7 sn, 0–140 ~9.5 sn.
 5. **Seslendirme İngilizce** (Türkçe tek sentez sesi Yelda kadın sesiydi;
    perde indirmesi kullanıcıyı ikna etmedi): macOS erkek sesleri — Demir
    Daniel, Kaya Reed (ABD), Yılmaz Rocko (ABD), komutan Rocko (BK), düşman

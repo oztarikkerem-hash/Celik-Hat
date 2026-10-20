@@ -89,12 +89,34 @@ export function buildJeep(color = 0x4b5434) {
   }
   box(0.6, 0.14, 1.4, -1.25, 1.12, 0, seat);                // arka sıra
   box(0.12, 0.5, 1.4, -1.52, 1.4, 0, seat);
-  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.022, 8, 20), dark);
-  wheel.position.set(0.32, 1.42, -0.42);
-  wheel.rotation.y = Math.PI / 2;
-  wheel.rotation.x = 0.5;
-  hull.add(wheel);
-  tube(new THREE.Vector3(0.32, 1.42, -0.42), new THREE.Vector3(0.55, 1.15, -0.42), 0.02);
+  // Direksiyon: eğik (üstü sürücüye yatık), araç dönünce döner; üzerinde
+  // sürücünün ellerinin uzandığı iki tutma noktası (saat 10 ve 2)
+  const steer = new THREE.Group();
+  steer.name = 'steering';
+  steer.position.set(0.3, 1.44, -0.42);
+  steer.rotation.z = 0.45;
+  hull.add(steer);
+  const face = new THREE.Group();
+  face.rotation.y = Math.PI / 2;
+  steer.add(face);
+  const spin = new THREE.Group();
+  spin.name = 'steeringSpin';
+  face.add(spin);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.022, 8, 24), dark);
+  spin.add(rim);
+  for (const ang of [0, 2.2, -2.2]) {
+    const sp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.02), dark);
+    sp.position.set(Math.cos(ang - Math.PI / 2) * 0.08, Math.sin(ang - Math.PI / 2) * 0.08, 0);
+    sp.rotation.z = ang - Math.PI / 2;
+    spin.add(sp);
+  }
+  for (const [nm, x] of [['gripL', 0.15], ['gripR', -0.15]]) {
+    const gp = new THREE.Object3D();
+    gp.name = nm;
+    gp.position.set(x, 0.075, 0);
+    spin.add(gp);
+  }
+  tube(new THREE.Vector3(0.36, 1.4, -0.42), new THREE.Vector3(0.62, 1.12, -0.42), 0.022);
   // Takla demiri
   const rb = (x) => [new THREE.Vector3(x, 1.06, -(W / 2 - 0.1)), new THREE.Vector3(x, 1.95, -(W / 2 - 0.16)),
     new THREE.Vector3(x, 1.95, W / 2 - 0.16), new THREE.Vector3(x, 1.06, W / 2 - 0.1)];

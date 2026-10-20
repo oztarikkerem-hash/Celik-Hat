@@ -38,7 +38,8 @@ cannon-es (fizik) ile yazıldı; derleme adımı yok, saf ES modülleri.
 - **Suikast** (3. özel görev): silah arkadaşların füze yüzünden sana kızgın
   (seslendirmeli); kaç, arazi aracıyla 8 km patika, telefona gelen mesajla
   şehre git. Silahsız sız, tabancayı bul, bir devriyeyi indir, üniformasını
-  giy ve düşman komutanını vur. Arazi aracı 140 km/sa, sağda devir saati.
+  giy ve düşman komutanını vur. Arazi aracı 140 km/sa (100'den sonra ivme yavaşlar),
+  sağda devir saati; karakterin direksiyonda oturur.
 - **Bölümler:** tank bölümü — T-90 ya da M1 Abrams, müttefik ve
   düşman tanklar, yakıt, benzinlik ve market.
 

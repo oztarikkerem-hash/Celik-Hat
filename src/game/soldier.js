@@ -762,6 +762,57 @@ export class Soldier {
   }
 
   /** Gölge dökme mesafesi: yakındakiler döker, uzaktakiler dökmez. */
+  /**
+   * Araçta oturan sürücü: klip oynatılmaz; bacaklar ileri (uyluk yatay,
+   * baldır aşağı), gövde hafif geride, kalça koltuğa (seatY, dünya) oturur,
+   * eller direksiyondaki iki tutma noktasına (dünya) iki kemikli IK ile
+   * uzanır. Her kare çağrılır (direksiyon dönünce eller de döner).
+   */
+  sit(seatY, gripL, gripR) {
+    const b = this.bones;
+    this.gripCurl ??= 0.9;
+    const rootQ = this.root.getWorldQuaternion(new THREE.Quaternion());
+    // +x askerin solu, −z önü (kök uzayı)
+    aimBone(b.LeftUpLeg, b.LeftLeg, new THREE.Vector3(0.16, -0.1, -1).normalize(), rootQ);
+    aimBone(b.RightUpLeg, b.RightLeg, new THREE.Vector3(-0.16, -0.1, -1).normalize(), rootQ);
+    aimBone(b.LeftLeg, b.LeftFoot, new THREE.Vector3(0.03, -0.92, -0.38).normalize(), rootQ);
+    aimBone(b.RightLeg, b.RightFoot, new THREE.Vector3(-0.03, -0.92, -0.38).normalize(), rootQ);
+    aimBone(b.LeftFoot, b.LeftToeBase, new THREE.Vector3(0, -0.35, -1).normalize(), rootQ);
+    aimBone(b.RightFoot, b.RightToeBase, new THREE.Vector3(0, -0.35, -1).normalize(), rootQ);
+    aimBone(b.Spine, b.Spine1, new THREE.Vector3(0, 1, 0.1).normalize(), rootQ);
+    aimBone(b.Spine1, b.Spine2, new THREE.Vector3(0, 1, 0.02).normalize(), rootQ);
+    aimBone(b.Neck, b.Head, new THREE.Vector3(0, 1, -0.12).normalize(), rootQ);
+
+    // Kalça koltuğa: gövde, kalça kemiği seatY'ye gelecek kadar kaydırılır
+    if (this.body && b.Hips) {
+      const scale = this.root.scale.x || 1;
+      b.Hips.updateWorldMatrix(true, false);
+      const hy = _v.setFromMatrixPosition(b.Hips.matrixWorld).y;
+      this.body.position.y += (seatY - hy) / scale;
+      this.body.updateWorldMatrix(true, true);
+    }
+
+    // Eller direksiyonda; dirsekler aşağı-dışa
+    if (gripL && gripR) {
+      const poleR = new THREE.Vector3(-0.7, -1, 0.25).applyQuaternion(rootQ).normalize();
+      const poleL = new THREE.Vector3(0.7, -1, 0.25).applyQuaternion(rootQ).normalize();
+      solveTwoBone(b.RightArm, b.RightForeArm, b.RightHand, gripR, poleR);
+      solveTwoBone(b.LeftArm, b.LeftForeArm, b.LeftHand, gripL, poleL);
+      // Avuçlar direksiyonu kavrasın: parmaklar temel duruştan kıvrılır
+      // (klip oynamadığı için her kare temelden başlanır, yoksa birikir)
+      if (!this._sitFingers) {
+        this._sitFingers = [];
+        for (const side of ['Left', 'Right']) for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) {
+          for (const k of [1, 2, 3]) {
+            const bone = b[`${side}Hand${f}${k}`];
+            if (bone) this._sitFingers.push([bone, bone.quaternion.clone(), side === 'Left' ? -1 : 1]);
+          }
+        }
+      }
+      for (const [bone, q, sg] of this._sitFingers) { bone.quaternion.copy(q); bone.rotateZ(sg * this.gripCurl); }
+    }
+  }
+
   setShadowDistance(distance, limit = 22) {
     const on = distance < limit;
     if (this._shadowOn === on) return;

@@ -17,6 +17,7 @@
 import * as THREE from 'three';
 import { buildAPC, camoFor } from './apc.js';
 import { buildJeep, JEEP } from './jeep.js';
+import { Soldier } from './soldier.js';
 const MAX_HP = 2500;
 const VMAX = 17;               // m/sn (~60 km/sa)
 const VREV = 6;
@@ -148,6 +149,8 @@ export class Vehicles {
       riders: [], gunner: null, nextShot: 0, target: null, nextThink: 0,
     };
     if (jeep) {
+      v.steerSpin = root.getObjectByName('steeringSpin');
+      v.grips = [root.getObjectByName('gripL'), root.getObjectByName('gripR')];
       // Arazi aracı: 140 km/sa, çevik; zırhı ince
       Object.assign(v, {
         kind: 'car', vmax: 38.9, accel: 9.5, brake: 22, vrev: 8,
@@ -208,13 +211,34 @@ export class Vehicles {
     }
     v.gunner = v.riders[0] ?? null;
     if (v.gunner) v.gunner.root.visible = true;
+    if (v.kind === 'car') this._seatDriver(v, true);
     g.audio.swap();
+  }
+
+  /**
+   * Arazi aracında oyuncunun karakteri sürücü koltuğunda görünür (SWAT
+   * modeli): oturur, elleri direksiyonda. Araçtan inince gizlenir.
+   */
+  _seatDriver(v, on) {
+    if (!on) { if (v.driverModel) v.driverModel.root.visible = false; return; }
+    if (!v.driverModel) {
+      const fac = this.game.soldiers;
+      if (!fac?.template) return;
+      const s = new Soldier(fac.create(), { team: 'ally', rifle: null, tint: null });
+      s.root.position.set(-0.08, 0, -0.42);     // sürücü koltuğu (araç yerel)
+      s.root.rotation.y = -Math.PI / 2;         // asker önü (−Z) → araç önü (+X)
+      v.root.add(s.root);
+      s.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      v.driverModel = s;
+    }
+    v.driverModel.root.visible = true;
   }
 
   exit() {
     const v = this.driving;
     if (!v) return;
     this.driving = null;
+    this._seatDriver(v, false);
     v.speed = 0;
     const g = this.game;
     v.root.updateMatrixWorld(true);
@@ -266,8 +290,11 @@ export class Vehicles {
     const thr = input.forward;
     const accel = v.accel ?? ACCEL, brake = v.brake ?? BRAKE;
     v.throttle = thr;
-    // Yüksek hızda ivme azalır (son km/sa'ler zor gelir)
-    const fall = 1 - 0.55 * Math.min(1, Math.max(0, v.speed) / (v.vmax ?? VMAX));
+    // Hızlandıkça ivme azalır; 100 km/sa'ten sonra belirgin yavaşlar
+    // (arazi aracı 0–100 ~3.5 sn, 100–140 ~7 sn)
+    const kmh = Math.max(0, v.speed) * 3.6, top = (v.vmax ?? VMAX) * 3.6;
+    const fall = kmh < 100 ? 1 - 0.25 * (kmh / 100)
+      : 0.3 * (1 - 0.65 * Math.min(1, (kmh - 100) / Math.max(1, top - 100)));
     if (thr > 0) v.speed += (v.speed < 0 ? brake : accel * fall) * dt;
     else if (thr < 0) v.speed -= (v.speed > 0 ? brake : accel * 0.7) * dt;
     else v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), DRAG * dt);
@@ -523,6 +550,14 @@ export class Vehicles {
       for (const w of v.wheels) {
         w.spin.rotation.z -= (v.speed * dt) / (v.wheelR ?? WHEEL_R);
         w.steer.rotation.y = w.front ? v.steer : 0;
+      }
+      // Direksiyon simidi tekerlekten ~4 kat döner; sürücü elleriyle izler
+      if (v.steerSpin) v.steerSpin.rotation.z = -v.steer * 4;
+      if (v.driverModel?.root.visible && v.grips?.[0]) {
+        v.root.updateMatrixWorld(true);
+        const seatY = v.root.localToWorld(new THREE.Vector3(0, 1.24, 0)).y;
+        v.driverModel.sit(seatY, v.grips[0].getWorldPosition(new THREE.Vector3()),
+          v.grips[1].getWorldPosition(new THREE.Vector3()));
       }
       if (v.dead) continue;
       // pathDriver: görevin kendi sürüşü (ör. yolu izleyen silah arkadaşı)
