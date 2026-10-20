@@ -67,9 +67,9 @@ export class Casings {
     for (const item of this.pool) {
       if (!item || !item.mesh.visible) continue;
 
-      const p = item.body.position;
+      const p = item.body.interpolatedPosition;
       item.mesh.position.set(p.x, p.y, p.z);
-      const q = item.body.quaternion;
+      const q = item.body.interpolatedQuaternion;
       item.mesh.quaternion.set(q.x, q.y, q.z, q.w);
 
       // Yere ilk çarpışta metalik tıkırtı

@@ -29,9 +29,20 @@ export class Physics {
     this.world.addContactMaterial(new CANNON.ContactMaterial(this.matWorld, this.matProp, {
       friction: 0.5, restitution: 0.1,
     }));
+    // Eşya–eşya: üst üste yığılan sandık/varil kaymasın, çarpışınca az seksin
+    this.world.addContactMaterial(new CANNON.ContactMaterial(this.matProp, this.matProp, {
+      friction: 0.55, restitution: 0.06,
+    }));
+    // Bomba eşyaya çarpınca sekip yuvarlansın
+    this.world.addContactMaterial(new CANNON.ContactMaterial(this.matProp, this.matGrenade, {
+      friction: 0.3, restitution: 0.35,
+    }));
+    // Çözücü: daha çok yineleme = yığınlar ve temaslar daha kararlı
+    this.world.solver.iterations = 14;
 
     this.linked = [];        // { body, mesh } — her karede eşitlenir
     this.accumulator = 0;
+    this._dt = 1 / 60;       // son karenin süresi (kinematik hız tahmini)
   }
 
   /* ── Statik dünya ───────────────────────────────────────────────────── */
@@ -116,8 +127,25 @@ export class Physics {
     return body;
   }
 
+  /**
+   * Kinematik gövdeyi yeni konumuna taşır ve HIZINI da verir: hız olmadan
+   * yürüyen oyuncu/düşman çarptığı varile, sandığa, bombaya itme aktaramıyor,
+   * eşyaların içine giriyordu. Büyük sıçramalar (ışınlanma, yeniden doğma)
+   * hız sayılmaz.
+   */
   moveKinematic(body, x, y, z) {
-    body.position.set(x, y, z);
+    const p = body.position;
+    const dx = x - p.x, dy = y - p.y, dz = z - p.z;
+    const jump = dx * dx + dy * dy + dz * dz > 9;
+    const inv = 1 / Math.max(this._dt, 1 / 240);
+    if (jump || !body._moved) body.velocity.set(0, 0, 0);
+    else {
+      body.velocity.set(dx * inv, dy * inv, dz * inv);
+      const sp = body.velocity.length();
+      if (sp > 20) body.velocity.scale(20 / sp, body.velocity);
+    }
+    body._moved = true;
+    p.set(x, y, z);
   }
 
   remove(body) {
@@ -148,19 +176,26 @@ export class Physics {
       d.y += 0.55;                       // patlamalar eşyaları hafif kaldırır
       d.scale(force * falloff, d);
       body.wakeUp();
-      body.applyImpulse(d);
+      // İtme merkezden biraz kaçık uygulanır: eşyalar dönerek savrulur
+      const off = new CANNON.Vec3((Math.random() - 0.5) * 0.5, (Math.random() - 0.2) * 0.4, (Math.random() - 0.5) * 0.5);
+      body.applyImpulse(d, off);
     }
   }
 
   /* ── Döngü ──────────────────────────────────────────────────────────── */
 
+  /**
+   * Sabit adım 1/90 sn (1/60'ta hızlı atılan bomba ince duvardan
+   * geçebiliyordu). Görüntü ARA KONUMLA eşitlenir: ekran yenileme hızı fizik
+   * adımından farklıyken (120/144 Hz) eşyalar tırtıklı hareket ediyordu.
+   */
   step(dt) {
-    this.world.step(1 / 60, dt, 4);
+    this._dt = dt;
+    this.world.step(1 / 90, dt, 6);
     for (const { body, mesh } of this.linked) {
-      mesh.position.set(body.position.x, body.position.y, body.position.z);
-      mesh.quaternion.set(
-        body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w,
-      );
+      const p = body.interpolatedPosition, q = body.interpolatedQuaternion;
+      mesh.position.set(p.x, p.y, p.z);
+      mesh.quaternion.set(q.x, q.y, q.z, q.w);
     }
   }
 

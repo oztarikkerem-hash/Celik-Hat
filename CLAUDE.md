@@ -54,6 +54,14 @@ Yeni bir modül eklenince ya da import map'e sabit bir giriş gerekince
   (+ oyuncunun çevresindeki halka) sektörler kurulur; çıkanlar geometri,
   çarpışma kutusu ve fizik gövdeleriyle sökülür. HUD'da "SEKTÖR n / 81"
   sayacı bunu canlı gösterir.
+- **Fizik** (`src/core/physics.js`, cannon-es): sabit adım 1/90 sn (en çok
+  6 alt adım; 1/60'ta hızlı bomba ince duvardan geçebiliyordu). Görüntü
+  `interpolatedPosition/Quaternion` ile eşitlenir (eşyalar, bombalar,
+  kovanlar) — 120/144 Hz ekranda tırtıklanma olmasın. Kinematik gövdeler
+  (oyuncu, düşman) `moveKinematic`'te HIZ da alır (3 m'den büyük sıçrama =
+  ışınlanma, hız 0; en çok 20 m/sn), böylece eşyaları iterler. Patlama
+  itmesi merkezden kaçık uygulanır (dönerek savrulma). Eşya–eşya ve
+  eşya–bomba temas malzemeleri tanımlı, çözücü 14 yineleme.
 - **Çarpışma**: statik kutular sektörle gelir; devrilebilen eşyaların
   (varil/sandık) kutuları her kare tazelenir (`_refreshProps`). Oyuncu onlara
   çarpınca `pushProp`, mermi isabetinde `hitProp` fizik itmesi uygular.

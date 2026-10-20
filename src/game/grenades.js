@@ -78,11 +78,10 @@ export class Grenades {
   update(dt, now) {
     for (let i = this.live.length - 1; i >= 0; i--) {
       const g = this.live[i];
-      const p = g.body.position;
+      // Ara konum: ekran yenilemesi fizik adımından farklıyken akıcı
+      const p = g.body.interpolatedPosition, q = g.body.interpolatedQuaternion;
       g.mesh.position.set(p.x, p.y, p.z);
-      g.mesh.quaternion.set(
-        g.body.quaternion.x, g.body.quaternion.y, g.body.quaternion.z, g.body.quaternion.w,
-      );
+      g.mesh.quaternion.set(q.x, q.y, q.z, q.w);
 
       // Fitil yaklaştıkça kırmızı yanıp söner
       const left = g.explodeAt - now;
