@@ -28,6 +28,7 @@ import { buildJeep } from './jeep.js';
 import { FPArms, POSES } from './fparms.js';
 import { Army, ARMY, ORDER_NAMES } from './army.js';
 import { ParkLife } from './parklife.js';
+import { structures } from './structures.js';
 
 export const OP4 = {
   hq: [-2, 9],            // Suikast'taki düşman karargâhı (komutan burada öldü)
@@ -854,6 +855,7 @@ export class Op4 {
   /** En yüksek bina: her zaman sahnede (uzaktan da görünür), çatısına çıkılır. */
   _buildTower() {
     const g = this.game;
+    if (structures.get('gokdelen_cam')) { this._buildGlassTower(); return; }
     const [ti, tj] = OP4.tower;
     const c = this.city2.center(ti, tj);
     const W = OP4.towerW, H = OP4.towerH;
@@ -894,6 +896,29 @@ export class Op4 {
     this.tower = { group, fixture, center: c.clone(), roofY: H };
     this.towerDoor = new THREE.Vector3(c.x, 0, c.z + W / 2 + 1.6);
     this.flagSocket = new THREE.Vector3(c.x, H, c.z);
+  }
+
+  /* En yüksek bina: kullanıcının Blender'deki cam gökdeleni (217 m, anteniyle).
+     Çatı yüksekliği ve en üst katın izi modelden ölçülür (structures.js);
+     bayrak yuvası antenin yanında, asansör çıkışı karşı köşede. */
+  _buildGlassTower() {
+    const g = this.game;
+    const [ti, tj] = OP4.tower;
+    const c = this.city2.center(ti, tj);
+    const m = structures.get('gokdelen_cam');
+    const group = new THREE.Group();
+    const colliders = [], solids = [];
+    structures.place('gokdelen_cam', group, c.x, c.z, 0, { solids, colliders });
+    g.scene.add(group);
+    const fixture = { colliders, solids, cover: [] };
+    g.world.addFixture(fixture);
+    const top = m.top ?? new THREE.Box3(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(8, 0, 8));
+    const roofY = m.roofY ?? 190;
+    // Çatıda yürünecek düzlem: en üst katın izi kadar (gövde kutusunun tepesi)
+    this.tower = { group, fixture, center: c.clone(), roofY,
+      exit: new THREE.Vector3(c.x + top.min.x * 0.55, 0, c.z + top.min.z * 0.55) };
+    this.towerDoor = new THREE.Vector3(c.x, 0, c.z + m.size.z / 2 + 2);
+    this.flagSocket = new THREE.Vector3(c.x + top.max.x * 0.5, roofY, c.z + top.max.z * 0.5);
   }
 
   _updateAssault(dt, now) {
@@ -1076,16 +1101,16 @@ export class Op4 {
     g.audio.doorClunk?.();
     this._later(1100, () => {
       g.audio.click?.(true);
-      const c = this.tower.center;
-      g.player.pos.set(c.x - 9, OP4.towerH, c.z - 5.5);
+      const c = this.tower.center, ex = this.tower.exit ?? new THREE.Vector3(c.x - 9, 0, c.z - 5.5);
+      g.player.pos.set(ex.x, this.tower.roofY, ex.z);
       g.player.vel?.set(0, 0, 0);
-      g.player.yaw = Math.atan2(-(c.x - (c.x - 9)), -(c.z - (c.z - 5.5)));
+      g.player.yaw = Math.atan2(-(this.flagSocket.x - ex.x), -(this.flagSocket.z - ex.z));
       // Çatıdan şehir görünsün: sis açılır
       g.scene.fog.far = 520;
       g.scene.fog.near = 120;
       this.objective = 'roof';
       this._fade(false);
-      g.hud.banner('ÇATI · 128 M', 'ORTADAKİ YUVAYA BAYRAĞI DİK — E', 5000);
+      g.hud.banner(`ÇATI · ${Math.round(this.tower.roofY)} M`, 'YUVAYA BAYRAĞI DİK — E', 5000);
     });
   }
 
@@ -1103,7 +1128,7 @@ export class Op4 {
     g.audio._swell?.({ dur: 9, gain: 0.25, freq: 900, attack: 2, hold: 4 });
     const cam = g.camera;
     let t = 0;
-    const H = OP4.towerH;
+    const H = this.tower.roofY;
     const look = new THREE.Vector3();
     const finish = () => {
       if (!g.activeCine) return;

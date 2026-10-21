@@ -903,6 +903,30 @@ Suikast'ın devamı; aynı şehir (`OP3.road` sonundaki O). Kontrol noktaları:
 - Çarpışma/mermi: modelin parçaları yerine görünmez kutular (`LIB.boxes`).
   Klonlar geometriyi paylaşır → `userData.shared` (sektör sökülürken silinmez).
 
+## Şehir varlıkları (kullanıcının Blender modelleri)
+
+- Kaynak: `~/Desktop/Sehir_Assetleri_FBX/*.fbx` (17 model: apartman, ofis,
+  5 dükkân, 3 gökdelen, ağaç, bank, büfe, çöp kutusu, durak, lamba, musluk).
+  Dönüştürme: `Blender --background --python tools/export_city_assets.py --
+  ~/Desktop/Sehir_Assetleri_FBX assets/city` →
+  - malzeme rengi KÖŞE RENGİNE yazılır, 20–40 malzeme 4 sınıfa iner
+    (Govde/Metal/Cam/Isik): model başına ≤4 çizim çağrısı;
+  - 60 bin üçgen üstü sadeleştirilir (Gokdelen_Tas 124k → 40k);
+  - Draco sıkıştırma (21 MB → 1.7 MB). Çözücü `vendor/addons/libs/draco/gltf/`
+    (three r171 ile aynı sürüm, wasm).
+- Hepsinin ön yüzü +Z (vitrin, giriş, lamba kolu). `city.js` `FACE_ROT`.
+- Yalnızca şehir görevlerinde yüklenir (`game._ensureCity`). Yüklü değilse
+  şehir eski kodla kurulur.
+- Parsel (`_modelParcel`): %34 dükkân sırası, %30 apartman + dükkânlar,
+  %12 ofis, kalanı kodla yıkık bina; %12 müstakil ev çifti. Gökdelenli
+  blokta burgu/taş. Silah dükkânı: sıradaki ilk dükkânın vitrinine tabela.
+  Sokak eşyaları `_streetFurniture`; park ağacı/bankı/büfe modelden (bankta
+  oturanın yönü = model dönüşü + π).
+- Tümgeneral kulesi artık `gokdelen_cam` (217 m anteniyle): çatı yüksekliği
+  ve en üst katın izi modelden ışınla ölçülür (`_measureRoof`, 183.5 m);
+  çarpışma kaide + gövde; bayrak yuvası en üst katın içinde.
+- Şehir akış yarıçapı 2 blok (3 iken 2.2 M üçgen çiziliyordu).
+
 ## Telefon ve tablet (YALNIZCA yatay)
 
 - `src/ui/touch.js`: `(pointer: coarse)` ve ince işaretçi yoksa `body.touch`.

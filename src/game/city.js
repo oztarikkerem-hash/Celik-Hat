@@ -17,13 +17,17 @@ import { concreteTexture, asphaltTexture } from './textures.js';
 import {
   buildPark, buildStreetTrees, buildShopfront, streetFaces, pickShopKind, skyscraperMaterial, GUN_SHOP,
 } from './citydetail.js';
-import { structures } from './structures.js';
+import { structures, SHOP_MODELS } from './structures.js';
+
+// Model ön yüzü +Z: sokağa bakan yüze göre dönüş (yerel: x doğu, z kuzey)
+const FACE_ROT = { s: 0, n: Math.PI, w: -Math.PI / 2, e: Math.PI / 2 };
+const FACE_N = { w: [-1, 0], e: [1, 0], s: [0, -1], n: [0, 1] };
 
 export const CITY = {
   block: 96,
   half: 5.5,            // asfalt yarı genişliği (sokak ekseninden)
   walk: 2.6,            // kaldırım genişliği
-  view: 3,              // oyuncunun bloğundan bu kadar blok öteye kadar kurulur
+  view: 2,              // oyuncunun bloğundan bu kadar blok öteye kadar kurulur (sis 210 m'de kapatır; 3 iken Blender binalarıyla 2.2 M üçgen çiziliyordu)
   radius: 100000,       // şehir yarıçapı (m)
 };
 
@@ -309,10 +313,22 @@ export class City {
     const lotIn = K + 1.5, span = B - 2 * lotIn;
     const half = span / 2;
     const tall = towers ? Math.floor(rand() * 4) : -1;          // gökdelen parseli
+    const lib = structures.cityReady;            // Blender şehir varlıkları yüklü mü
     for (let pz = 0; pz < 2; pz++) for (let px = 0; px < 2; px++) {
       if (park || station) continue;
       if (special?.clear) continue;              // bloğun tamamı özel yapıya ayrılmış
       if (special?.parcel && special.parcel[0] === px && special.parcel[1] === pz) continue;
+      let forceRuin = false;
+      if (lib && !(!special && !towers && structures.get('ev') && rand() < 0.12)) {
+        const res = this._modelParcel(ctx, px, pz, { towers, gunShop, shops });
+        if (res === 'gun') gunShop = false;
+        if (res !== 'ruin') continue;
+        forceRuin = true;
+      } else if (lib) {
+        // Müstakil evler (yukarıdaki zar tuttu)
+        this._housePair(ctx, px, pz);
+        continue;
+      }
       // Müstakil evler (Blender'deki ev): parselin %12'si, sokağa bakan iki ev
       if (!special && !towers && structures.get('ev') && rand() < 0.12) {
         const face = streetFaces(px, pz)[Math.floor(rand() * 2)];
@@ -330,7 +346,7 @@ export class City {
       const sky = tall === pz * 2 + px || (towers && rand() < 0.25);
       const fw = sky ? half - 6 - rand() * 4 : half - 3 - rand() * 9;
       const fd = sky ? half - 6 - rand() * 4 : half - 3 - rand() * 9;
-      const ruined = !sky && rand() < 0.22;
+      const ruined = forceRuin || (!sky && rand() < 0.22);
       // Gökdelen 16–30 kat: Tümgeneral'in 128 m'lik kulesini geçmez
       const floors = sky ? 16 + Math.floor(rand() * 15) : ruined ? 1 + Math.floor(rand() * 3) : 3 + Math.floor(rand() * 10);
       const h = floors * (sky ? 3.4 : 3.1) + (ruined ? rand() * 2 : 0);
@@ -403,9 +419,10 @@ export class City {
 
     // Ağaçlı sokaklar (parkta zaten ağaç var)
     if (!park && rand() < 0.55) buildStreetTrees(ctx);
+    if (lib) this._streetFurniture(ctx, special);
 
-    // Sokak lambaları (bloğun güneybatı köşesinde)
-    if (rand() < 0.7) {
+    // Sokak lambaları (bloğun güneybatı köşesinde; modeller yoksa)
+    if (!lib && rand() < 0.7) {
       const pole = own(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 6, 8), M.steel));
       pole.position.set(H + 0.6, 3, -(H + 0.6));
       const head = own(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.3), rand() < 0.6 ? M.lamp : M.steel));
@@ -418,6 +435,105 @@ export class City {
     const fixture = { colliders, solids, cover };
     this.game.world.addFixture(fixture);
     this.chunks.set(`${i},${j}`, { i, j, group, fixture, lights, benches, shops, park });
+  }
+
+  /* ── Blender şehir varlıkları (~/Desktop/Sehir_Assetleri_FBX) ─────────
+
+     Parsel (≈38 m kare) sokağa bakan bir yüzü seçer ve:
+       • %34 dükkân sırası (market/kafe/fırın/eczane/çiçekçi, vitrin sokağa)
+       • %30 apartman + yanında dükkânlar
+       • %12 ofis binası
+       • kalan yıkık bina (kodla — savaş görmüş şehir)
+     Gökdelenli blokta parsele bir gökdelen (burgu/taş). Model yerleşimi:
+     ön yüz parselin sokak kenarından `setback` içeride, yüz boyunca dizilir. */
+  _modelParcel(ctx, px, pz, opts) {
+    const { rand, B, K } = ctx;
+    const lotIn = K + 1.5, half = (B - 2 * lotIn) / 2, hs = half / 2;
+    const pcx = lotIn + px * half + hs, pcz = lotIn + pz * half + hs;
+    const faces = streetFaces(px, pz);
+    const face = faces[Math.floor(rand() * 2)];
+    const n = FACE_N[face], t = [-n[1], n[0]];
+    const put = (name, along, setback = 0.8) => {
+      const m = structures.get(name);
+      const depth = m.size.z, width = m.size.x;
+      const off = hs - setback - depth / 2;
+      const cx = pcx + n[0] * off + t[0] * along, cz = pcz + n[1] * off + t[1] * along;
+      structures.place(name, ctx.group, cx, -cz, FACE_ROT[face],
+        { solids: ctx.solids, colliders: ctx.colliders }, ctx.corner);
+      return { cx, cz, width, depth };
+    };
+    const row = (from, to) => {
+      const list = [];
+      let x = from;
+      for (let k = 0; k < 6; k++) {
+        const name = SHOP_MODELS[Math.floor(rand() * SHOP_MODELS.length)];
+        const w = structures.get(name).size.x;
+        if (x + w > to) break;
+        list.push(put(name, x + w / 2, 0.6));
+        x += w + 0.15;
+      }
+      return list;
+    };
+    if (opts.towers) {
+      const name = rand() < 0.5 ? 'gokdelen_burgu' : 'gokdelen_tas';
+      const d = structures.get(name).size.z;
+      put(name, 0, Math.max(0.5, hs - d / 2));
+      return 'tower';
+    }
+    const r = rand();
+    let shopsHere = [];
+    if (r < 0.34) shopsHere = row(-hs + 0.4, hs - 0.4);
+    else if (r < 0.64) {
+      const a = structures.get('apartman').size.x;
+      put('apartman', -hs + 0.4 + a / 2, 1.2);
+      shopsHere = row(-hs + 0.6 + a, hs - 0.4);
+    } else if (r < 0.76) put('ofis_binasi', 0, 1.5);
+    else return 'ruin';
+    // Silah dükkânı: sıradaki ilk dükkânın vitrinine tabela ve vitrin
+    if (opts.gunShop && shopsHere.length) {
+      const s0 = shopsHere[0];
+      const ns = face === 's' || face === 'n';
+      const shop = buildShopfront(ctx, { cx: s0.cx, cz: s0.cz, w: ns ? s0.width : s0.depth, d: ns ? s0.depth : s0.width }, face, GUN_SHOP);
+      opts.shops.push(shop);
+      return 'gun';
+    }
+    return 'built';
+  }
+
+  /** Parselde sokağa bakan iki müstakil ev (Blender'deki savaş görmüş ev). */
+  _housePair(ctx, px, pz) {
+    const { rand, B, K } = ctx;
+    const lotIn = K + 1.5, half = (B - 2 * lotIn) / 2;
+    const face = streetFaces(px, pz)[Math.floor(rand() * 2)];
+    const cx = lotIn + px * half + half / 2, cz = lotIn + pz * half + half / 2;
+    const rot = { s: Math.PI, n: 0, w: Math.PI / 2, e: -Math.PI / 2 }[face];   // ev: kapı −Z
+    const n = FACE_N[face], t = [n[1], n[0]];
+    for (const side of [-1, 1]) {
+      const hx = cx + n[0] * 8 + t[0] * side * 6.5, hz = cz + n[1] * 8 + t[1] * side * 6.5;
+      structures.place('ev', ctx.group, hx, -hz, rot, { solids: ctx.solids, colliders: ctx.colliders }, ctx.corner);
+    }
+  }
+
+  /* Sokak eşyaları: güney ve batı kaldırımında lambalar (kol sokağa),
+     köşede yangın musluğu, ara sıra otobüs durağı ve çöp kutuları. */
+  _streetFurniture(ctx, special) {
+    const { rand, B, H } = ctx;
+    const lat = H + CITY.walk - 0.5;           // kaldırımın bina tarafı
+    const out = { solids: ctx.solids, colliders: ctx.colliders };
+    const put = (name, x, z, rot) => structures.place(name, ctx.group, x, -z, rot, out, ctx.corner);
+    for (let s = 14; s < B - 6; s += 26) {
+      put('sokak_lambasi', s, lat, FACE_ROT.s);          // güney sokağı
+      put('sokak_lambasi', lat, s + 6, FACE_ROT.w);      // batı sokağı
+    }
+    if (rand() < 0.6) put('yangin_musluk', lat - 0.6, lat + 3.5, rand() * 6);
+    if (!special?.noProps && rand() < 0.3) {
+      const s = 30 + rand() * 30;
+      put('otobus_duragi', s, lat + 0.4, FACE_ROT.s);
+      put('cop_kutusu', s + 4, lat - 0.2, 0);
+    }
+    for (let k = 0; k < 2; k++) {
+      if (rand() < 0.5) put('cop_kutusu', 10 + rand() * (B - 20), lat - 0.1, 0);
+    }
   }
 
   /* Benzin istasyonu bloğun ortasına, pompalar güney sokağına bakar.

@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { grassTexture, concreteTexture } from './textures.js';
+import { structures } from './structures.js';
 
 export const SHOP_KINDS = [
   { name: 'MARKET', bg: '#1f6d3a', fg: '#ffffff', awning: 0x2a8a4a },
@@ -200,11 +201,21 @@ export function buildPark(ctx) {
     } while (tries < 12 && (Math.abs(x - c) < 4 || Math.abs(z - c) < 4
       || Math.abs(Math.hypot(x - c, z - c) - ringR) < 3.5 || Math.hypot(x - c, z - c) < 6));
     const s = 0.85 + rand() * 0.5;
+    if (structures.get('agac')) {
+      // Blender şehir varlığı: ağaç
+      const tree = structures.place('agac', ctx.group, x, -z, rand() * 6, { colliders }, ctx.corner);
+      tree?.scale.setScalar(s);
+      continue;
+    }
     const h = treeParts(x, -z, s, rand, trunks, crowns);
     const w = L(x, z);
     colliders.push(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(w.x, h / 2, w.z), new THREE.Vector3(0.5, h, 0.5)));
   }
   for (const m of [mergedMesh(trunks, M.bark), mergedMesh(crowns, M.leaf)]) if (m) own(m);
+  // Büfe: parkın güneybatı çeyreğinde, yola dönük
+  if (structures.get('bufe')) {
+    structures.place('bufe', ctx.group, c - 9, -(c - ringR - 6), 0, { solids: ctx.solids, colliders }, ctx.corner);
+  }
 
   // Banklar: halka yolun dış kenarında, yola dönük
   const benches = [];
@@ -214,6 +225,18 @@ export function buildPark(ctx) {
     const a = (k / nb) * Math.PI * 2 + 0.2;
     const r = ringR + 2.4;
     const x = c + Math.cos(a) * r, z = c + Math.sin(a) * r;
+    if (structures.get('bank')) {
+      // Blender şehir varlığı: bank (ön yüzü +Z) merkeze dönük
+      const rot = Math.atan2(c - x, -(c - z));
+      structures.place('bank', ctx.group, x, -z, rot, { colliders }, ctx.corner);
+      if (k % 3 === 0 && structures.get('cop_kutusu')) {
+        structures.place('cop_kutusu', ctx.group, x + Math.cos(a + 0.4) * 1.6, -(z + Math.sin(a + 0.4) * 1.6), 0, { colliders }, ctx.corner);
+      }
+      const w = L(x, z);
+      // Oyun yönü (ileri −Z): modelin önü (sin, cos) → yön = dönüş + π
+      benches.push({ pos: new THREE.Vector3(w.x, 0, w.z), face: rot + Math.PI, seatY: 0.47, taken: null });
+      continue;
+    }
     // Bank yola (merkeze) dönük: ileri yönü merkeze
     const yawLocal = Math.atan2(-(c - x), (c - z));      // yerel: x doğu, −z kuzey
     const g = [];
@@ -259,6 +282,11 @@ export function buildStreetTrees(ctx) {
     for (let s = 10; s < B - 8; s += 11 + rand() * 4) {
       if (rand() < 0.2) continue;
       const x = west ? lat : s, z = west ? s : lat;
+      if (structures.get('agac')) {
+        const tree = structures.place('agac', ctx.group, x, -z, rand() * 6, { colliders }, ctx.corner);
+        tree?.scale.setScalar(0.8 + rand() * 0.25);
+        continue;
+      }
       const h = treeParts(x, -z, 0.75 + rand() * 0.3, rand, trunks, crowns);
       const w = L(x, z);
       colliders.push(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(w.x, h / 2, w.z), new THREE.Vector3(0.4, h, 0.4)));

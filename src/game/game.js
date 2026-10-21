@@ -694,9 +694,18 @@ export class Game {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Şehir görevleri: Blender şehir varlıkları (1.7 MB) ilk kez iner. */
+  async _ensureCity() {
+    if (structures.cityReady) return;
+    this.hud.screen('loader');
+    this.hud.loading(0.05, 'Şehir hazırlanıyor');
+    await structures.loadCity((p) => this.hud.loading(0.05 + p * 0.95, 'Şehir binaları'));
+  }
+
   /** Suikast (3. özel görev). retry: şehre girildiyse oradan devam. */
   async startOp3(retry = false) {
     await this.ensureAssets();
+    await this._ensureCity();
     if (!this.op2.assets) {
       this.hud.screen('loader');
       this.hud.loading(0.1, 'Sahne hazırlanıyor');
@@ -726,6 +735,7 @@ export class Game {
   /** Tümgeneral (4. özel görev). retry: kaçışa ya da taarruza kalınan yerden. */
   async startOp4(retry = false) {
     await this.ensureAssets();
+    await this._ensureCity();
     this.audio.init();
     for (const id of OP4_VOICES) this.audio.loadVoice(`assets/voice/${id}.m4a`);
     const checkpoint = retry ? this.op4.checkpoint : null;

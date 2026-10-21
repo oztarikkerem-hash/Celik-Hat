@@ -13,8 +13,30 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+// Şehir varlıkları Draco ile sıkıştırılmış (tools/export_city_assets.py)
+const draco = new DRACOLoader().setDecoderPath('vendor/addons/libs/draco/gltf/');
+const loader = new GLTFLoader().setDRACOLoader(draco);
+
+/* Şehir varlıkları (~/Desktop/Sehir_Assetleri_FBX, kullanıcının Blender
+   modelleri): ön yüz +Z (vitrin, giriş, durağın açık yanı, lamba kolu).
+   `auto`: çarpışma kutusu modelin sınır kutusundan. */
+const CITY_ASSETS = {
+  apartman: { auto: true }, ofis_binasi: { auto: true },
+  dukkan_market: { auto: true }, dukkan_kafe: { auto: true }, dukkan_firin: { auto: true },
+  dukkan_eczane: { auto: true }, dukkan_cicekci: { auto: true },
+  gokdelen_burgu: { auto: true }, gokdelen_tas: { auto: true }, gokdelen_cam: { auto: true, roof: true },
+  bufe: { auto: true }, otobus_duragi: { auto: true }, bank: { auto: true },
+  cop_kutusu: { auto: true }, yangin_musluk: { auto: true },
+  sokak_lambasi: { boxes: [[0, 3, 0, 0.3, 6, 0.3]] },
+  agac: { boxes: [[0, 1.4, 0, 0.45, 2.8, 0.45]] },
+};
+export const CITY_NAMES = Object.keys(CITY_ASSETS);
+export const SHOP_MODELS = ['dukkan_market', 'dukkan_kafe', 'dukkan_firin', 'dukkan_eczane', 'dukkan_cicekci'];
 
 const LIB = {
+  ...Object.fromEntries(Object.entries(CITY_ASSETS).map(([k, v]) => [k, { url: `assets/city/${k}.glb`, ...v }])),
   ev: {
     url: 'assets/structures/ev.glb',
     // Yerel kutular [cx, cy, cz, sx, sy, sz]: gövde (kaide dahil) ve çatı
@@ -44,7 +66,7 @@ export class Structures {
     if (this.models.has(name)) return Promise.resolve(this.models.get(name));
     if (this.loading.has(name)) return this.loading.get(name);
     const def = LIB[name];
-    const p = new GLTFLoader().loadAsync(def.url).then((gltf) => {
+    const p = loader.loadAsync(def.url).then((gltf) => {
       const root = gltf.scene;
       root.traverse((o) => {
         if (!o.isMesh) return;
@@ -63,7 +85,13 @@ export class Structures {
           }
         }
       });
-      const model = { root, boxes: def.boxes };
+      root.updateMatrixWorld(true);
+      const bb = new THREE.Box3().setFromObject(root);
+      const size = bb.getSize(new THREE.Vector3()), mid = bb.getCenter(new THREE.Vector3());
+      let boxes = def.boxes;
+      if (def.auto) boxes = [[mid.x, size.y / 2, mid.z, size.x, size.y, size.z]];
+      const model = { root, boxes, size, roofY: null, top: null };
+      if (def.roof) this._measureRoof(model);
       this.models.set(name, model);
       return model;
     }).catch((e) => {
@@ -75,6 +103,49 @@ export class Structures {
   }
 
   get(name) { return this.models.get(name) ?? null; }
+
+  /** Şehir varlıklarının hepsi (1.7 MB, Draco). onProgress(0..1). */
+  loadCity(onProgress) {
+    let done = 0;
+    return Promise.all(CITY_NAMES.map((n) => this.load(n).then((m) => {
+      onProgress?.(++done / CITY_NAMES.length);
+      return m;
+    })));
+  }
+
+  get cityReady() { return CITY_NAMES.every((n) => this.models.has(n)); }
+
+  /* Kule çatısı: antenin dışındaki en yüksek düz yüzey (yukarıdan ışın) ve
+     en üst katın taban izi. Bayrak ve asansör çıkışı oraya konur;
+     çarpışma: kaide + gövde (en üst katın izi, çatı yüksekliğine kadar). */
+  _measureRoof(model) {
+    const ray = new THREE.Raycaster();
+    const S = model.size;
+    let roof = 0;
+    for (const [dx, dz] of [[0.18, 0.18], [-0.18, 0.18], [0.18, -0.18], [-0.18, -0.18], [0.22, 0], [0, 0.22]]) {
+      ray.set(new THREE.Vector3(dx * S.x, S.y + 20, dz * S.z), new THREE.Vector3(0, -1, 0));
+      const hit = ray.intersectObject(model.root, true)[0];
+      if (hit) roof = Math.max(roof, hit.point.y);
+    }
+    // En üst katın izi: çatı hizasındaki köşelerin yatay sınırı
+    const top = new THREE.Box3(), v = new THREE.Vector3();
+    model.root.traverse((o) => {
+      if (!o.isMesh) return;
+      const pos = o.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+        if (v.y > roof - 4 && v.y < roof + 1.5 && Math.hypot(v.x, v.z) > 2) top.expandByPoint(v);
+      }
+    });
+    model.roofY = roof;
+    model.top = top.isEmpty() ? null : top;
+    const t = model.top;
+    const base = new THREE.Box3().setFromObject(model.root);
+    model.boxes = [
+      [(base.min.x + base.max.x) / 2, 6, (base.min.z + base.max.z) / 2, base.max.x - base.min.x, 12, base.max.z - base.min.z],
+    ];
+    if (t) model.boxes.push([(t.min.x + t.max.x) / 2, roof / 2, (t.min.z + t.max.z) / 2, t.max.x - t.min.x, roof, t.max.z - t.min.z]);
+  }
 
   /**
    * Yapının bir kopyasını yerleştirir.
