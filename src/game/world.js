@@ -18,7 +18,6 @@ import {
   sandTexture, grassTexture, snowTexture, dirtTexture, mudTexture, themedSkyTexture, plankTexture,
 } from './textures.js';
 import { MAPS, weightedPick } from './maps.js';
-import { structures } from './structures.js';
 
 const SECTOR = 28;
 const GRID = 9;            // 9×9 sektör = 252 m kare saha
@@ -663,29 +662,8 @@ export class World {
         if (i < 3) rocks(x + 1.6, z + (rand() - 0.5) * 2, false);
       }
       trees(6 + Math.floor(rand() * 4), this.theme.zemin === 'kar' ? 'pineSnow' : 'pine');
-    } else if (archetype === 'kulube' && structures.get('ev')) {
-      // Köy evi: Blender'de yapılmış savaş görmüş taş ev (home .blend), önünde
-      // kapı boşluklu alçak bahçe duvarı (siper) ve odun yığını
-      const x = (rand() - 0.5) * (SECTOR - 16), z = (rand() - 0.5) * (SECTOR - 16);
-      const rot = Math.floor(rand() * 4) * (Math.PI / 2) + (rand() - 0.5) * 0.2;
-      const clear = [[-5, -5], [5, -5], [-5, 5], [5, 5]].every(([dx, dz]) => !inRoad(x + dx, z + dz) && !inZone(x + dx, z + dz, 1));
-      if (clear) {
-        structures.place('ev', group, center.x + x, center.z + z, rot,
-          { solids, colliders, bodies, physics: this.physics });
-        // Kapı −Z yüzünde: dünyada (−sin, −cos) yönü
-        const fx = -Math.sin(rot), fz = -Math.cos(rot), tx = Math.cos(rot), tz = -Math.sin(rot);
-        for (const side of [-1, 1]) {
-          const ox = x + fx * 7 + tx * side * 3.4, oz = z + fz * 7 + tz * side * 3.4;
-          if (!inRoad(ox, oz)) solid(G.box, M.wall, ox, 0.55, oz, 4.2, 1.1, 0.45, rot);
-        }
-        for (let k = 0; k < 3; k++) {
-          prop(G.cyl, M.bark, x - tx * 5.6, 0.3 + k * 0.01, z - tz * 5.6 + k * 0.7, 0.5, 0.6, 0.5, 18);
-        }
-      }
-      trees(8 + Math.floor(rand() * 5), this.theme?.zemin === 'kar' ? 'pineSnow' : 'leaf');
     } else if (archetype === 'kulube') {
-      // (Ev modeli yüklenmeden kurulan sektör) Ahşap kulübe: beşik çatılı;
-      // yanında odun yığını (devrilebilir)
+      // Ahşap kulübe: beşik çatılı; yanında odun yığını (devrilebilir)
       const w = 5 + rand() * 2, d = 4 + rand() * 1.5, h = 2.6;
       const x = (rand() - 0.5) * (SECTOR - 10), z = (rand() - 0.5) * (SECTOR - 10);
       if (!inRoad(x, z) && solid(G.box, M.woodWall, x, h / 2, z, w, h, d)) {

@@ -891,13 +891,6 @@ Suikast'ın devamı; aynı şehir (`OP3.road` sonundaki O). Kontrol noktaları:
 
 ## Blender yapıları (`structures.js`)
 
-- `ev`: `~/Desktop/home .blend` ('Ev' koleksiyonu) → `tools/export_ev.py`
-  → `assets/structures/ev.glb` (400 KB). Is lekeleri yordamsal (gürültü)
-  olduğu için UV açılıp Cycles ile DOKUYA PİŞİRİLİR (yoksa glTF'te beyaz).
-  Kapı −Z. Varlıklarla yüklenir; sonra `world.rebuildSectors()`.
-  - Haritada `kulube` arketipi artık bu ev (+ bahçe duvarı, odun yığını);
-    sanayi ve karlı haritalara da eklendi. Ev yoksa eski kutu kulübe.
-  - Şehirde parsellerin %12'si iki müstakil ev (kapı sokağa).
 - `istasyon`: tank bölümündeki benzinlik (`tankgame/istasyon.glb`, 3 MB),
   şehirde blokların %3'ü; ilk gerektiğinde yüklenir.
 - Çarpışma/mermi: modelin parçaları yerine görünmez kutular (`LIB.boxes`).
@@ -918,7 +911,9 @@ Suikast'ın devamı; aynı şehir (`OP3.road` sonundaki O). Kontrol noktaları:
 - Yalnızca şehir görevlerinde yüklenir (`game._ensureCity`). Yüklü değilse
   şehir eski kodla kurulur.
 - Parsel (`_modelParcel`): %34 dükkân sırası, %30 apartman + dükkânlar,
-  %12 ofis, kalanı kodla yıkık bina; %12 müstakil ev çifti. Gökdelenli
+  %12 ofis, kalanı kodla yıkık bina. Dükkân yerlerinin %20'si boş arsa
+  (kullanıcı "%20 seyrekleştir" dedi; arsaya bazen ağaç). `home .blend`
+  evi kullanıcının isteğiyle oyundan ÇIKARILDI. Gökdelenli
   blokta burgu/taş. Silah dükkânı: sıradaki ilk dükkânın vitrinine tabela.
   Sokak eşyaları `_streetFurniture`; park ağacı/bankı/büfe modelden (bankta
   oturanın yönü = model dönüşü + π).

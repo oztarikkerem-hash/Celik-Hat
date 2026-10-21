@@ -319,29 +319,11 @@ export class City {
       if (special?.clear) continue;              // bloğun tamamı özel yapıya ayrılmış
       if (special?.parcel && special.parcel[0] === px && special.parcel[1] === pz) continue;
       let forceRuin = false;
-      if (lib && !(!special && !towers && structures.get('ev') && rand() < 0.12)) {
+      if (lib) {
         const res = this._modelParcel(ctx, px, pz, { towers, gunShop, shops });
         if (res === 'gun') gunShop = false;
         if (res !== 'ruin') continue;
         forceRuin = true;
-      } else if (lib) {
-        // Müstakil evler (yukarıdaki zar tuttu)
-        this._housePair(ctx, px, pz);
-        continue;
-      }
-      // Müstakil evler (Blender'deki ev): parselin %12'si, sokağa bakan iki ev
-      if (!special && !towers && structures.get('ev') && rand() < 0.12) {
-        const face = streetFaces(px, pz)[Math.floor(rand() * 2)];
-        const cx = lotIn + px * half + half / 2, cz = lotIn + pz * half + half / 2;
-        // Kapı yüzün (sokağın) tarafına: yerel −Z dünyada sokak yönü olmalı
-        const rot = { s: Math.PI, n: 0, w: Math.PI / 2, e: -Math.PI / 2 }[face];
-        const n = { w: [-1, 0], e: [1, 0], s: [0, -1], n: [0, 1] }[face];
-        const t = [n[1], n[0]];
-        for (const side of [-1, 1]) {
-          const hx = cx + n[0] * 8 + t[0] * side * 6.5, hz = cz + n[1] * 8 + t[1] * side * 6.5;
-          structures.place('ev', group, hx, -hz, rot, { solids, colliders }, c0);
-        }
-        continue;
       }
       const sky = tall === pz * 2 + px || (towers && rand() < 0.25);
       const fw = sky ? half - 6 - rand() * 4 : half - 3 - rand() * 9;
@@ -440,7 +422,8 @@ export class City {
   /* ── Blender şehir varlıkları (~/Desktop/Sehir_Assetleri_FBX) ─────────
 
      Parsel (≈38 m kare) sokağa bakan bir yüzü seçer ve:
-       • %34 dükkân sırası (market/kafe/fırın/eczane/çiçekçi, vitrin sokağa)
+       • %34 dükkân sırası (market/kafe/fırın/eczane/çiçekçi, vitrin sokağa;
+         her dükkân yerinin %20'si boş arsa — sıra seyrek)
        • %30 apartman + yanında dükkânlar
        • %12 ofis binası
        • kalan yıkık bina (kodla — savaş görmüş şehir)
@@ -469,7 +452,14 @@ export class City {
         const name = SHOP_MODELS[Math.floor(rand() * SHOP_MODELS.length)];
         const w = structures.get(name).size.x;
         if (x + w > to) break;
-        list.push(put(name, x + w / 2, 0.6));
+        // Dükkânlar %20 seyrek: her dükkân yerinin beşte biri boş arsa kalır
+        if (rand() < 0.2) {
+          if (structures.get('agac') && rand() < 0.6) {
+            const off = hs - 4;
+            structures.place('agac', ctx.group, pcx + n[0] * off + t[0] * (x + w / 2), -(pcz + n[1] * off + t[1] * (x + w / 2)),
+              rand() * 6, { colliders: ctx.colliders }, ctx.corner);
+          }
+        } else list.push(put(name, x + w / 2, 0.6));
         x += w + 0.15;
       }
       return list;
@@ -498,20 +488,6 @@ export class City {
       return 'gun';
     }
     return 'built';
-  }
-
-  /** Parselde sokağa bakan iki müstakil ev (Blender'deki savaş görmüş ev). */
-  _housePair(ctx, px, pz) {
-    const { rand, B, K } = ctx;
-    const lotIn = K + 1.5, half = (B - 2 * lotIn) / 2;
-    const face = streetFaces(px, pz)[Math.floor(rand() * 2)];
-    const cx = lotIn + px * half + half / 2, cz = lotIn + pz * half + half / 2;
-    const rot = { s: Math.PI, n: 0, w: Math.PI / 2, e: -Math.PI / 2 }[face];   // ev: kapı −Z
-    const n = FACE_N[face], t = [n[1], n[0]];
-    for (const side of [-1, 1]) {
-      const hx = cx + n[0] * 8 + t[0] * side * 6.5, hz = cz + n[1] * 8 + t[1] * side * 6.5;
-      structures.place('ev', ctx.group, hx, -hz, rot, { solids: ctx.solids, colliders: ctx.colliders }, ctx.corner);
-    }
   }
 
   /* Sokak eşyaları: güney ve batı kaldırımında lambalar (kol sokağa),

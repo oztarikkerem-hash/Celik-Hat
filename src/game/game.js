@@ -235,11 +235,7 @@ export class Game {
       }, aniso),
       // Zırhlı araç: dosya yoksa oyun araçsız açılır
       this.vehicles.load(),
-      // Blender'de yapılmış ev (köy evleri, şehirde müstakil evler)
-      structures.load('ev'),
     ]);
-    // Ev yüklenmeden kurulmuş sektörler kutu kulübeyle kalmasın
-    this.world.rebuildSectors();
 
     // Birinci şahıs eller: müttefiklerin SWAT modelinin kolları
     this.weaponry.attachArms(new FPArms(this.soldiers.template, this.soldiers.height));

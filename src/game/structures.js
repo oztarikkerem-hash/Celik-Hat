@@ -1,8 +1,5 @@
-/* Blender'de yapılmış yapılar (oyundaki kodla kurulan kutu evlerin yerine).
+/* Blender'de yapılmış yapılar: şehir varlıkları ve benzin istasyonu.
 
-   • ev       — savaş görmüş iki katlı taş ev (~/Desktop/home .blend, 'Ev'
-                koleksiyonu; tools/export_ev.py ile dışa aktarılır, is
-                lekeleri dokuya pişirilir). 9 × 7.7 m, kapı −Z yüzünde.
    • istasyon — benzin istasyonu (~/Desktop/BenzinIstasyonu/Istasyon.blend,
                 tank bölümüyle aynı dosya). 46 × 40 m saha, 3 MB: yalnızca
                 ilk gerektiğinde yüklenir.
@@ -37,11 +34,6 @@ export const SHOP_MODELS = ['dukkan_market', 'dukkan_kafe', 'dukkan_firin', 'duk
 
 const LIB = {
   ...Object.fromEntries(Object.entries(CITY_ASSETS).map(([k, v]) => [k, { url: `assets/city/${k}.glb`, ...v }])),
-  ev: {
-    url: 'assets/structures/ev.glb',
-    // Yerel kutular [cx, cy, cz, sx, sy, sz]: gövde (kaide dahil) ve çatı
-    boxes: [[0, 3.5, 0, 8.4, 7, 7.1], [0, 8.2, 0, 7.6, 3, 6.6]],
-  },
   istasyon: {
     url: 'tankgame/istasyon.glb',
     // Blender (bx, by) → glTF (x = bx, z = −by): market, pompa adaları, kanopi direkleri
