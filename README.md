@@ -43,6 +43,16 @@ Rapier (fizik, WebAssembly) ile yazıldı; derleme adımı yok, saf ES modüller
   şehre git. Silahsız sız, tabancayı bul, bir devriyeyi indir, üniformasını
   giy ve düşman komutanını vur. Arazi aracı 140 km/sa (100'den sonra ivme yavaşlar),
   sağda devir saati; karakterin direksiyonda oturur.
+- **Tümgeneral** (4. özel görev): komutanı vurduktan sonra şehirden koşarak
+  kaçarsın, aracın gözünün önünde roketle patlar. 1 km çatışarak çık, düşman
+  aracıyla karargâha dön, ellerini uzatıp komutanından af dile — tümgeneral
+  olursun. Sonra aynı şehre (yarıçap 500 km) 2.000 askerle 2.500 kişilik
+  düşmana taarruz: H ile 5 kola emir ver (saldır · siper al · işaretli yere
+  git). Şehir düşünce en yüksek kuleye çık, Türk bayrağını dik.
+- **Şehir**: parklar (ağaçlar, çeşme, banklarda en çok 60 sn oturan
+  düşman askerleri), gökdelenler, zemin katında dükkânlar (market, fırın,
+  eczane, kafe…) ve nadir **silah dükkânları**: Tümgeneral'de E ile
+  kredinle silah ve mermi al (yanında en çok 4 silah).
 - **Bölümler:** tank bölümü — T-90 ya da M1 Abrams, müttefik ve
   düşman tanklar, yakıt, benzinlik ve market.
 
@@ -84,6 +94,7 @@ F · KULLAN, SİLAH ↻, TEDAVİ; üstte duraklat.
 | W/S, A/D, Space | Araçta: gaz-geri, direksiyon, fren |
 | H | Tedavi: önce sargı bezi, sonra ilk yardım kiti |
 | P | Silahı cebe koy / çıkar (Suikast'ta mesaj gelince önce telefon) |
+| H | Tümgeneral taarruzunda komuta menüsü (yaralıyken tedavi) |
 | M | Sesi aç / kapat |
 
 Tank bölümünde: W/S sür, A/D dön, E (basılı) tepe makinelisi ya da

@@ -802,6 +802,67 @@ Görev listesinde `baskin3`; silah ve alan seçimi YOK (silahsız başlanır:
    Kılıkla silah taşımak serbest, ama ATEŞ ETMEK (kılıklı da olsa) 85 m'deki
    devriyeleri alarma geçirir.
 
+## Tümgeneral (4. özel görev, `src/game/op4.js` + `army.js`)
+
+Suikast'ın devamı; aynı şehir (`OP3.road` sonundaki O). Kontrol noktaları:
+`escape` (kaçış başı) ve `assault` (taarruz başı).
+
+1. **Kaçış sinematiği** (`_startFlee`): ölü komutan ve korumaları ragdoll
+   (öldürülürken `enemies.onKill` geçici kapatılır, puan yazılmasın).
+   Kamera 30 m koşar, arkadan iz mermileri + `audio.whiz`; 5.4 sn'de araca
+   döner (yön aracın gerçek konumundan), roket (0.65 sn) → `_fireball`:
+   genişleyen toplamalı küreler + ışık + kalın duman. (`effects.explode`
+   kıvılcımları uzaktan 3–4 piksel kalıyordu.) Sinematik `frame()`'in
+   sinematik dalında koştuğu için fizik ve ragdoll'lar elle adımlanır.
+   Karargâh bloğunda `noProps` (sokak hurdası aracı kapatıyordu).
+2. **Kaçış** (~1 km): aynı anda 8 düşman (%62 önde, kalanı arkadan), çıkışta
+   3 muhafız + düşman arazi aracı (F). Rotada 2 mühimmat sandığı.
+3. **Yol**: patika TERS sürülür → `Road(..., { ahead: 260, behind: 760 })`;
+   `clearings` ile kamp yerine ağaç/kaya konmaz. Kamp `campS` = 5600.
+4. **Karargâh sinematiği**: ayrı bir `FPArms` kameraya takılır, `_poseArms`
+   avuçlar yukarı öne uzanır (titreme). `op4_01` oyuncu (Reed BK, yavaş,
+   aralıklı), `op4_02/03` komutan (Grandpa BK). Rütbe kartı `#rank-card`
+   (defne, ay yıldız, iki yıldız). Işınlanma/hızlı varışta zemin olsun diye
+   `road.update(campS, true)`.
+5. **Taarruz** (`army.js`): 2000 + 2500 kayıt tipli dizilerde. Sokak
+   ızgarasında yürür (`_route`: kavşakta EKSEN boyunca — çapraz gidince
+   sokaktan çıkıp salınıyordu), ızgara hücreleriyle en yakın düşman,
+   istatistiksel atış. Savunanın menzili 120, saldıranın 105 (eşitken kollar
+   menzil dışından kayıpsız geçiyordu). Karşı taarruz grupları 220 m'de
+   uyanır. Saldırıdaki kol 4 sn'de bir en yakın düşmana yönelir
+   (`_retarget`), yoksa kuleye varıp bekliyordu. Yakın 12 düşman gerçek
+   `Enemy` (terfi), yakın 10 müttefik SWAT modeli (ölünce ragdoll); gerisi
+   iki `InstancedMesh` (bacak salınımı ve diz çökme gölgelendiricide).
+   Oyuncu mermisi uzak düşmana `army.raycast` (game.js `_resolveShot`).
+   YÖNETMEN: zayiat düşman kaybıyla orantılı tutulur; 500'de durur, son %5
+   ancak zayiat 500 olunca teslim olur. Ölçülen: ~13 dk oyun, zayiat tam
+   500. Adım başına ~1 ms (render hariç).
+6. **H komuta menüsü** (`#cmd-menu`): kol 1–5 / 6 hepsi → 1 saldır,
+   2 siper al, 3 işaretli yere git (nişangâhın zemine değdiği nokta, sarı
+   sütun). Yaralıyken H yine tedavi. Dokunmatikte KOMUTA düğmesi.
+7. **Kule**: 128 m (`OP4.towerH`), şehir parçası değil, sürekli sahnede
+   (blok `clear`). Kapıda E → asansör (karartma) → çatı; ortada E →
+   `makeFlag` (flag.js: resmî oranlı Türk bayrağı, dalga köşe
+   gölgelendiricisinde) yükselir, kamera kuleyi dolanır, bitiş.
+
+## Şehir ayrıntıları (`citydetail.js`, `parklife.js`, `gunshop.js`)
+
+- Blok türü tohumla: park %11, gökdelenli %10 (16–30 kat, 128 m kuleyi
+  geçmez), olağan. Yıkık olmayan binaların yarısında zemin katı dükkânı
+  (12 tür tabela, canvas doku önbellekli), bloğun %55'inde ağaçlı sokak.
+- Park: çimen, çapraz + halka yol, çeşme, 14–21 ağaç (birleştirilmiş),
+  6–9 bank. Bank noktaları `city.benches()`.
+- `ParkLife`: 40–150 m'deki boş banklara en çok 4 asker, 10–60 sn oturur
+  (`Enemy.sitting`, `_updateSitting` → `Soldier.sit`, eller dizlerde, tüfek
+  gizli). Vurulunca/alarmda kalkar; Suikast'ta tarafsız park devriyesine
+  çıkar (tek kişilik `cell: 'park'` grubu — devriye sayısına ve "5 kişilik
+  devriye" hedefine SAYILMAZ), Tümgeneral'in kaçışında 28 m'de kalkıp saldırır.
+- Silah dükkânı yalnızca `new City(g, { gunShops: true })` (Tümgeneral),
+  blokların %7'si. E: `GunShop.show` → `state = 'gunshop'` (kilit bırakılınca
+  duraklatma açılmasın). Kredi `shop.harca`. Yanında en çok 4 silah
+  (`CARRY_MAX`, bıçak sayılmaz): doluysa önce "Bırak".
+- `frame()`'in menü dalı arenada (`_arenaOn`) gizli haritayı kurmaz.
+
 ## Telefon ve tablet (YALNIZCA yatay)
 
 - `src/ui/touch.js`: `(pointer: coarse)` ve ince işaretçi yoksa `body.touch`.

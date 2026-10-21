@@ -253,6 +253,7 @@ export class Enemy {
   }
 
   hurt(amount) {
+    if (this.sitting) this.sitting.alert = true;
     this.hp -= amount;
     this.hurtFlash = 1;
     return this.hp <= 0;
@@ -306,6 +307,54 @@ export class Enemy {
   }
 
   /**
+   * Parkta bankta oturan asker (parklife.js): `sitting` = { bench, until,
+   * wakeR, alert, onStand }. Süre dolunca, vurulunca/alarmda ya da oyuncu
+   * wakeR'a girince kalkar. Otururken AI ve klip çalışmaz; poz Soldier.sit.
+   */
+  _updateSitting(dt, now, player) {
+    const s = this.sitting;
+    const d = Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
+    if (now >= s.until || s.alert || (s.wakeR && d < s.wakeR)) {
+      this.standUp();
+      return d;
+    }
+    const b = s.bench;
+    // Kalça sırtlığa yakın: kök bankın 8 cm gerisinde
+    this.pos.set(b.pos.x + Math.sin(b.face) * 0.08, 0, b.pos.z + Math.cos(b.face) * 0.08);
+    this.facing = b.face;
+    this.vel.set(0, 0, 0);
+    this.group.position.set(this.pos.x, 0, this.pos.z);
+    this.group.rotation.set(0, this.facing, 0);
+    const so = this.soldier;
+    if (so) {
+      if (so.rifle) so.rifle.visible = false;
+      this.group.updateMatrixWorld(true);
+      const knee = (n) => new THREE.Vector3().setFromMatrixPosition(so.bones[n].matrixWorld).add(new THREE.Vector3(0, 0.07, 0));
+      so.setShadowDistance(d);
+      so.sit(b.seatY, knee('LeftLeg'), knee('RightLeg'));
+    }
+    return d;
+  }
+
+  /** Banktan kalkar: klip yeniden oynar, tüfek görünür. */
+  standUp() {
+    const s = this.sitting;
+    if (!s) return;
+    this.sitting = null;
+    if (s.bench) s.bench.taken = null;
+    if (this.soldier) {
+      this.soldier.body.position.y = 0;
+      if (this.soldier.rifle) this.soldier.rifle.visible = true;
+    }
+    // Bankın önüne bir adım: kalkan asker bankın içinde kalmasın
+    if (s.bench) {
+      this.pos.x -= Math.sin(s.bench.face) * 0.7;
+      this.pos.z -= Math.cos(s.bench.face) * 0.7;
+    }
+    s.onStand?.(this);
+  }
+
+  /**
    * Tarafsız asker (Suikast şehri): devriye halkasında yürür ya da yerinde
    * durur; ateş etmez. `patrol`: { pts, idx, speed } ya da { face } (duran).
    * Alarm verilince `neutral` kalkar ve normal savaş yapay zekâsı devralır.
@@ -342,6 +391,7 @@ export class Enemy {
 
   /** raid: Baskın'da saldıran taraf — siperden sipere hızla eve yüklenir. */
   update(dt, now, player, arena, onAttack, world = null, raid = false) {
+    if (this.sitting) return this._updateSitting(dt, now, player);
     if (this.nest) return this._updateNest(dt, now, player, onAttack);
     if (this.neutral) return this._updatePatrol(dt);
     const toPlayer = new THREE.Vector3(

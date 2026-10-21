@@ -36,6 +36,8 @@ import { Achievements } from './achievements.js';
 import { Weekly } from './weekly.js';
 import { Op2 } from './op2.js';
 import { Op3 } from './op3.js';
+import { Op4, OP4_VOICES } from './op4.js';
+import { GunShop } from './gunshop.js';
 import { TouchControls, isTouchDevice } from '../ui/touch.js';
 import { Input } from '../core/input.js';
 import { AudioEngine } from '../core/audio.js';
@@ -134,6 +136,8 @@ export class Game {
     this.crates = new AmmoCrates(this);
     this.op2 = new Op2(this);                // Füze Rampası (2. özel görev)
     this.op3 = new Op3(this);                // Suikast (3. özel görev)
+    this.op4 = new Op4(this);                // Tümgeneral (4. özel görev)
+    this.gunShop = new GunShop(this);        // şehirdeki silah dükkânı
     // Başarım ödülü o anki tura puan olarak eklenir
     this.achv = new Achievements((id, def) => {
       if (def.odul) {
@@ -359,6 +363,8 @@ export class Game {
         if (code === 'Digit2') this.op2.swap(2);
         if (this.vehicles.driving || this.vehicles.topside) return;
       }
+      // Tümgeneral: E (kule/bayrak), H (komuta menüsü), menü açıkken rakamlar
+      if (this.op4.active && this.op4.onKey(code)) return;
       if (code === 'KeyE' && this.op2.active) this.op2.tryCine();
       if (code === 'KeyE' && this.op3.active) this.op3.tryInteract();
       // P: Suikast'ta bildirim/telefon açıksa telefon; değilse silahı cebe koy / çıkar
@@ -521,6 +527,7 @@ export class Game {
   startMission(id, retry = false) {
     // Suikast: silahsız başlanır, silah/alan seçimi yok; ölünce şehirden
     if (id === 'baskin3') { this.startOp3(retry); return; }
+    if (id === 'baskin4') { this.startOp4(retry); return; }
     if (id === 'baskin2') {
       if (retry && this.pick4.size === PICK_COUNT) this.startOp2([...this.pick4]);
       else this._showLoadout('baskin2');
@@ -704,13 +711,37 @@ export class Game {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Tümgeneral (4. özel görev). retry: kaçışa ya da taarruza kalınan yerden. */
+  async startOp4(retry = false) {
+    await this.ensureAssets();
+    this.audio.init();
+    for (const id of OP4_VOICES) this.audio.loadVoice(`assets/voice/${id}.m4a`);
+    const checkpoint = retry ? this.op4.checkpoint : null;
+    this._prepareRun('baskin4', null, []);
+    this.raid.teardownNest();
+    this.enemies.glassList = null;
+    this.world.setClearRects([]);
+    this.crates.place([]);
+    this.allies.clear();
+    this.enemies.allies = this.allies.allies;
+    this.nametags.rebuild(this.allies.allies);
+    this._finishPrepare();
+    this.state = 'playing';
+    this.op4.checkpoint = checkpoint;
+    this.op4.begin(checkpoint);
+    this.nametags.setVisible(false);
+    this.camera.fov = BASE_FOV;
+    this.camera.updateProjectionMatrix();
+  }
+
   /** Yol/şehir arenası açık mı: harita gizli, sektör akışı durur. */
-  _arenaOn() { return this.op2.roadActive || this.op3.arenaActive; }
+  _arenaOn() { return this.op2.roadActive || this.op3.arenaActive || this.op4.arenaActive; }
 
   /** Bütün görevlerin ortak hazırlığı (oyuncu, silahlar, düşmanlar). */
   _prepareRun(missionId, raidIds, loadout) {
     this.op2.end();
     this.op3.end();
+    this.op4.end();
     this._kaskKalkaniKullanildi = false;
     this._treating = null;
     this.hud.setDowned(false);
@@ -1014,6 +1045,7 @@ export class Game {
   toHome() {
     this.op2.end();
     this.op3.end();
+    this.op4.end();
     this.state = 'home';
     this._syncLocks();
     this._drawWeekly();
@@ -1257,7 +1289,27 @@ export class Game {
     const own = this.vehicles.topside;
     const solids = own ? this.world.solids.filter((o) => o.userData?.vehicle !== own) : this.world.solids;
     const targets = [...this.enemies.hitTargets, ...solids];
-    const hit = this.raycaster.intersectObjects(targets, false)[0];
+    let hit = this.raycaster.intersectObjects(targets, false)[0];
+
+    // Taarruz: uzaktaki (örneklenmiş) düşman askerleri ayrı test edilir
+    const army = this.op4.active ? this.op4.army : null;
+    const ah = army ? army.raycast(camPos, dir, hit ? hit.distance : 260) : null;
+    if (ah) {
+      const mult = ah.part === 'head' ? HEADSHOT_MULT : ah.part === 'leg' ? LEG_MULT : BODY_MULT;
+      const dead = army.damage(ah.i, weapon.damage * mult, dir, performance.now() / 1000, true, ah.part);
+      this.effects.tracer(origin, ah.point, weapon.tracer);
+      this.effects.hitBurst(ah.point, ah.part === 'head' ? 0xffd27a : 0xc8432a, ah.part === 'head' ? 16 : 9);
+      this.audio.hit(ah.part === 'head');
+      this.hud.hitmarker(dead);
+      this.shotsHit++;
+      if (dead) {
+        this.kills++;
+        this.score += ah.part === 'head' ? 150 : 100;
+        this.hud.setScore(this.score);
+        this.missions.report({ type: 'kill', weaponId: weapon.id, headshot: ah.part === 'head' });
+      }
+      return;
+    }
 
     const end = hit ? hit.point.clone() : camPos.clone().addScaledVector(dir, 180);
     this.effects.tracer(origin, end, weapon.tracer);
@@ -1772,7 +1824,8 @@ export class Game {
       this.vehicles.update(dt, now);
       if (this.raid.active) this.raid.update(dt, now);       // ufuktaki birlik yürür
       this.activeCine?.update(dt, now);
-    } else {
+    } else if (!this._arenaOn()) {
+      // Arenada (yol/şehir) gizli haritanın sektörleri kurulmasın
       this.world.update(this.camera, this.player.pos, now, 1);
     }
 
@@ -1881,6 +1934,7 @@ export class Game {
     this.vehicles.update(dt, now);
     this.op2.update(dt, now);
     this.op3.update(dt, now);
+    this.op4.update(dt, now);
 
     // Dalga geçişi
     if (this.enemies.state === 'break' && now > this.enemies.breakEnd) {
@@ -1972,6 +2026,7 @@ export class Game {
     }
     if (this.op2.active) hint = this.op2.hint() ?? hint;
     if (this.op3.active) hint = this.op3.hint() ?? hint;
+    if (this.op4.active) hint = this.op4.hint() ?? hint;
     this.hud.setHint(hint);
     this.hud.setHealth(this.player.health, this.player.maxHealth, this.player.healthCap);
     this.hud.setStamina(this.player.stamina, this.player.exhausted);
@@ -2010,12 +2065,14 @@ export class Game {
       enemies: this.enemies.enemies,
       allies: this.allies.allies,
       crates: this.crates.list,
-      route: this.op3.active ? this.op3.route() : null,
+      route: this.op3.active ? this.op3.route() : this.op4.active ? this.op4.route() : null,
+      overlay: this.op4.active ? this.op4.minimapOverlay() : null,
       world: this.world,
       grenades: this.grenades.live,
     });
     if (this.op2.active) this.op2.drawHud();
     if (this.op3.active) this.op3.drawHud();
+    else if (this.op4.active) this.op4.drawHud();
     else document.getElementById('nav-readout').hidden = true;
     // Devir saati + motor sesi (araç sürerken)
     const drv = this.vehicles.driving;

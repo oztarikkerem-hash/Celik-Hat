@@ -35,6 +35,14 @@ export const MISSIONS = [
     on: (ev) => (ev.type === 'op3-done' ? 1 : 0),
   },
   {
+    // 4. özel görev: şehirden kaçış, karargâhta özür ve terfi, 2000'e 2500 taarruz
+    id: 'baskin4', name: 'Tümgeneral', target: 1, special: true,
+    desc: 'Komutanı vurdun: şehirden kaç, aracın gözünün önünde patlar. 1 km çatışarak '
+      + 'çık, düşman aracıyla karargâha dön ve affını iste. Tümgeneral olarak 2.000 askerle '
+      + '2.500 kişilik düşmana taarruz et (H: 5 kola emir), en yüksek kuleye Türk bayrağını dik.',
+    on: (ev) => (ev.type === 'op4-done' ? 1 : 0),
+  },
+  {
     id: 'ilk-kan', name: 'İlk Kan', target: 1,
     desc: 'Sahaya in ve ilk hedefi düşür.',
     on: (ev) => (ev.type === 'kill' ? 1 : 0),

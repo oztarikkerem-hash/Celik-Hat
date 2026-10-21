@@ -25,6 +25,7 @@ export const ROAD = {
   trees: 170,
   endPad: 1,             // yol sonundan sonra kurulacak parça sayısı
   logAfter: 22,          // enkazdan 22 m sonra sol şeridi kapatan devrik kütük
+  clearings: [],         // ağaç/kaya konmayan alanlar: [{ s, lat, r }] (kamp yeri)
 };
 
 /** Basit tohumlu rastgele (parça her kurulduğunda aynı görünsün). */
@@ -64,6 +65,14 @@ export class Road {
     const [a1, p1, a2, p2, f] = this.cfg.curve;
     const dx = (a1 / p1) * Math.cos(s / p1) + (a2 / p2) * Math.cos(s / p2 + f);
     return new THREE.Vector3(dx, 0, -1).normalize();
+  }
+
+  /** (s, lat) bir açıklığın (kamp) içinde mi: oraya ağaç ve kaya konmaz. */
+  _cleared(s, lat) {
+    for (const c of this.cfg.clearings) {
+      if (Math.hypot(s - c.s, lat - c.lat) < c.r) return true;
+    }
+    return false;
   }
 
   /** Bir noktanın yoldaki ilerlemesi (m). */
@@ -191,6 +200,7 @@ export class Road {
       const s = s0 + rand() * C;
       const side = rand() < 0.5 ? -1 : 1;
       const lat = side * (8.5 + Math.pow(rand(), 1.8) * 140);
+      if (this._cleared(s, lat)) continue;
       const p = this.point(s, lat);
       const sc = 0.8 + rand() * 0.6;
       const pine = rand() < 0.65;
@@ -238,7 +248,10 @@ export class Road {
       colliders.push(new THREE.Box3().setFromObject(m));
       return p;
     };
-    for (let i = 0; i < 4; i++) rock(s0 + rand() * C, (rand() < 0.5 ? -1 : 1) * (6 + rand() * 20), rand() < 0.3);
+    for (let i = 0; i < 4; i++) {
+      const s = s0 + rand() * C, lat = (rand() < 0.5 ? -1 : 1) * (6 + rand() * 20), big = rand() < 0.3;
+      if (!this._cleared(s, lat)) rock(s, lat, big);
+    }
 
     // Pusu: yol kenarında siperler + sağ şeritte yanık enkaz
     for (const a of this.cfg.ambushes) {

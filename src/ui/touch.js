@@ -37,6 +37,7 @@ export class TouchControls {
       <button class="t-btn t-pause" data-act="pause" type="button" aria-label="Duraklat">❚❚</button>
       <button class="t-btn t-e" data-key="KeyE" type="button">E</button>
       <button class="t-btn t-tel" data-key="KeyP" type="button">TEL</button>
+      <button class="t-btn t-cmd" data-key="KeyH" type="button">KOMUTA</button>
       <div class="t-cluster">
         <button class="t-btn t-fire" data-act="fire" type="button">ATEŞ</button>
         <button class="t-btn t-aim" data-act="aim" type="button">NİŞAN</button>

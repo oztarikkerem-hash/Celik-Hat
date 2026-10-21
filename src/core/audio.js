@@ -322,6 +322,24 @@ export class AudioEngine {
     this._tone({ f0: 520, f1: 240, dur: 0.12, gain: 0.08, type: 'square' });
   }
 
+  /** Yakından geçen mermi: kısa, yükselip alçalan vızıltı. */
+  whiz() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    if (now < (this._whizAt ?? 0)) return;
+    this._whizAt = now + 0.06;
+    this._noise({ dur: 0.13, gain: 0.12, freq: 2600 + Math.random() * 1800, q: 4, decay: 1.6 });
+    this._tone({ f0: 1400 + Math.random() * 600, f1: 500, dur: 0.12, gain: 0.03, type: 'sawtooth' });
+  }
+
+  /** Uzaktan gelen silah sesi (mesafeyle kısılır ve boğuklaşır). */
+  distantShot(dist = 60) {
+    if (!this.ctx) return;
+    const k = 1 / (1 + dist / 35);
+    this._noise({ dur: 0.09 + dist / 900, gain: 0.32 * k, freq: Math.max(380, 2400 - dist * 9), q: 0.7, type: 'lowpass' });
+    this._tone({ f0: 140, f1: 60, dur: 0.1, gain: 0.12 * k, type: 'sine' });
+  }
+
   explosion() {
     if (!this.ctx) return;
     // Alçak gövde + geniş gürültü kuyruğu: patlama mesafeli hissedilsin.

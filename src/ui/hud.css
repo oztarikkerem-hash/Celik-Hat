@@ -2293,3 +2293,98 @@ body.driving .hud-bottom .arsenal { visibility: hidden; }
 .t-tel { left: calc(50% - 254px); }
 
 body.unarmed .hud-bottom .arsenal { visibility: hidden; }
+
+/* ══════════════════ Tümgeneral: komuta menüsü, ordu paneli, rütbe ════ */
+.cmd-menu {
+  position: fixed; left: 26px; top: 50%; transform: translateY(-50%); z-index: 40;
+  width: 300px; padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 6px;
+  background: rgba(11, 15, 13, 0.88); border: 1px solid rgba(232, 163, 61, 0.45);
+  font: 500 14px var(--disp); color: var(--bone);
+}
+.cmd-menu[hidden], .army-panel[hidden], .rank-card[hidden] { display: none; }
+.cmd-menu header { font: 700 15px var(--mono); letter-spacing: 0.14em; color: var(--amber); }
+.cmd-menu header small { margin-left: 8px; color: var(--olive); letter-spacing: 0.06em; font-weight: 400; }
+.cmd-menu p { margin: 2px 0 2px; font: 600 12px var(--mono); letter-spacing: 0.1em; color: var(--olive); text-transform: uppercase; }
+.cmd-menu button {
+  display: grid; grid-template-columns: 26px 1fr; align-items: center; column-gap: 8px;
+  padding: 6px 8px; background: rgba(30, 38, 33, 0.85); border: 1px solid var(--steel-up);
+  color: var(--bone); font: 600 15px var(--disp); text-align: left; cursor: pointer;
+}
+.cmd-menu button:hover, .cmd-menu button:focus-visible { border-color: var(--amber); outline: none; }
+.cmd-menu kbd {
+  grid-row: span 2; display: grid; place-items: center; height: 24px;
+  background: var(--amber); color: var(--ink); font: 700 13px var(--mono); border-radius: 2px;
+}
+.cmd-menu em { grid-column: 2; font: 400 12px var(--mono); color: var(--olive); font-style: normal; }
+.cmd-menu footer { font: 400 11px var(--mono); color: var(--olive); letter-spacing: 0.08em; }
+
+.army-panel {
+  position: fixed; left: 26px; top: calc(118px + env(safe-area-inset-top, 0px)); z-index: 22;
+  min-width: 230px; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px;
+  background: rgba(11, 15, 13, 0.62); font: 400 12px var(--mono); color: var(--bone); pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.ap-head { display: flex; gap: 12px; margin-bottom: 3px; letter-spacing: 0.05em; color: var(--olive); }
+.ap-head b { color: var(--bone); font-weight: 700; }
+.ap-col { display: grid; grid-template-columns: 18px 44px 1fr; align-items: center; gap: 6px; }
+.ap-col i {
+  display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+  background: #1d4f86; color: #fff; font: 700 10px var(--mono); font-style: normal;
+}
+.ap-col span { text-align: right; }
+.ap-col em { font-style: normal; color: var(--olive); }
+.ap-attack em { color: #e8a33d; }
+.ap-cover em { color: #6fb7ff; }
+.ap-move em { color: #ffd24a; }
+
+.rank-card {
+  position: fixed; inset: 0; z-index: 47; display: grid; place-items: center; pointer-events: none;
+  animation: rank-in 0.9s ease both;
+}
+.rank-inner {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 34px 20px;
+  background: radial-gradient(circle at 50% 35%, rgba(40, 46, 30, 0.95), rgba(10, 12, 9, 0.92));
+  border: 1px solid rgba(216, 178, 74, 0.6);
+}
+.rank-inner svg { width: 150px; height: 172px; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6)); }
+.rank-eyebrow { font: 700 12px var(--mono); letter-spacing: 0.32em; color: #d8b24a; }
+.rank-inner strong { font: 700 44px/1 var(--disp); letter-spacing: 0.12em; color: #f1eee6; }
+@keyframes rank-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .rank-card { animation: none; } }
+.t-cmd { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: calc(50% + 160px); width: 58px; height: 42px; font-size: 11px; display: none; }
+body.op4-assault .t-cmd { display: block; }
+@media (max-width: 900px) {
+  .cmd-menu { left: 12px; width: 250px; font-size: 13px; }
+  .army-panel { top: 96px; left: 12px; min-width: 200px; font-size: 11px; }
+}
+
+/* Silah dükkânı (şehirde, E) */
+.gun-shop {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 48;
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto;
+  padding: 16px 18px 14px; background: rgba(11, 15, 13, 0.95); border: 1px solid rgba(232, 163, 61, 0.55);
+  font: 500 14px var(--disp); color: var(--bone);
+}
+.gun-shop[hidden] { display: none; }
+.gun-shop header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font: 700 18px var(--mono); letter-spacing: 0.12em; color: var(--amber); }
+.gs-credit { font-size: 13px; color: var(--olive); letter-spacing: 0.08em; }
+.gs-credit b { color: var(--bone); font-variant-numeric: tabular-nums; }
+.gun-shop h3 { margin: 14px 0 6px; font: 600 12px var(--mono); letter-spacing: 0.12em; color: var(--olive); text-transform: uppercase; }
+.gun-shop h3 small { margin-left: 6px; color: var(--bone); }
+.gun-shop ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.gun-shop li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: rgba(30, 38, 33, 0.7); border: 1px solid var(--steel-up); }
+.gun-shop li > div { flex: 1; display: flex; flex-direction: column; }
+.gun-shop li b { font-weight: 700; font-size: 15px; }
+.gun-shop li small { font: 400 11px var(--mono); color: var(--olive); }
+.gs-ammo { font: 400 12px var(--mono); color: var(--olive); font-variant-numeric: tabular-nums; }
+.gun-shop button {
+  padding: 5px 10px; background: var(--amber); color: var(--ink); border: 0; cursor: pointer;
+  font: 700 12px var(--mono); letter-spacing: 0.04em; white-space: nowrap;
+}
+.gun-shop button:disabled { background: #3a3f3a; color: #7d827a; cursor: not-allowed; }
+.gun-shop button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.gun-shop .gs-drop { background: transparent; color: var(--rust); border: 1px solid var(--rust); }
+.gun-shop footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  font: 400 12px var(--mono); color: var(--olive); }
+.gun-shop footer kbd { margin-left: 4px; }

@@ -180,6 +180,15 @@ export class Shop {
     return kazanc;
   }
 
+  /** Görev içi alışveriş (silah dükkânı): krediden düşer. */
+  harca(miktar) {
+    this.yukle();
+    if (this.durum.kredi < miktar) return false;
+    this.durum.kredi -= miktar;
+    this.kaydet();
+    return true;
+  }
+
   sahipMi(id) { return this.durum.sahip.includes(id); }
 
   urun(id) {

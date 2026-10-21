@@ -14,6 +14,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { concreteTexture, asphaltTexture } from './textures.js';
+import {
+  buildPark, buildStreetTrees, buildShopfront, streetFaces, pickShopKind, skyscraperMaterial, GUN_SHOP,
+} from './citydetail.js';
 
 export const CITY = {
   block: 96,
@@ -95,7 +98,7 @@ function facadeTexture() {
 }
 
 /** Kutu: yan yüzlerin UV'leri metre/döşeme (12 m) ölçeğinde. */
-function buildingGeo(w, h, d) {
+export function buildingGeo(w, h, d) {
   const g = new THREE.BoxGeometry(w, h, d);
   const uv = g.attributes.uv;
   const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
@@ -109,8 +112,14 @@ function buildingGeo(w, h, d) {
 }
 
 export class City {
-  constructor(game) {
+  /**
+   * opts.radius: şehir yarıçapı (m) — Taarruz'da aynı şehir 500 km.
+   * opts.gunShops: nadir silah dükkânları açık mı (Tümgeneral).
+   */
+  constructor(game, opts = {}) {
     this.game = game;
+    this.radius = opts.radius ?? CITY.radius;
+    this.gunShops = Boolean(opts.gunShops);
     this.active = false;
     this.chunks = new Map();
     this.specials = new Map();     // "i,j" → (ctx) => void
@@ -179,8 +188,8 @@ export class City {
 
   inCity(x, z) {
     if (this.O.z - z < -CITY.half) return false;        // girişin güneyi orman
-    const cx = this.O.x, cz = this.O.z - CITY.radius;
-    return Math.hypot(x - cx, z - cz) < CITY.radius;
+    const cx = this.O.x, cz = this.O.z - this.radius;
+    return Math.hypot(x - cx, z - cz) < this.radius;
   }
 
   /**
@@ -282,22 +291,54 @@ export class City {
     for (const d of dash) d.dispose();
 
     const special = this.specials.get(`${i},${j}`);
+    const ctx = { group, own, solid, L, colliders, solids, cover, lights, corner: c0, rand, M, i, j, B, H, K };
+
+    // Blok türü: park (%11), gökdelenli (%10), olağan. Giriş sırası olağan.
+    const kindR = rand();
+    const park = !special && j > 0 && kindR < 0.11;
+    const towers = !special && !park && j > 1 && kindR < 0.21;
+    let benches = [];
+    const shops = [];
+    if (park) benches = buildPark(ctx).benches;
+    let gunShop = this.gunShops && !special && !park && rand() < 0.07;
 
     // Binalar: arsada 2×2 parsel; özel blokta bir parsel boş kalır
     const lotIn = K + 1.5, span = B - 2 * lotIn;
     const half = span / 2;
+    const tall = towers ? Math.floor(rand() * 4) : -1;          // gökdelen parseli
     for (let pz = 0; pz < 2; pz++) for (let px = 0; px < 2; px++) {
+      if (park) continue;
+      if (special?.clear) continue;              // bloğun tamamı özel yapıya ayrılmış
       if (special?.parcel && special.parcel[0] === px && special.parcel[1] === pz) continue;
-      const fw = half - 3 - rand() * 9, fd = half - 3 - rand() * 9;
-      const ruined = rand() < 0.22;
-      const floors = ruined ? 1 + Math.floor(rand() * 3) : 3 + Math.floor(rand() * 10);
-      const h = floors * 3.1 + (ruined ? rand() * 2 : 0);
+      const sky = tall === pz * 2 + px || (towers && rand() < 0.25);
+      const fw = sky ? half - 6 - rand() * 4 : half - 3 - rand() * 9;
+      const fd = sky ? half - 6 - rand() * 4 : half - 3 - rand() * 9;
+      const ruined = !sky && rand() < 0.22;
+      // Gökdelen 16–30 kat: Tümgeneral'in 128 m'lik kulesini geçmez
+      const floors = sky ? 16 + Math.floor(rand() * 15) : ruined ? 1 + Math.floor(rand() * 3) : 3 + Math.floor(rand() * 10);
+      const h = floors * (sky ? 3.4 : 3.1) + (ruined ? rand() * 2 : 0);
       const cx = lotIn + px * half + half / 2 + (rand() - 0.5) * 3;
       const cz = lotIn + pz * half + half / 2 + (rand() - 0.5) * 3;
-      const mat = ruined ? M.burnt : M.facades[Math.floor(rand() * M.facades.length)];
+      const mat = sky ? skyscraperMaterial(M.facades[0].map)[Math.floor(rand() * 3)]
+        : ruined ? M.burnt : M.facades[Math.floor(rand() * M.facades.length)];
       const b = own(new THREE.Mesh(buildingGeo(fw, h, fd), [mat, mat, M.roof, M.roof, mat, mat]));
       b.position.set(cx, h / 2, -cz);
       solid(b);
+      if (sky) {
+        // Çatı tacı ve anten
+        const crown = own(new THREE.Mesh(new THREE.BoxGeometry(fw * 0.6, 3, fd * 0.6), M.roof));
+        crown.position.set(cx, h + 1.5, -cz);
+        const mast = own(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 8, 6), M.steel));
+        mast.position.set(cx, h + 7, -cz);
+      }
+      // Zemin katı dükkânı (yıkık olmayan binaların yarısında)
+      if (!ruined && rand() < (sky ? 0.8 : 0.5)) {
+        const faces = streetFaces(px, pz);
+        const face = faces[Math.floor(rand() * 2)];
+        const kind = gunShop ? GUN_SHOP : pickShopKind(rand);
+        const shop = buildShopfront(ctx, { cx, cz, w: fw, d: fd }, face, kind);
+        if (gunShop) { shops.push(shop); gunShop = false; }
+      }
       if (ruined) {
         // Yıkık binanın önünde moloz yığını
         for (let r = 0; r < 4; r++) {
@@ -311,7 +352,7 @@ export class City {
     }
 
     // Savaş izleri: sokakta yanık araç, kum torbası mevzisi, beton bariyer
-    const nProps = Math.floor(rand() * 4);
+    const nProps = special?.noProps ? 0 : Math.floor(rand() * 4);
     for (let n = 0; n < nProps; n++) {
       const onWest = rand() < 0.5;
       const along = 12 + rand() * (B - 24);
@@ -341,6 +382,9 @@ export class City {
       }
     }
 
+    // Ağaçlı sokaklar (parkta zaten ağaç var)
+    if (!park && rand() < 0.55) buildStreetTrees(ctx);
+
     // Sokak lambaları (bloğun güneybatı köşesinde)
     if (rand() < 0.7) {
       const pole = own(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 6, 8), M.steel));
@@ -349,11 +393,24 @@ export class City {
       head.position.set(H + 0.9, 6, -(H + 0.6));
     }
 
-    if (special) special.build({ group, own, solid, L, colliders, solids, cover, lights, corner: c0, rand, M, i, j });
+    if (special) special.build(ctx);
 
     this.game.scene.add(group);
     const fixture = { colliders, solids, cover };
     this.game.world.addFixture(fixture);
-    this.chunks.set(`${i},${j}`, { i, j, group, fixture, lights });
+    this.chunks.set(`${i},${j}`, { i, j, group, fixture, lights, benches, shops, park });
+  }
+
+  /** Oyuncunun önündeki silah dükkânı (E menzilinde) ya da null. */
+  gunShopNear(p, r = 2.8) {
+    for (const c of this.chunks.values()) {
+      for (const s of c.shops) if (Math.hypot(s.pos.x - p.x, s.pos.z - p.z) < r) return s;
+    }
+    return null;
+  }
+
+  /** Kurulu bloklardaki bütün banklar (parklife.js). */
+  *benches() {
+    for (const c of this.chunks.values()) yield* c.benches;
   }
 }

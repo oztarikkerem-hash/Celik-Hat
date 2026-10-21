@@ -24,7 +24,7 @@ export class Minimap {
   }
 
   /** @param now saniye — çizim 20 Hz'e kısılır, oyun döngüsünü yormasın. */
-  draw(now, { player, enemies, allies, crates, world, grenades, route }) {
+  draw(now, { player, enemies, allies, crates, world, grenades, route, overlay }) {
     if (now - this._last < 0.05) return;
     this._last = now;
 
@@ -127,6 +127,9 @@ export class Minimap {
       g.arc(mx, my, 2.5, 0, Math.PI * 2);
       g.fill();
     }
+
+    // ── Ek katman (Taarruz: ordu noktaları, kol numaraları, işaret) ────
+    overlay?.(g, toMap, R, RANGE, player);
 
     // ── Düşmanlar ──────────────────────────────────────────────────────
     for (const e of enemies) {

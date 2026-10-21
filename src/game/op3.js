@@ -20,6 +20,7 @@ import { City, CITY } from './city.js';
 import { Soldier } from './soldier.js';
 import { mapById } from './maps.js';
 import { plasterTexture } from './textures.js';
+import { ParkLife, parkLoop } from './parklife.js';
 
 export const OP3 = {
   road: { x0: -6000, z0: 0, length: 8000, width: 5, ambushes: [], trees: 200, curve: [55, 430, 22, 160, 0.7], endPad: 0 },
@@ -54,6 +55,20 @@ export class Op3 {
     this.game = game;
     this.road = new Road(game, OP3.road);
     this.city = new City(game);
+    // Parkta banklara oturan askerler: kalkınca parkın çevresinde devriye
+    this.parks = new ParkLife(game, this.city, {
+      onSpawn: (e) => {
+        e.neutral = true;
+        e.patrol = { face: e.facing };
+        const group = { cell: 'park', members: [e], hostile: false };
+        e.squad = group;
+        this.groups.push(group);
+      },
+      onStand: (e, bench) => {
+        if (!e.neutral) return;                 // alarmda zaten savaşıyor
+        e.patrol = { pts: parkLoop(this.city, bench), idx: 0, speed: 1.4 };
+      },
+    });
     this.active = false;
     this.phase = null;
     this.checkpoint = null;          // 'city': ölünce şehir girişinden başla
@@ -94,6 +109,7 @@ export class Op3 {
     this.active = false;
     this.phase = null;
     this.road.stop();
+    this.parks.clear();
     this.city.stop();
     this._clearIntro();
     if (this._half) { g.world.half = this._half; this._half = 0; }
@@ -408,12 +424,14 @@ export class Op3 {
     else if (this.road.chunks.size) this.road.update(this.road.progress(p));
     this._sun(p);
     if (now > (this._patrolAt ?? 0)) { this._patrolAt = now + 1; this._managePatrols(p); }
+    this.parks.update(now);
     if (now > (this._watchAt ?? 0)) { this._watchAt = now + 0.25; this._watch(); }
     this._updateBoss(dt, now);
 
     // Hedef: bir devriyenin tamamı düştü mü
     if (this.objective === 'hunt') {
-      const wiped = this.groups.find((gr) => gr.members.length && gr.members.every((m) => !m.alive));
+      // Bankta oturan tek asker devriye sayılmaz (5 kişilik grup gerekir)
+      const wiped = this.groups.find((gr) => gr.cell !== 'park' && gr.members.length && gr.members.every((m) => !m.alive));
       if (wiped) {
         this.objective = 'loot';
         this.lootGroup = wiped;
@@ -538,7 +556,7 @@ export class Op3 {
         this.groups.splice(this.groups.indexOf(gr), 1);
       }
     }
-    const active = this.groups.filter((gr) => gr.members.some((m) => m.alive) && !gr.hostile).length;
+    const active = this.groups.filter((gr) => gr.cell !== 'park' && gr.members.some((m) => m.alive) && !gr.hostile).length;
     if (active >= OP3.groups) return;
     // Yeni devriye: 120–230 m ötede bir blok halkası
     const [pi, pj] = this.city.cellOf(p.x, p.z);
@@ -580,6 +598,7 @@ export class Op3 {
     group.hostile = true;
     for (const m of group.members) {
       if (!m.alive) continue;
+      if (m.sitting) m.sitting.alert = true;      // banktaki asker hemen kalkar
       m.neutral = false;
       m.patrol = null;
       m.nextShot = performance.now() / 1000 + 0.6 + Math.random();
