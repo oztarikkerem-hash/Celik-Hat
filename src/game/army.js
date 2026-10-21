@@ -10,8 +10,8 @@
       kez düşünülür, konum her kare ilerler.
    2. GÖRÜNÜM: oyuncunun yakınındaki düşmanlar GERÇEK düşmana (FSB modeli,
       kendi yapay zekâsı, ragdoll) "terfi" eder; yakın müttefikler SWAT
-      modeliyle çizilir. Ötekiler tek çizim çağrısıyla (InstancedMesh) basit
-      figürler: bacak salınımı ve diz çökme köşe gölgelendiricisinde.
+      modeliyle çizilir. Ötekiler tek çizim çağrısıyla (InstancedMesh)
+      gerçek modelin resimleri (impostor.js: 8 açı × 12 poz atlası).
 
    Oyuncunun mermisi uzak düşmanlara `raycast` ile (dikey silindir) değer.
 
@@ -20,10 +20,10 @@
    ölmez), düşmanın son %5'i ancak zayiat 500'e varınca teslim olur.       */
 
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CITY } from './city.js';
 import { Soldier } from './soldier.js';
 import { Ragdoll } from './ragdoll.js';
+import { bakeAtlas, impostorMaterial, impostorGeometry, cellIndex, POSE } from './impostor.js';
 
 export const ARMY = {
   allies: 2000,
@@ -37,74 +37,12 @@ export const ARMY = {
   demoteR: 78,
   maxPromoted: 12,
   allyModelR: 40,
-  maxAllyModels: 10,
+  maxAllyModels: 14,
   corpseLife: 90,
 };
 
 const ORDER_NAMES = { attack: 'Saldırıyor', cover: 'Siperde', move: 'İşaretli yere gidiyor' };
 export { ORDER_NAMES };
-
-/* ── Figür geometrisi ─────────────────────────────────────────────────── */
-
-/* Parça kimliği (aPart): 0 gövde, 1 sol bacak, 2 sağ bacak. Bacaklar kalça
-   (y = 0.93) etrafında salınır; diz çökmede öne kırılır, gövde alçalır.  */
-function figureGeometry(uniform, vest, helmet) {
-  const parts = [];
-  const add = (geo, color, part) => {
-    const g = geo.index ? geo.toNonIndexed() : geo;
-    const n = g.attributes.position.count;
-    const c = new Float32Array(n * 3), p = new Float32Array(n);
-    const col = new THREE.Color(color);
-    for (let i = 0; i < n; i++) { c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; p[i] = part; }
-    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
-    g.setAttribute('aPart', new THREE.BufferAttribute(p, 1));
-    g.deleteAttribute('uv');
-    parts.push(g);
-  };
-  const box = (w, h, d, x, y, z) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
-  const skin = 0xc49a7a, boot = 0x1c1a17, gun = 0x1e1f1d;
-  for (const [sx, part] of [[0.11, 1], [-0.11, 2]]) {
-    add(box(0.17, 0.78, 0.2, sx, 0.54, 0), uniform, part);
-    add(box(0.19, 0.16, 0.3, sx, 0.08, -0.04), boot, part);
-  }
-  add(box(0.4, 0.62, 0.24, 0, 1.23, 0), uniform, 0);                 // gövde
-  add(box(0.46, 0.44, 0.31, 0, 1.28, 0), vest, 0);                   // yelek
-  add(box(0.36, 0.16, 0.28, 0, 0.96, 0), uniform, 0);                // kalça
-  add(new THREE.SphereGeometry(0.11, 8, 6).translate(0, 1.66, -0.01), skin, 0);
-  add(new THREE.SphereGeometry(0.135, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55).translate(0, 1.69, 0), helmet, 0);
-  // Kollar tüfeği tutar: omuzdan öne
-  add(box(0.11, 0.11, 0.42, 0.2, 1.36, -0.18).rotateX(0.0), uniform, 0);
-  add(box(0.11, 0.11, 0.46, -0.16, 1.3, -0.26), uniform, 0);
-  add(box(0.06, 0.09, 0.95, 0.04, 1.33, -0.42), gun, 0);             // tüfek
-  add(box(0.05, 0.16, 0.06, 0.04, 1.22, -0.36), gun, 0);             // şarjör
-  const geo = mergeGeometries(parts, false);
-  for (const g of parts) g.dispose();
-  return geo;
-}
-
-function figureMaterial() {
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05 });
-  mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', `#include <common>
-        attribute float aPart;
-        attribute vec3 aAnim;        // salınım evresi, genlik, diz çökme`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-        {
-          float side = aPart < 0.5 ? 0.0 : (aPart < 1.5 ? 1.0 : -1.0);
-          float crouch = aAnim.z;
-          if (side != 0.0) {
-            // Bacak: kalça etrafında salınım + diz çökmede öne kırılma
-            float a = sin(aAnim.x) * aAnim.y * side - crouch * 1.25 * (side > 0.0 ? 1.0 : 0.55);
-            float y = transformed.y - 0.93, z = transformed.z;
-            transformed.y = y * cos(a) - z * sin(a) + 0.93;
-            transformed.z = y * sin(a) + z * cos(a);
-          }
-          transformed.y -= crouch * 0.42;
-        }`);
-  };
-  return mat;
-}
 
 /* ── Sokak ızgarası ───────────────────────────────────────────────────── */
 
@@ -159,30 +97,39 @@ export class Army {
 
   /* ── Kurulum ─────────────────────────────────────────────────────── */
 
+  /* Uzaktaki askerler gerçek modelin resimleri (impostor.js): her takımın
+     modeli bir kez 8 açı × 12 pozdan atlasa çizilir, askerler kameraya
+     dönük kartlarda uygun kareyi gösterir. (Eskiden kutulardan yapılmış
+     figürlerdi; oyuncu "grafikleri çok kötü" dedi.)                       */
   _buildMeshes() {
-    const scene = this.game.scene;
-    const mat = figureMaterial();
-    const mk = (geo, cap) => {
-      const m = new THREE.InstancedMesh(geo, mat, cap);
+    const g = this.game, scene = g.scene;
+    const mk = (factory, rifle, cap) => {
+      const atlas = bakeAtlas(g, factory, rifle);
+      const geo = impostorGeometry();
+      const cell = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1);
+      cell.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute('aCell', cell);
+      const m = new THREE.InstancedMesh(geo, impostorMaterial(atlas), cap);
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      const anim = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
-      anim.setUsage(THREE.DynamicDrawUsage);
-      geo.setAttribute('aAnim', anim);
       m.count = 0;
       m.frustumCulled = false;
       m.castShadow = false;
-      m.receiveShadow = true;
+      m.receiveShadow = false;
       scene.add(m);
       return m;
     };
-    // Müttefik: zeytin yeşili kamuflaj; düşman: gri-mavi
-    this.meshA = mk(figureGeometry(0x3f4630, 0x2c3120, 0x353c26), ARMY.allies + 400);
-    this.meshE = mk(figureGeometry(0x52565b, 0x2b2f33, 0x23262a), ARMY.enemies + 400);
+    this.meshA = mk(g.soldiers, g.gear?.makeRifle('mar556') ?? null, ARMY.allies + 400);
+    this.meshE = mk(g.enemySoldiers ?? g.soldiers, g.gear?.makeRifle('mar556') ?? null, ARMY.enemies + 400);
   }
 
   dispose() {
     const g = this.game;
-    for (const m of [this.meshA, this.meshE]) { g.scene.remove(m); m.geometry.dispose(); }
+    for (const m of [this.meshA, this.meshE]) {
+      g.scene.remove(m);
+      m.geometry.dispose();
+      m.material.map?.dispose();
+      m.material.dispose();
+    }
     for (const p of this.promoted) if (p) g.enemies.despawn(p.e);
     for (const a of this.allyModels) {
       if (!a) continue;
@@ -558,7 +505,8 @@ export class Army {
         }
       }
       this.spd[i] = v;
-      this.phase[i] += v * dt * 2.6;
+      // Koşu klibi ~6.2 m/sn'de 0.7 sn: adım evresi hızla orantılı
+      this.phase[i] += v * dt * 1.45;
     }
   }
 
@@ -828,13 +776,12 @@ export class Army {
 
   _draw(cam, now) {
     const R2 = ARMY.drawR * ARMY.drawR;
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), qd = new THREE.Quaternion();
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
     const pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
-    const xAxis = new THREE.Vector3(1, 0, 0);
-    qd.setFromAxisAngle(xAxis, Math.PI / 2);        // sırt üstü yatış
     let na = 0, ne = 0;
-    const animA = this.meshA.geometry.attributes.aAnim, animE = this.meshE.geometry.attributes.aAnim;
-    const capA = animA.count, capE = animE.count;
+    const cellA = this.meshA.geometry.attributes.aCell, cellE = this.meshE.geometry.attributes.aCell;
+    const capA = cellA.count, capE = cellE.count;
+    const TAU = Math.PI * 2;
     for (let i = 0; i < this.N; i++) {
       if (this.prom[i] >= 0 || this.model[i] >= 0) continue;
       const dx = this.x[i] - cam.x, dz = this.z[i] - cam.z;
@@ -842,26 +789,28 @@ export class Army {
       const ally = this.team[i] === 0;
       const live = this.alive[i];
       if (!live && now - this.deadAt[i] > ARMY.corpseLife) continue;
-      const mesh = ally ? this.meshA : this.meshE, anim = ally ? animA : animE;
+      const mesh = ally ? this.meshA : this.meshE, cells = ally ? cellA : cellE;
       const n = ally ? na : ne;
       if (n >= (ally ? capA : capE)) continue;
-      q.setFromAxisAngle(up, this.h[i]);
-      if (live) {
-        pos.set(this.x[i], 0, this.z[i]);
-        anim.setXYZ(n, this.phase[i], this.spd[i] > 0.3 ? 0.55 : 0, this.cover[i] ? 1 : 0);
-      } else {
-        q.multiply(qd);
-        pos.set(this.x[i], 0.14, this.z[i]);
-        anim.setXYZ(n, 0, 0, 0);
-      }
+      // Kart kameraya döner (yalnızca dikey eksende); kare askerin kameraya
+      // göre açısından ve pozundan seçilir
+      const view = Math.atan2(-dx, -dz);
+      let frame;
+      if (!live) frame = POSE.dead;
+      else if (this.cover[i]) frame = POSE.crouch;
+      else if (this.spd[i] > 0.3) frame = POSE.run + (Math.floor(((this.phase[i] % TAU) + TAU) % TAU / TAU * 8) % 8);
+      else frame = this.tgt[i] !== -1 ? POSE.aim : POSE.idle;
+      cells.setX(n, cellIndex(this.h[i], view, frame));
+      q.setFromAxisAngle(up, view);
+      pos.set(this.x[i], 0, this.z[i]);
       m4.compose(pos, q, one);
       mesh.setMatrixAt(n, m4);
       if (ally) na++; else ne++;
     }
     this.meshA.count = na; this.meshE.count = ne;
-    for (const [m, a] of [[this.meshA, animA], [this.meshE, animE]]) {
+    for (const [m, c] of [[this.meshA, cellA], [this.meshE, cellE]]) {
       m.instanceMatrix.needsUpdate = true;
-      a.needsUpdate = true;
+      c.needsUpdate = true;
     }
   }
 

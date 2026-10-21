@@ -832,8 +832,14 @@ Suikast'ın devamı; aynı şehir (`OP3.road` sonundaki O). Kontrol noktaları:
    menzil dışından kayıpsız geçiyordu). Karşı taarruz grupları 220 m'de
    uyanır. Saldırıdaki kol 4 sn'de bir en yakın düşmana yönelir
    (`_retarget`), yoksa kuleye varıp bekliyordu. Yakın 12 düşman gerçek
-   `Enemy` (terfi), yakın 10 müttefik SWAT modeli (ölünce ragdoll); gerisi
-   iki `InstancedMesh` (bacak salınımı ve diz çökme gölgelendiricide).
+   `Enemy` (terfi), yakın 14 müttefik SWAT modeli (ölünce ragdoll); gerisi
+   iki `InstancedMesh` IMPOSTOR (`impostor.js`): görev başında gerçek SWAT /
+   FSB modeli tüfeğiyle 8 açı × 12 pozdan (bekleme, nişan, çömelme, ölü,
+   8 koşu karesi) 1536×1024 yarım-float atlasa çizilir (~0.3 sn); kart
+   kameraya döner, hücre `cellIndex(yön, bakış açısı, poz)`. Ortografik
+   kameranın kutusu BAKIŞ MERKEZİNE göre verilir (dünya y'si verilince
+   askerin yalnız üst yarısı karenin dibine çiziliyordu). Eskiden kutu
+   figürlerdi — "grafikler çok kötü" denince değiştirildi.
    Oyuncu mermisi uzak düşmana `army.raycast` (game.js `_resolveShot`).
    YÖNETMEN: zayiat düşman kaybıyla orantılı tutulur; 500'de durur, son %5
    ancak zayiat 500 olunca teslim olur. Ölçülen: ~13 dk oyun, zayiat tam
