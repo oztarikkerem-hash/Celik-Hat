@@ -38,13 +38,14 @@ export class Player {
     this.health = 100;
     this.lastHurt = -99;
 
-    // Yorgunluk: 6 saniye kesintisiz koşuda biter, bıraktıktan 1 saniye
+    // Yorgunluk: 60 saniye kesintisiz koşuda biter (kullanıcı isteğiyle
+    // eskisinin 10 katı), bıraktıktan 1 saniye
     // sonra dolmaya başlar ve 5 saniyede tamamen dolar. Tamamen bitince
     // "tükenmiş" olursun: %30'a kadar dolmadan tekrar koşamazsın.
     this.stamina = 1;
     this.exhausted = false;
     this.lastSprint = -99;
-    this.sprintDrain = 1 / 6;
+    this.sprintDrain = 1 / 60;
     this.sprintRegen = 1 / 5;
     this.regenDelay = 1;
 
@@ -172,7 +173,8 @@ export class Player {
     // Taşınan yük: ağır silahla hareket ederken nefes yavaşça erir,
     // durunca yavaşça toparlanır. Yorgunluk dolumuyla aynı hesapta yer
     // alır — yoksa dolum yükü ezer ve ağırlık hiç hissedilmez.
-    const carry = carryWeight * (moving ? 1 : 0.5);
+    // Yük de koşuyla aynı oranda (10 kat) yavaş yakar
+    const carry = carryWeight * 0.1 * (moving ? 1 : 0.5);
 
     if (wantsSprint && advancing) {
       this.lastSprint = now;

@@ -98,8 +98,9 @@ Yeni bir modül eklenince ya da import map'e sabit bir giriş gerekince
   çarpınca `pushProp`, mermi isabetinde `hitProp` fizik itmesi uygular.
 - **Vuruş bölgeleri**: `weapons.js` içindeki `HEADSHOT_MULT` (3.5),
   `BODY_MULT` (1), `LEG_MULT` (0.5). Asker canı 120, oyuncu canı 100.
-- **Yorgunluk**: koşu 6 sn, 1 sn sonra dolmaya başlar, 5 sn'de dolar.
-  Ağır silahların `weight` alanı taşırken nefes yakar (minigun 0.24).
+- **Yorgunluk**: koşu 60 sn (eskisinin 10 katı), 1 sn sonra dolmaya başlar,
+  5 sn'de dolar. Ağır silahların `weight` alanı taşırken nefes yakar
+  (minigun 0.24, `player.js`'te ×0.1 ile — koşuyla aynı oranda).
 - Arayüz metinleri ve kod yorumları **Türkçe**.
 
 ## Varlıklar
