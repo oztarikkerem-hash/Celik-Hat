@@ -318,8 +318,11 @@ export class Hud {
     this.el.homeControls.hidden = !this.el.homeControls.hidden;
   }
 
-  /** Görev seçim kartları. onPick(mission) seçimde çağrılır. */
-  buildMissionCards(missions, book, selectedId, onPick) {
+  /**
+   * Görev seçim kartları. onPick(mission) seçimde çağrılır.
+   * saved: kaydı olan görevler (Kaydet ve çık) · onFresh(mission): kaydı sil
+   */
+  buildMissionCards(missions, book, selectedId, onPick, saved = new Set(), onFresh = null) {
     this.el.missionCards.innerHTML = '';
     for (const m of missions) {
       const { done, value } = book.get(m);
@@ -328,12 +331,14 @@ export class Hud {
       li.dataset.id = m.id;
       li.innerHTML = `
         <div class="card-head">
-          <strong>${m.name}${m.special ? '<span class="tag">ÖZEL</span>' : ''}${done ? '<span class="tag again">TEKRAR OYNA</span>' : ''}</strong>
+          <strong>${m.name}${m.special ? '<span class="tag">ÖZEL</span>' : ''}${done ? '<span class="tag again">TEKRAR OYNA</span>' : ''}${saved.has(m.id) ? '<span class="tag saved">KAYITLI</span>' : ''}</strong>
           <span class="card-count">${value}/${m.target}</span>
         </div>
         <p>${m.desc}</p>
-        <div class="card-bar"><span style="width:${Math.round((value / m.target) * 100)}%"></span></div>`;
+        <div class="card-bar"><span style="width:${Math.round((value / m.target) * 100)}%"></span></div>
+        ${saved.has(m.id) ? '<p class="card-save">Kaldığın yerden devam edilir · <button type="button" class="card-fresh">Kaydı sil, baştan başla</button></p>' : ''}`;
       li.addEventListener('click', () => onPick(m));
+      li.querySelector('.card-fresh')?.addEventListener('click', (e) => { e.stopPropagation(); onFresh?.(m); });
       this.el.missionCards.append(li);
     }
   }
@@ -400,6 +405,22 @@ export class Hud {
       el.classList.remove('in');
       this._achvT = setTimeout(() => { el.hidden = true; this._nextAchievement(); }, 350);
     }, 4500);
+  }
+
+  /** Ekranın altında kısa bildirim (menülerde de görünür). */
+  toast(text, ms = 3600) {
+    let el = document.getElementById('toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'toast';
+      el.className = 'toast';
+      el.setAttribute('role', 'status');
+      document.body.append(el);
+    }
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => { el.hidden = true; }, ms);
   }
 
   feed(text, crit = false) {

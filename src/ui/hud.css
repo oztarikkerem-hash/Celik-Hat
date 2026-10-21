@@ -2388,3 +2388,19 @@ body.op4-assault .t-cmd { display: block; }
 .gun-shop footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
   font: 400 12px var(--mono); color: var(--olive); }
 .gun-shop footer kbd { margin-left: 4px; }
+
+/* Kaydet ve çık */
+.toast {
+  position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  z-index: 60; padding: 10px 16px; background: rgba(11, 15, 13, 0.92); border: 1px solid var(--jade);
+  font: 500 14px var(--mono); color: var(--bone); pointer-events: none;
+}
+.toast[hidden] { display: none; }
+.mission-card .tag.saved { background: var(--jade); color: var(--ink); }
+.card-save { margin: 6px 0 0; font: 400 12px var(--mono); color: var(--jade); }
+.card-fresh {
+  background: none; border: 0; padding: 0; color: var(--olive); text-decoration: underline;
+  font: inherit; cursor: pointer;
+}
+.card-fresh:hover, .card-fresh:focus-visible { color: var(--bone); }
+.pause .save-btn { background: var(--jade); }

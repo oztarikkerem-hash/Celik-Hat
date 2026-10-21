@@ -780,6 +780,52 @@ export class Op3 {
     return false;
   }
 
+  /* ── Kayıt ────────────────────────────────────────────────────────── */
+
+  save() {
+    const g = this.game;
+    const p = {
+      phase: this.phase, objective: this.objective ?? null, hasPistol: this.hasPistol,
+      disguised: this.disguised, phoneState: this.phoneState,
+    };
+    if (this.phase === 'road' || this.phase === 'toRoad') p.s = this.road.progress(this.jeep?.pos ?? g.player.pos);
+    return p;
+  }
+
+  /** begin()'den sonra. @returns oyuncu konumu da yüklensin mi */
+  restore(p) {
+    const g = this.game;
+    if (p.phase === 'road' || p.phase === 'toRoad') {
+      g.vehicles.enter(this.jeep);
+      this._toRoad();
+      setTimeout(() => {
+        if (!this.active || this.phase !== 'road') return;
+        const s = Math.max(30, Math.min(OP3.cityAt - 50, p.s ?? 30));
+        const v = this.jeep;
+        v.pos.copy(this.road.point(s, 0));
+        const t = this.road.tangent(s);
+        v.yaw = Math.atan2(-t.z, t.x);
+        g.player.yaw = v.yaw - Math.PI / 2;
+        this.road.update(s, true);
+        if (p.phoneState === 'read' || p.phoneState === 'open') this.phoneState = 'read';
+      }, 1000);
+      return false;
+    }
+    if (p.phase === 'city' || p.phase === 'end') {
+      g.vehicles.exit();
+      this.hasPistol = p.hasPistol;
+      this.disguised = p.disguised;
+      if (this.hasPistol && this.pistolProp) this.pistolProp.visible = false;
+      // Konuşma/suikast anı ve yağma (cesetler kaydedilmez) bir önceki hedefe döner
+      const obj = { talk: 'boss', kill: 'boss', loot: 'hunt' }[p.objective] ?? p.objective ?? 'house';
+      this.objective = obj;
+      this.navOn = obj === 'house' || obj === 'boss';
+      this.navTarget = obj === 'house' ? this._houseDoor() : this.hqSpot?.clone() ?? this.city.center(...OP3.hq);
+      return true;
+    }
+    return false;                      // giriş: baştan
+  }
+
   /* ── Her kare ─────────────────────────────────────────────────────── */
 
   update(dt, now) {

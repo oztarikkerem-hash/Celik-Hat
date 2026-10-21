@@ -870,6 +870,39 @@ Suikast'ın devamı; aynı şehir (`OP3.road` sonundaki O). Kontrol noktaları:
   (`CARRY_MAX`, bıçak sayılmaz): doluysa önce "Bırak".
 - `frame()`'in menü dalı arenada (`_arenaOn`) gizli haritayı kurmaz.
 
+## Kaydet ve çık (`savegame.js`)
+
+- Esc → duraklatma → **Kaydet ve çık** (`game.saveAndQuit`) /
+  **Kaydetmeden çık**. Kayıt görev başına: `localStorage 'celikhat.kayitlar'`
+  → `{ [görev | 'serbest']: kayıt }`. Görev listesinde **KAYITLI** etiketi,
+  başlat düğmesi "Kaldığın yerden devam et"; kartta "Kaydı sil, baştan
+  başla". `startMission(id)` kayıt varsa `resumeSave`; `retry` (Tekrar dene)
+  kaydı yok sayar. Görev bitince (`_showVictory`) kayıt silinir; ölünce kalır.
+- Ortak: puan, öldürme, isabet, can (en az 25), konum/bakış, `allowed` silah
+  seti + her silahın şarjör/yedek mermisi, el bombası, dalga, görev ilerlemesi.
+  Düşmanlar tek tek saklanmaz: dalga baştan başlar (giriş sinematiği atlanır).
+- Görev türüne özel `save()/restore()` (restore: begin'den sonra; dönen
+  değer oyuncu konumu da yüklensin mi):
+  - op2: yol ilerlemesi + pusu sırası, ya da çatışma dalgası / ilerleme.
+  - op3: aşama, hedef (konuşma/suikast → 'boss', yağma → 'hunt': cesetler
+    yok), tabanca, kılık, telefon; yoldaysa ilerleme.
+  - op4: aşama; yolda ilerleme (araç geri yöne); taarruzda ORDUNUN TAMAMI
+    (`Army.serialize`: tipli diziler base64, ~230 KB) + kule/çatı hedefi.
+
+## Blender yapıları (`structures.js`)
+
+- `ev`: `~/Desktop/home .blend` ('Ev' koleksiyonu) → `tools/export_ev.py`
+  → `assets/structures/ev.glb` (400 KB). Is lekeleri yordamsal (gürültü)
+  olduğu için UV açılıp Cycles ile DOKUYA PİŞİRİLİR (yoksa glTF'te beyaz).
+  Kapı −Z. Varlıklarla yüklenir; sonra `world.rebuildSectors()`.
+  - Haritada `kulube` arketipi artık bu ev (+ bahçe duvarı, odun yığını);
+    sanayi ve karlı haritalara da eklendi. Ev yoksa eski kutu kulübe.
+  - Şehirde parsellerin %12'si iki müstakil ev (kapı sokağa).
+- `istasyon`: tank bölümündeki benzinlik (`tankgame/istasyon.glb`, 3 MB),
+  şehirde blokların %3'ü; ilk gerektiğinde yüklenir.
+- Çarpışma/mermi: modelin parçaları yerine görünmez kutular (`LIB.boxes`).
+  Klonlar geometriyi paylaşır → `userData.shared` (sektör sökülürken silinmez).
+
 ## Telefon ve tablet (YALNIZCA yatay)
 
 - `src/ui/touch.js`: `(pointer: coarse)` ve ince işaretçi yoksa `body.touch`.

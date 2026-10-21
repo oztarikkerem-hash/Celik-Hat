@@ -38,6 +38,8 @@ import { Op2 } from './op2.js';
 import { Op3 } from './op3.js';
 import { Op4, OP4_VOICES } from './op4.js';
 import { GunShop } from './gunshop.js';
+import { structures } from './structures.js';
+import { SaveGame } from './savegame.js';
 import { TouchControls, isTouchDevice } from '../ui/touch.js';
 import { Input } from '../core/input.js';
 import { AudioEngine } from '../core/audio.js';
@@ -233,7 +235,11 @@ export class Game {
       }, aniso),
       // Zırhlı araç: dosya yoksa oyun araçsız açılır
       this.vehicles.load(),
+      // Blender'de yapılmış ev (köy evleri, şehirde müstakil evler)
+      structures.load('ev'),
     ]);
+    // Ev yüklenmeden kurulmuş sektörler kutu kulübeyle kalmasın
+    this.world.rebuildSectors();
 
     // Birinci şahıs eller: müttefiklerin SWAT modelinin kolları
     this.weaponry.attachArms(new FPArms(this.soldiers.template, this.soldiers.height));
@@ -325,6 +331,7 @@ export class Game {
     on('finale-home-btn', () => this.toHome());
     on('finale-retry-btn', () => this.startMission('baskin', true));
     on('resume-btn', () => this.resume());
+    on('save-quit-btn', () => this.saveAndQuit());
     on('retry-btn', () => this.startMission(this.selectedMission, true));
     on('menu-btn', () => this.toHome());
     on('go-home-btn', () => this.toHome());
@@ -525,6 +532,11 @@ export class Game {
    * seçimler kullanılır. id: görev (null = serbest hat)
    */
   startMission(id, retry = false) {
+    // Kayıt varsa (Kaydet ve çık) kaldığın yerden; "Tekrar dene" kaydı yok sayar
+    if (!retry) {
+      const save = SaveGame.get(id);
+      if (save) { this.resumeSave(save); return; }
+    }
     // Suikast: silahsız başlanır, silah/alan seçimi yok; ölünce şehirden
     if (id === 'baskin3') { this.startOp3(retry); return; }
     if (id === 'baskin4') { this.startOp4(retry); return; }
@@ -1036,6 +1048,102 @@ export class Game {
     this.audio.resume();
   }
 
+  /* ── Kaydet ve çık ─────────────────────────────────────────────────── */
+
+  /** Duraklatma menüsü: oyunun durumunu görevin kaydına yaz, ana menüye dön. */
+  saveAndQuit() {
+    if (this.state !== 'paused') return;
+    const ok = SaveGame.put(this.selectedMission, this._snapshot());
+    this.toHome();
+    this.hud.toast?.(ok ? 'Oyun kaydedildi — göreve basınca kaldığın yerden devam' : 'Kayıt yazılamadı (tarayıcı depolaması kapalı)');
+  }
+
+  _snapshot() {
+    const w = this.weaponry, p = this.player;
+    const mode = this.op4.active ? 'op4' : this.op3.active ? 'op3' : this.op2.active ? 'op2'
+      : this.raid.active ? 'raid' : 'normal';
+    const id = this.selectedMission;
+    return {
+      v: 1, mode, mission: id ?? null, map: this.mapId,
+      pick: [...this.pick4], raidPick: [...this.raidPick],
+      score: this.score, kills: this.kills, shotsFired: this.shotsFired, shotsHit: this.shotsHit,
+      player: { x: p.pos.x, y: p.pos.y, z: p.pos.z, yaw: p.yaw, pitch: p.pitch, health: p.health },
+      weapons: {
+        allowed: w.allowed ? [...w.allowed] : null,
+        current: w.current.def.id,
+        ammo: Object.fromEntries(w.slots.map((s) => [s.def.id, [s.ammo, s.reserve]])),
+      },
+      grenades: this.grenades.count,
+      wave: this.enemies.wave,
+      progress: id ? (this.missions.progress.get(id) ?? 0) : 0,
+      op: mode === 'op4' ? this.op4.save() : mode === 'op3' ? this.op3.save() : mode === 'op2' ? this.op2.save() : null,
+    };
+  }
+
+  /** Kayıttan devam: görevi kur, kaydedilen aşamaya geç, oyuncuyu yükle. */
+  async resumeSave(s) {
+    const id = s.mission;
+    this.selectedMission = id;
+    this.missions.focus?.(id);
+    if (s.map) this.mapId = s.map;
+    let restorePos = true;
+    if (s.mode === 'op4') {
+      const ph = s.op?.phase;
+      this.op4.checkpoint = ph === 'assault' ? 'assault' : 'escape';
+      await this.startOp4(true);
+      restorePos = this.op4.restore(s.op ?? {});
+    } else if (s.mode === 'op3') {
+      this.op3.checkpoint = s.op?.phase === 'city' || s.op?.phase === 'end' ? 'city' : null;
+      await this.startOp3(true);
+      restorePos = this.op3.restore(s.op ?? {});
+    } else if (s.mode === 'op2') {
+      await this.startOp2(s.pick);
+      restorePos = this.op2.restore(s.op ?? {});
+    } else {
+      if (s.mode === 'raid') {
+        this.raidPick = new Set(s.raidPick);
+        await this.startRaid(s.raidPick);
+      } else {
+        this.pick4 = new Set(s.pick);
+        await this._startWithPick(id);
+      }
+      // Giriş sinematiği atlanır; kaldığın dalga baştan başlar
+      if (this.state === 'cinematic') this.activeCine?.skip();
+      this.enemies.reset();
+      this.enemies.startWave(Math.max(1, s.wave || 1));
+    }
+    // Ortak durum
+    this.score = s.score ?? 0;
+    this.kills = s.kills ?? 0;
+    this.shotsFired = s.shotsFired ?? 0;
+    this.shotsHit = s.shotsHit ?? 0;
+    this.hud.setScore(this.score);
+    if (id) this.missions.progress.set(id, s.progress ?? 0);
+    const w = this.weaponry;
+    if (s.weapons) {
+      w.allowed = s.weapons.allowed ? new Set(s.weapons.allowed) : null;
+      for (const sl of w.slots) {
+        const a = s.weapons.ammo?.[sl.def.id];
+        if (a) { sl.ammo = a[0]; sl.reserve = a[1]; }
+      }
+      const cur = w.slots.find((sl) => sl.def.id === s.weapons.current && w.usable(sl.def.id));
+      if (cur) w.equipSlot(cur.def.slot);
+      this.hud.buildWeaponStrip(w.slots.filter((x) => w.usable(x.def.id)), w.current.def.id);
+    }
+    this.grenades.count = s.grenades ?? this.grenades.count;
+    this.hud.setGrenades(this.grenades.count);
+    const p = this.player;
+    if (s.player) {
+      p.health = Math.max(25, s.player.health ?? 100);
+      if (restorePos && !this.vehicles.driving) {
+        p.pos.set(s.player.x, s.player.y ?? 0, s.player.z);
+        p.yaw = s.player.yaw ?? p.yaw;
+        p.pitch = s.player.pitch ?? 0;
+      }
+    }
+    this.hud.banner('KALDIĞIN YERDEN', 'KAYIT YÜKLENDİ', 2600);
+  }
+
   /** Ana ekrandaki haftalık ödül takvimi. kazanilan: az önce alınan puan. */
   _drawWeekly(kazanilan = 0) {
     const w = this.weekly;
@@ -1066,13 +1174,12 @@ export class Game {
   showMissions() {
     this.state = 'missions';
     this.input.releaseLock();
-    this.hud.buildMissionCards(MISSIONS, this.missions, this.selectedMission, (m) => {
-      this.selectedMission = m.id;
-      this.hud.buildMissionCards(MISSIONS, this.missions, this.selectedMission, (x) => {
-        this.selectedMission = x.id;
-        this.showMissions();
-      });
-    });
+    const saved = new Set(MISSIONS.filter((m) => SaveGame.has(m.id)).map((m) => m.id));
+    const pick = (m) => { this.selectedMission = m.id; this.showMissions(); };
+    const fresh = (m) => { SaveGame.drop(m.id); this.showMissions(); };
+    this.hud.buildMissionCards(MISSIONS, this.missions, this.selectedMission, pick, saved, fresh);
+    const btn = document.getElementById('mission-start-btn');
+    if (btn) btn.textContent = saved.has(this.selectedMission) ? 'Kaldığın yerden devam et' : 'Seçili görevle başla';
     this.nametags.setVisible(false);
     this.hud.screen('missionsScreen');
   }
@@ -1138,6 +1245,7 @@ export class Game {
   }
 
   _showVictory() {
+    SaveGame.drop(this.selectedMission);            // görev bitti: kayıt silinir
     this.state = 'victory';
     this.input.releaseLock();
     this.music.setLevel(0.5, 1.2);

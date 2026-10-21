@@ -17,6 +17,7 @@ import { concreteTexture, asphaltTexture } from './textures.js';
 import {
   buildPark, buildStreetTrees, buildShopfront, streetFaces, pickShopKind, skyscraperMaterial, GUN_SHOP,
 } from './citydetail.js';
+import { structures } from './structures.js';
 
 export const CITY = {
   block: 96,
@@ -297,6 +298,8 @@ export class City {
     const kindR = rand();
     const park = !special && j > 0 && kindR < 0.11;
     const towers = !special && !park && j > 1 && kindR < 0.21;
+    // Benzin istasyonu (Blender modeli, ilk gerektiğinde yüklenir): %3
+    const station = !special && !park && !towers && j > 1 && kindR > 0.97;
     let benches = [];
     const shops = [];
     if (park) benches = buildPark(ctx).benches;
@@ -307,9 +310,23 @@ export class City {
     const half = span / 2;
     const tall = towers ? Math.floor(rand() * 4) : -1;          // gökdelen parseli
     for (let pz = 0; pz < 2; pz++) for (let px = 0; px < 2; px++) {
-      if (park) continue;
+      if (park || station) continue;
       if (special?.clear) continue;              // bloğun tamamı özel yapıya ayrılmış
       if (special?.parcel && special.parcel[0] === px && special.parcel[1] === pz) continue;
+      // Müstakil evler (Blender'deki ev): parselin %12'si, sokağa bakan iki ev
+      if (!special && !towers && structures.get('ev') && rand() < 0.12) {
+        const face = streetFaces(px, pz)[Math.floor(rand() * 2)];
+        const cx = lotIn + px * half + half / 2, cz = lotIn + pz * half + half / 2;
+        // Kapı yüzün (sokağın) tarafına: yerel −Z dünyada sokak yönü olmalı
+        const rot = { s: Math.PI, n: 0, w: Math.PI / 2, e: -Math.PI / 2 }[face];
+        const n = { w: [-1, 0], e: [1, 0], s: [0, -1], n: [0, 1] }[face];
+        const t = [n[1], n[0]];
+        for (const side of [-1, 1]) {
+          const hx = cx + n[0] * 8 + t[0] * side * 6.5, hz = cz + n[1] * 8 + t[1] * side * 6.5;
+          structures.place('ev', group, hx, -hz, rot, { solids, colliders }, c0);
+        }
+        continue;
+      }
       const sky = tall === pz * 2 + px || (towers && rand() < 0.25);
       const fw = sky ? half - 6 - rand() * 4 : half - 3 - rand() * 9;
       const fd = sky ? half - 6 - rand() * 4 : half - 3 - rand() * 9;
@@ -382,6 +399,8 @@ export class City {
       }
     }
 
+    if (station) this._placeStation(group, c0, colliders, solids, i, j);
+
     // Ağaçlı sokaklar (parkta zaten ağaç var)
     if (!park && rand() < 0.55) buildStreetTrees(ctx);
 
@@ -399,6 +418,23 @@ export class City {
     const fixture = { colliders, solids, cover };
     this.game.world.addFixture(fixture);
     this.chunks.set(`${i},${j}`, { i, j, group, fixture, lights, benches, shops, park });
+  }
+
+  /* Benzin istasyonu bloğun ortasına, pompalar güney sokağına bakar.
+     Model 3 MB: ilk istasyon bloğu kurulurken yüklenir, gelince bloğa
+     eklenir (blok o arada söküldüyse eklenmez). */
+  _placeStation(group, c0, colliders, solids, i, j) {
+    const B = CITY.block;
+    const put = () => {
+      structures.place('istasyon', group, B / 2, -B / 2, 0, { solids, colliders }, c0);
+      this.game.world._rebuildIndex();
+    };
+    if (structures.get('istasyon')) put();
+    else {
+      structures.load('istasyon').then((m) => {
+        if (m && this.active && this.chunks.get(`${i},${j}`)?.group === group) put();
+      });
+    }
   }
 
   /** Oyuncunun önündeki silah dükkânı (E menzilinde) ya da null. */

@@ -95,6 +95,7 @@ F · KULLAN, SİLAH ↻, TEDAVİ; üstte duraklat.
 | H | Tedavi: önce sargı bezi, sonra ilk yardım kiti |
 | P | Silahı cebe koy / çıkar (Suikast'ta mesaj gelince önce telefon) |
 | H | Tümgeneral taarruzunda komuta menüsü (yaralıyken tedavi) |
+| Esc | Duraklat — **Kaydet ve çık**: göreve tekrar basınca kaldığın yerden devam |
 | M | Sesi aç / kapat |
 
 Tank bölümünde: W/S sür, A/D dön, E (basılı) tepe makinelisi ya da

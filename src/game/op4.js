@@ -1137,6 +1137,47 @@ export class Op4 {
     };
   }
 
+  /* ── Kayıt ────────────────────────────────────────────────────────── */
+
+  /** Kaydet ve çık: aşama, hedef, yol ilerlemesi, ordunun tamamı. */
+  save() {
+    const g = this.game;
+    const p = { phase: this.phase, objective: this.objective ?? null };
+    if (this.phase === 'drive' && this.road) p.s = this.road.progress(g.vehicles.driving?.pos ?? g.player.pos);
+    if (this.phase === 'assault' && this.army) p.army = this.army.serialize();
+    return p;
+  }
+
+  /** begin()'den sonra: kaydedilen aşamaya geç. @returns oyuncu konumu da yüklensin mi */
+  restore(p) {
+    const g = this.game;
+    if (p.phase === 'drive' || p.phase === 'camp') {
+      // Düşman aracıyla patikada: kaydedilen noktadan sür
+      g.vehicles.enter(this.exitJeep);
+      this._startDrive();
+      const s = p.phase === 'camp' ? OP4.campS + 40 : Math.max(OP4.campS + 40, p.s ?? OP3.road.length);
+      const v = this.exitJeep;
+      v.pos.copy(this.road.point(s, 1.4));
+      const t = this.road.tangent(s);
+      v.yaw = Math.atan2(t.z, -t.x);              // geri yön (karargâha doğru)
+      v.speed = 0;
+      g.player.yaw = v.yaw - Math.PI / 2;
+      this.road.update(s, true);
+      return false;
+    }
+    if (p.phase === 'assault' && p.army && this.army) {
+      this.army.restore(p.army);
+      const obj = p.objective;
+      if (this.army.surrendered || obj === 'tower' || obj === 'lift' || obj === 'roof' || obj === 'flag') {
+        this.objective = obj === 'roof' || obj === 'flag' ? 'roof' : 'tower';
+        this.navTarget = this.towerDoor.clone();
+        this.navOn = this.objective === 'tower';
+        if (this.objective === 'roof') { g.scene.fog.far = 520; g.scene.fog.near = 120; }
+      }
+    }
+    return true;
+  }
+
   /* ── Her kare ─────────────────────────────────────────────────────── */
 
   update(dt, now) {

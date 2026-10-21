@@ -24,6 +24,7 @@ import { CITY } from './city.js';
 import { Soldier } from './soldier.js';
 import { Ragdoll } from './ragdoll.js';
 import { bakeAtlas, impostorMaterial, impostorGeometry, cellIndex, POSE } from './impostor.js';
+import { packArray, unpackInto } from './savegame.js';
 
 export const ARMY = {
   allies: 2000,
@@ -273,6 +274,48 @@ export class Army {
         if (this.col[i] === c && this.alive[i]) this._personalGoal(i);
       }
     }
+  }
+
+  /* ── Kayıt (Kaydet ve çık) ───────────────────────────────────────── */
+
+  /** Bütün askerlerin durumu (tipli diziler base64): ~150 KB. */
+  serialize() {
+    const N = this.N;
+    const a = {};
+    for (const k of ['x', 'z', 'gx', 'gz', 'ox', 'oz', 'h', 'hp', 'team', 'col', 'alive', 'cover']) a[k] = packArray(this[k], N);
+    return {
+      N, allyEnd: this.allyEnd, deadA: this.deadA, deadE: this.deadE, surrendered: this.surrendered,
+      marker: this.marker ? [this.marker.x, this.marker.z] : null,
+      columns: this.columns.map((c) => ({ order: c.order, t: [c.target.x, c.target.z] })),
+      groups: this.groups.map((g) => [g.x, g.z, g.counter ? 1 : 0, g.active ? 1 : 0]),
+      a,
+    };
+  }
+
+  restore(s) {
+    const g = this.game;
+    for (const p of this.promoted) if (p) g.enemies.despawn(p.e);
+    this.promoted = [];
+    for (const m of this.allyModels) if (m && m.i >= 0) { m.s.root.visible = false; m.i = -1; }
+    this.N = s.N;
+    this.allyEnd = s.allyEnd;
+    for (const [k, v] of Object.entries(s.a)) unpackInto(this[k], v);
+    this.deadA = s.deadA;
+    this.deadE = s.deadE;
+    this.surrendered = s.surrendered;
+    this.marker = s.marker ? new THREE.Vector3(s.marker[0], 0, s.marker[1]) : null;
+    this.columns = s.columns.map((c) => ({ order: c.order, target: new THREE.Vector3(c.t[0], 0, c.t[1]), alive: 0 }));
+    this.groups = s.groups.map(([x, z, counter, active]) => ({ x, z, counter: Boolean(counter), active: Boolean(active) }));
+    for (let i = 0; i < this.N; i++) {
+      this.prom[i] = -1;
+      this.model[i] = -1;
+      this.tgt[i] = -1;
+      this.deadAt[i] = -1e9;            // eski cesetler yüklenmez
+      this.cd[i] = Math.random() * 2;
+      this.think[i] = 0;
+      if (this.team[i] === 0 && this.alive[i]) this.columns[this.col[i]].alive++;
+    }
+    this._grid();
   }
 
   /** Bir kolun ağırlık merkezi ve yaşayan asker sayısı. */

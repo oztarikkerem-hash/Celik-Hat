@@ -192,6 +192,43 @@ export class Op2 {
     g.hud.feed('W A S D sür · 1: kuleye geç (arkadaşın sürer) · 2: direksiyona geç', true);
   }
 
+  /* ── Kayıt ────────────────────────────────────────────────────────── */
+
+  save() {
+    const g = this.game;
+    return {
+      phase: this.phase, ambushIdx: this.ambushIdx, wave: g.enemies.wave,
+      s: this.phase === 'road' && this.v ? this.road.progress(this.v.pos) : null,
+    };
+  }
+
+  /** begin()'den sonra. @returns oyuncu konumu da yüklensin mi */
+  restore(p) {
+    const g = this.game;
+    if (p.phase === 'road') {
+      const s = Math.max(24, p.s ?? 24);
+      const v = this.v;
+      v.pos.copy(this.road.point(s, 1.6));
+      const t = this.road.tangent(s);
+      v.yaw = Math.atan2(-t.z, t.x);
+      g.player.yaw = v.yaw - Math.PI / 2;
+      this.ambushIdx = p.ambushIdx ?? 0;
+      this.road.update(s, true);
+      return false;
+    }
+    // Çatışma ve sonrası: orman sahası, kaldığın dalgadan
+    this._setupBattle();
+    if (p.phase === 'battle' || p.phase === 'arrive') {
+      this.waveAt = 0;
+      g.enemies.startWave(Math.max(1, p.wave || 1));
+    } else {
+      g.enemies.state = 'idle';
+      this.phase = 'advance';
+      g.hud.banner('KALDIĞIN YERDEN', 'ROKETATARA İLERLE — OPERATÖRE YAKLAŞ, E', 5000);
+    }
+    return true;
+  }
+
   /** Görevden çıkış (ana menü, yeni tur): her şey eski hâline. */
   end() {
     if (!this.active) return;
