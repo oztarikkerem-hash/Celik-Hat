@@ -17,8 +17,8 @@ import {
   barrelTexture, wallTexture, buildingTexture, skyTexture, sunTexture, asphaltTexture,
   sandTexture, grassTexture, snowTexture, dirtTexture, mudTexture, themedSkyTexture, plankTexture,
   rockTexture, swampTexture,
-} from './textures.js';
-import { MAPS, weightedPick } from './maps.js';
+} from './textures.js?v=mapfix-20261022a';
+import { MAPS, weightedPick } from './maps.js?v=mapfix-20261022a';
 
 const SECTOR = 28;
 const GRID = 9;            // 9×9 sektör = 252 m kare saha
