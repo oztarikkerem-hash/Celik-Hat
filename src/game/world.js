@@ -16,6 +16,7 @@ import {
   concreteTexture, roadTexture, containerTexture, crateTexture,
   barrelTexture, wallTexture, buildingTexture, skyTexture, sunTexture, asphaltTexture,
   sandTexture, grassTexture, snowTexture, dirtTexture, mudTexture, themedSkyTexture, plankTexture,
+  rockTexture, swampTexture,
 } from './textures.js';
 import { MAPS, weightedPick } from './maps.js';
 
@@ -192,6 +193,10 @@ export class World {
       palm: new THREE.MeshStandardMaterial({ color: 0x5f7a34, roughness: 0.85, flatShading: true, side: THREE.DoubleSide }),
       snowCap: new THREE.MeshStandardMaterial({ color: 0xf2f6fa, roughness: 0.8, flatShading: true }),
       rock: new THREE.MeshStandardMaterial({ color: 0x6f6d66, roughness: 0.92, flatShading: true }),
+      tileRoof: new THREE.MeshStandardMaterial({ color: 0x914a35, roughness: 0.88, flatShading: true }),
+      water: new THREE.MeshStandardMaterial({ color: 0x315968, roughness: 0.24, metalness: 0.16, transparent: true, opacity: 0.86, depthWrite: false, side: THREE.DoubleSide }),
+      swampWater: new THREE.MeshStandardMaterial({ color: 0x35493d, roughness: 0.3, metalness: 0.04, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
+      reed: new THREE.MeshStandardMaterial({ color: 0x68764a, roughness: 0.92, flatShading: true }),
       tent: new THREE.MeshStandardMaterial({ color: 0x8d7f5a, roughness: 0.95, side: THREE.DoubleSide }),
     };
 
@@ -586,6 +591,120 @@ export class World {
       for (let i = 0; i < 3; i++) {
         prop(G.box, M.crate, (rand() - 0.5) * 10, 0.75, (rand() - 0.5) * 10, 1.5, 1.5, 1.5, 32);
       }
+    } else if (archetype === 'liman') {
+      // Rıhtım alanı: yarı saydam sığ su, ahşap iskele ve fizik çarpıştırıcılı vinç.
+      const x = (rand() - 0.5) * (SECTOR - 12);
+      const z = (rand() - 0.5) * (SECTOR - 12);
+      if (!inRoad(x, z) && !inZone(x, z, 5)) {
+        const pool = new THREE.Mesh(new THREE.PlaneGeometry(9 + rand() * 3, 7 + rand() * 3), M.water);
+        pool.rotation.x = -Math.PI / 2;
+        pool.position.set(center.x + x, 0.035, center.z + z);
+        group.add(pool);
+        const dockZ = z + 3.1;
+        solid(G.box, M.woodWall, x, 0.3, dockZ, 7.6, 0.5, 2.25);
+        for (const dx of [-3.1, 3.1]) {
+          for (const dz of [-0.72, 0.72]) solid(G.cyl, M.darkSteel, x + dx, 0.82, dockZ + dz, 0.22, 1.64, 0.22);
+        }
+        const craneX = x + 4.5;
+        solid(G.box, M.darkSteel, craneX, 2.35, dockZ, 0.32, 4.7, 0.32);
+        solid(G.box, M.darkSteel, craneX - 1.35, 4.55, dockZ, 3.05, 0.24, 0.28);
+        solid(G.box, M.darkSteel, craneX - 2.65, 3.62, dockZ, 0.16, 1.7, 0.16);
+        solid(G.box, M.darkSteel, craneX - 2.65, 2.82, dockZ, 0.8, 0.18, 0.8);
+      }
+      for (let i = 0; i < 3; i++) {
+        const bx = (rand() - 0.5) * (SECTOR - 7), bz = (rand() - 0.5) * (SECTOR - 7);
+        if (!inRoad(bx, bz)) solid(G.box, rand() < 0.5 ? M.container : M.containerAlt, bx, 1.5, bz,
+          rand() < 0.5 ? 4.8 : 2.9, 3, rand() < 0.5 ? 2.9 : 4.8);
+      }
+      for (let i = 0; i < 3; i++) {
+        const bx = (rand() - 0.5) * (SECTOR - 6), bz = (rand() - 0.5) * (SECTOR - 6);
+        if (!inRoad(bx, bz)) prop(G.box, M.crate, bx, 0.65, bz, 1.3, 1.3, 1.3, 38);
+      }
+    } else if (archetype === 'daggecidi') {
+      // Geçit: yol kenarında yüksek taş setler, kaya kümeleri ve küçük gözetleme kulesi.
+      for (let i = 0; i < 5; i++) {
+        const x = (rand() - 0.5) * (SECTOR - 6), z = (rand() - 0.5) * (SECTOR - 6);
+        if (inRoad(x, z)) continue;
+        rocks(x, z, i < 3);
+        if (i % 2 === 0) solid(G.rock, M.rock, x + 1.6, 1.25, z + 0.8, 2.1, 2.5, 2.4, rand() * Math.PI);
+      }
+      const side = rand() < 0.5 ? -1 : 1;
+      const cx = side * (7.5 + rand() * 2);
+      if (!inRoad(cx, 0)) {
+        solid(G.box, M.rock, cx, 2.1, 0, 3.8, 4.2, 13, rand() * 0.12);
+        if (rand() < 0.7) {
+          const tx = -side * (5.8 + rand() * 2), tz = (rand() - 0.5) * 8;
+          solid(G.box, M.woodWall, tx, 2.4, tz, 2.8, 0.35, 2.8);
+          for (const dx of [-1.15, 1.15]) for (const dz of [-1.15, 1.15]) {
+            solid(G.box, M.bark, tx + dx, 1.25, tz + dz, 0.2, 2.5, 0.2);
+          }
+          solid(G.box, M.woodWall, tx, 3.1, tz, 3.1, 0.28, 3.1);
+        }
+      }
+      trees(3 + Math.floor(rand() * 4), 'pine');
+    } else if (archetype === 'koy') {
+      // Köy evleri: kerpiç gövde, kiremit tonlu çatı, pencere, kapı ve avlu çitleri.
+      for (let i = 0; i < 2 + Math.floor(rand() * 2); i++) {
+        const w = 4.8 + rand() * 2.2, d = 4.4 + rand() * 1.8, h = 2.8 + rand() * 0.7;
+        const x = (rand() - 0.5) * (SECTOR - w - 5), z = (rand() - 0.5) * (SECTOR - d - 5);
+        if (inRoad(x, z)) continue;
+        const house = solid(G.box, M.mud, x, h / 2, z, w, h, d);
+        if (!house) continue;
+        solid(G.box, M.tileRoof, x, h + 0.17, z, w + 0.55, 0.34, d + 0.55);
+        const door = new THREE.Mesh(G.box, M.darkSteel);
+        door.scale.set(0.9, 1.9, 0.07);
+        door.position.set(center.x + x + (rand() - 0.5) * 1.4, 0.95, center.z + z + d / 2 + 0.04);
+        group.add(door);
+        for (const side of [-1, 1]) {
+          const window = new THREE.Mesh(G.box, M.darkSteel);
+          window.scale.set(0.68, 0.62, 0.07);
+          window.position.set(center.x + x + side * w / 3, 1.95, center.z + z + d / 2 + 0.045);
+          group.add(window);
+        }
+        if (rand() < 0.7) {
+          const fenceZ = z - d / 2 - 1.8;
+          for (let n = -2; n <= 2; n++) {
+            solid(G.box, M.woodWall, x + n * 0.9, 0.55, fenceZ, 0.12, 1.1, 0.12);
+          }
+          solid(G.box, M.woodWall, x, 0.55, fenceZ, 4, 0.12, 0.12);
+        }
+      }
+      const wellX = (rand() - 0.5) * (SECTOR - 8), wellZ = (rand() - 0.5) * (SECTOR - 8);
+      if (!inRoad(wellX, wellZ)) {
+        solid(G.cyl, M.rock, wellX, 0.42, wellZ, 1.5, 0.84, 1.5);
+        solid(G.box, M.bark, wellX, 1.2, wellZ, 1.3, 0.12, 1.3);
+      }
+      for (let i = 0; i < 2; i++) {
+        const bx = (rand() - 0.5) * (SECTOR - 6), bz = (rand() - 0.5) * (SECTOR - 6);
+        if (!inRoad(bx, bz)) solid(G.cyl, M.mudDark, bx, 0.48, bz, 1.05, 0.96, 1.05);
+      }
+    } else if (archetype === 'bataklik') {
+      // Bataklık: sığ su aynaları, saz kümeleri ve devrilmiş kütükler.
+      for (let patch = 0; patch < 3; patch++) {
+        const x = (rand() - 0.5) * (SECTOR - 8), z = (rand() - 0.5) * (SECTOR - 8);
+        if (inRoad(x, z) || inZone(x, z, 3)) continue;
+        const puddle = new THREE.Mesh(new THREE.PlaneGeometry(3.5 + rand() * 3, 3 + rand() * 4), M.swampWater);
+        puddle.rotation.x = -Math.PI / 2;
+        puddle.position.set(center.x + x, 0.028, center.z + z);
+        group.add(puddle);
+        for (let i = 0; i < 7; i++) {
+          const rx = x + (rand() - 0.5) * 5.2, rz = z + (rand() - 0.5) * 5.2;
+          if (inRoad(rx, rz)) continue;
+          const height = 0.8 + rand() * 1.3;
+          const reed = new THREE.Mesh(G.pole, M.reed);
+          reed.scale.set(0.72, height, 0.72);
+          reed.position.set(center.x + rx, height / 2, center.z + rz);
+          reed.rotation.z = (rand() - 0.5) * 0.18;
+          group.add(reed);
+        }
+      }
+      for (let i = 0; i < 3; i++) {
+        const x = (rand() - 0.5) * (SECTOR - 6), z = (rand() - 0.5) * (SECTOR - 6);
+        if (inRoad(x, z)) continue;
+        if (i < 2) log(x, z, 3.5 + rand() * 2.5, rand() * Math.PI);
+        else rocks(x, z, true);
+      }
+      trees(4 + Math.floor(rand() * 3), 'leaf');
     } else if (archetype === 'kerpic') {
       // Kerpiç evler: düz damlı, kapı/pencere boşlukları koyu levha;
       // aralarında göğüs hizasında avlu duvarları (siper)
@@ -912,7 +1031,8 @@ export class World {
 
     const M = this.materials;
     const zemin = { beton: () => concreteTexture(26), kum: () => sandTexture(26),
-      cimen: () => grassTexture(26), kar: () => snowTexture(26) }[map.zemin] ?? (() => concreteTexture(26));
+      cimen: () => grassTexture(26), kar: () => snowTexture(26),
+      tas: () => rockTexture(26), bataklik: () => swampTexture(26) }[map.zemin] ?? (() => concreteTexture(26));
     M.floor.map = zemin();
     M.floor.needsUpdate = true;
 
@@ -920,7 +1040,10 @@ export class World {
     if (map.yol === 'asfalt') {
       this.roads.forEach((r, i) => { r.material = this._roadMats[i]; });
     } else {
-      const tint = map.yol === 'toprak-kar' ? '#8b8780' : map.zemin === 'cimen' ? '#6b5a3e' : '#9c7f55';
+      const tint = map.yol === 'toprak-kar' ? '#8b8780'
+        : map.yol === 'toprak-tas' || map.zemin === 'tas' ? '#66645e'
+          : map.yol === 'toprak-sazlik' || map.zemin === 'bataklik' ? '#3d4639'
+            : map.zemin === 'cimen' ? '#6b5a3e' : '#9c7f55';
       this._dirtMat ??= {};
       if (!this._dirtMat[tint]) {
         const tex = dirtTexture(1, tint).clone();
