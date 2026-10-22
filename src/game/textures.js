@@ -535,6 +535,45 @@ export function snowTexture(repeat = 26) {
     [['rgba(170,186,204,A)', 0.3], ['rgba(255,255,255,A)', 0.4]]);
 }
 
+/** Kayalık geçitler için çakıl, taş parçaları ve doğal çatlaklar. */
+export function rockTexture(repeat = 26) {
+  return groundTexture('rocky', repeat, '#77776f',
+    ['#85857c', '#62645f', '#9a9990', '#585b57', '#77766d'],
+    [['rgba(48,52,49,A)', 0.32], ['rgba(183,178,164,A)', 0.18]],
+    (g, S) => {
+      g.strokeStyle = 'rgba(44,47,44,0.24)';
+      g.lineWidth = 1.4;
+      for (let i = 0; i < 180; i++) {
+        const x = Math.random() * S, y = Math.random() * S;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + (Math.random() - 0.5) * 24, y + (Math.random() - 0.5) * 18);
+        g.lineTo(x + (Math.random() - 0.5) * 42, y + (Math.random() - 0.5) * 32);
+        g.stroke();
+      }
+    });
+}
+
+/** Bataklık zemini: koyu çamur, nem lekeleri ve yosun tonları. */
+export function swampTexture(repeat = 26) {
+  return groundTexture('swamp', repeat, '#455142',
+    ['#52614a', '#303d34', '#647052', '#39483a', '#68725a'],
+    [['rgba(22,34,31,A)', 0.5], ['rgba(111,126,91,A)', 0.18]],
+    (g, S) => {
+      for (let i = 0; i < 34; i++) {
+        const x = Math.random() * S, y = Math.random() * S;
+        const rx = 12 + Math.random() * 44, ry = 5 + Math.random() * 18;
+        g.fillStyle = 'rgba(24,39,36,0.22)';
+        g.beginPath();
+        g.ellipse(x, y, rx, ry, Math.random(), 0, Math.PI * 2);
+        g.fill();
+        g.strokeStyle = 'rgba(121,135,99,0.16)';
+        g.lineWidth = 2;
+        g.stroke();
+      }
+    });
+}
+
 /** Toprak yol (çöl/orman/kar alanında asfaltın yerine). */
 export function dirtTexture(repeat = 6, tint = '#7a6446') {
   return groundTexture(`dirt${tint}`, repeat, tint,
@@ -572,6 +611,10 @@ const SKIES = {
   col: [['#3a6fb0', 0], ['#5c8fc4', 0.3], ['#9fbfd6', 0.55], ['#dccfae', 0.74], ['#efdcb4', 0.82], ['#c9ae7f', 0.86], ['#9c845c', 1], 0.03],
   orman: [['#4f6680', 0], ['#6c8096', 0.3], ['#8e9ea8', 0.55], ['#aeb8b4', 0.72], ['#c2c9c0', 0.8], ['#7f8c72', 0.85], ['#4f5c40', 1], 0.12],
   kar: [['#7f93ab', 0], ['#98aabf', 0.3], ['#b8c6d4', 0.55], ['#d6dfe8', 0.72], ['#e7edf2', 0.8], ['#d5dde5', 0.85], ['#b4bfca', 1], 0.14],
+  kiyi: [['#275579', 0], ['#3d7797', 0.3], ['#76a8bc', 0.55], ['#adcbd3', 0.72], ['#d0e0df', 0.8], ['#aab8b2', 0.85], ['#72827f', 1], 0.08],
+  dag: [['#304962', 0], ['#5b7184', 0.3], ['#9eafb9', 0.55], ['#c3ccd0', 0.72], ['#d7dddb', 0.8], ['#aab5b3', 0.85], ['#66736f', 1], 0.12],
+  koy: [['#29528a', 0], ['#4e83bd', 0.3], ['#86b1d6', 0.55], ['#c0d6db', 0.72], ['#e1e1cf', 0.8], ['#bdc5a5', 0.85], ['#8e9b68', 1], 0.06],
+  bataklik: [['#283f43', 0], ['#45615f', 0.3], ['#71877e', 0.55], ['#9aa99b', 0.72], ['#c0c6b8', 0.8], ['#8b9b8d', 0.85], ['#465b4d', 1], 0.18],
 };
 
 export function themedSkyTexture(kind = 'gunduz') {
