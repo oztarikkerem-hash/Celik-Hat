@@ -2,7 +2,7 @@
    Durumlar: loading → menu → playing ⇄ paused → gameover → playing       */
 
 import * as THREE from 'three';
-import { World } from './world.js?v=mapfix-20261022a';
+import { World } from './world.js?v=mapfix-20261022b';
 import { Player } from './player.js';
 import { Weaponry } from './weaponry.js';
 import { EnemyManager } from './enemies.js';
@@ -24,7 +24,7 @@ import { BOLUMLER, gorevBul } from './chapters.js';
 import { TankArena } from './tankarena.js';
 import { AllyManager } from './allies.js';
 import { Raid, RAID, M2_DEF, NEST } from './raid.js';
-import { MAPS, mapById } from './maps.js?v=mapfix-20261022a';
+import { MAPS, mapById } from './maps.js?v=mapfix-20261022b';
 import { Vehicles } from './vehicle.js';
 import { Intro } from './intro.js';
 import { Outro } from './outro.js';
