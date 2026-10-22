@@ -1,6 +1,6 @@
 /* Giriş noktası: oyunu kurar, varlıkları yükler ve döngüyü başlatır. */
 
-import { Game } from './game/game.js';
+import { Game } from './game/game.js?v=mapfix-20261022a';
 
 const canvas = document.getElementById('viewport');
 
