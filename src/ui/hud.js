@@ -703,7 +703,16 @@ export class Hud {
     $('mappick-mission').textContent = missionName ? `ALAN SEÇİMİ · ${missionName}` : 'ALAN SEÇİMİ · SERBEST HAT';
     const grid = $('map-grid');
     grid.innerHTML = '';
-    for (const m of maps) {
+    // Eski harita listesi önbellekten gelse bile yeni alanları seçim ekranına ekle.
+    const extraMaps = [
+      { id: 'kiyi', ad: 'Kıyı Limanı', aciklama: 'Beton rıhtımlar, yük vinçleri, konteynerler ve metal iskele ayakları.', onizleme: ['#629bb5', '#c2dce1', '#8d9a94', '#596d70'] },
+      { id: 'daggecidi', ad: 'Kayalık Dağ Geçidi', aciklama: 'Dar virajlar, iri kayalıklar, taş setler ve çam kümeleri.', onizleme: ['#71869c', '#b7c3ca', '#77776f', '#454a47'] },
+      { id: 'koy', ad: 'Anadolu Köyü', aciklama: 'Kiremit çatılı evler, taş kuyular, ahşap çitler ve toprak yollar.', onizleme: ['#7e9dba', '#d5dfd2', '#77835a', '#4a5739'] },
+      { id: 'bataklik', ad: 'Sisli Bataklık', aciklama: 'Sazlıklar, devrilmiş kütükler, yosunlu taşlar ve yoğun pus.', onizleme: ['#4f6c66', '#8da49a', '#475346', '#293a32'] },
+    ];
+    const visibleMaps = [...maps];
+    for (const extra of extraMaps) if (!visibleMaps.some((m) => m.id === extra.id)) visibleMaps.push(extra);
+    for (const m of visibleMaps) {
       const [gok, ufuk, zemin, koyu] = m.onizleme;
       const card = document.createElement('article');
       card.className = `shop-card map-card${m.id === selectedId ? ' equipped' : ''}`;
