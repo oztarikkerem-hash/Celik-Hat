@@ -71,10 +71,12 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({
       canvas, antialias: true, powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    // Yüksek DPI ekranlarda piksel sayısını sınırla; kare süresini iyileştir.
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Daha hafif gölge filtresi: yumuşak PCF pahalı olabilir.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.3;
 
