@@ -498,9 +498,8 @@ export class World {
       head.position.set(center.x + lx, 7.5, center.z + lz);
       group.add(head);
 
-      const lamp = new THREE.PointLight(0xffb257, 26, 28, 2);
-      lamp.position.set(center.x + lx, 7.2, center.z + lz);
-      group.add(lamp);
+      // Performans: her sektör için dinamik noktasal ışık oluşturma.
+      // Lamba modeli korunur; çok sayıdaki gerçek zamanlı ışığın GPU yükü kaldırılır.
       }
     }
 
